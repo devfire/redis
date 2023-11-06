@@ -3,8 +3,12 @@ use anyhow::{self, Error};
 use env_logger::Env;
 use log::{error, info};
 use resp::{Decoder, Value};
-use tokio::io::{AsyncReadExt, BufReader};
+use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
+
+mod handlers;
+
+use handlers::handle_array;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -39,7 +43,7 @@ async fn process(stream: TcpStream) {
 
     loop {
         // Buffer to store the data
-        let mut buf = vec![0;1024];
+        let mut buf = vec![0; 1024];
 
         // Read data from the stream, n is the number of bytes read
         let n = reader
@@ -54,8 +58,24 @@ async fn process(stream: TcpStream) {
 
         info!("Read {} bytes", n);
 
+        // https://docs.rs/resp/latest/resp/struct.Decoder.html
         let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
-        info!("Received {:?}", decoder.decode().expect("Unable to decode"));
+        let request: resp::Value = decoder.decode().expect("Unable to decode request");
+        info!("Received {:?}", request);
+
+        match request {
+            Value::Null => todo!(),
+            Value::NullArray => todo!(),
+            Value::String(_) => todo!(),
+            Value::Error(_) => todo!(),
+            Value::Integer(_) => todo!(),
+            Value::Bulk(_) => todo!(),
+            Value::BufBulk(_) => todo!(),
+            Value::Array(array) => {
+                info!("Array received");
+                handle_array(array, &mut writer).await;
+            }
+        }
     }
 }
