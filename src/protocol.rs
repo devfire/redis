@@ -1,3 +1,7 @@
 pub enum Request {
-    Ping,
+    Ping
+}
+
+pub enum Response {
+    Pong,
 }
