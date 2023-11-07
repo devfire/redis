@@ -19,7 +19,7 @@ async fn main() -> std::io::Result<()> {
 
     env_logger::init_from_env(env);
 
-    let listener = TcpListener::bind("127.0.0.1:6379").await?;
+    let listener = TcpListener::bind("0.0.0.0:6379").await?;
 
     info!("Redis is running.");
 
