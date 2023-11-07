@@ -1,7 +1,7 @@
-use anyhow::{self, Error};
+// use anyhow;
 
 use env_logger::Env;
-use log::{error, info};
+use log::{error, info, warn};
 use resp::{Decoder, Value};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -52,7 +52,7 @@ async fn process(stream: TcpStream) {
             .expect("Unable to read from buffer");
 
         if n == 0 {
-            error!("Error: buffer empty");
+            warn!("Error: buffer empty");
             break;
         }
 
