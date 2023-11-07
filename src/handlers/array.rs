@@ -17,7 +17,7 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
                 // every PING gets a PONG
                 if bulk_string.to_uppercase() == "PING" {
                     // Encode a "PONG" response
-                    let pong = encode(&Value::String("PONG".into()));
+                    let pong = encode(&Value::Bulk("PONG".into()));
 
                     // Write the response to the client
                     writer
