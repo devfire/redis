@@ -9,10 +9,10 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
     // https://redis.io/docs/reference/protocol-spec/#arrays
     // NOTE: arrays can contain mixed data types. See link above for details.
     for req in array {
-        info!("Processing array: {:?}", req);
+        // info!("Processing array value: {:?}", req);
         match req {
             Value::Bulk(bulk_string) => {
-                info!("Processing {}", bulk_string);
+                info!("Processing value: {}", bulk_string);
 
                 // every PING gets a PONG
                 if bulk_string.to_uppercase() == "PING" {
