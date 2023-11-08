@@ -1,6 +1,9 @@
 // use resp::Value;
 
+use std::str::FromStr;
+
 use log::info;
+use redis_starter_rust::protocol::Request;
 use resp::{encode, Value};
 use tokio::{io::AsyncWriteExt, net::tcp::OwnedWriteHalf};
 
@@ -14,16 +17,26 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
             Value::Bulk(bulk_string) => {
                 info!("Processing value: {}", bulk_string);
 
-                // every PING gets a PONG
-                if bulk_string.to_uppercase() == "PING" {
-                    // Encode a "PONG" response
-                    let pong = encode(&Value::Bulk("PONG".into()));
+                let command = Request::from_str(&bulk_string)
+                    .expect("Unable to convert bulk string to protocol command");
+                match command {
+                    Request::Ping => {
+                        // Encode a "PONG" response
+                        let pong = encode(&Value::Bulk("PONG".into()));
 
-                    // Write the response to the client
-                    writer
-                        .write_all(&pong)
-                        .await
-                        .expect("Unable to write back.");
+                        // Write the response to the client
+                        writer
+                            .write_all(&pong)
+                            .await
+                            .expect("Unable to write back.");
+                    }
+                    Request::Command => {
+                        info!("{} received, ignoring.", command)
+                    }
+                    Request::Docs => {
+                        info!("{} received, ignoring.", command)
+                    }
+                    //_ => error!("Unknown command supplied"),
                 }
             }
             Value::Null => todo!(),
