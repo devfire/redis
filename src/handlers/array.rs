@@ -21,17 +21,13 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
                     .expect("Unable to convert bulk string to protocol command");
                 match command {
                     Request::Ping => {
-                        // Encode a "PONG" response
-                        let pong = encode(&Value::Bulk("PONG".into()));
-
-                        // Write the response to the client
-                        writer
-                            .write_all(&pong)
-                            .await
-                            .expect("Unable to write back.");
+                        let reply = "PONG";
+                        write_back(writer, reply).await;
                     }
                     Request::Command => {
-                        info!("{} received, ignoring.", command)
+                        info!("{} received, sending OK.", command);
+                        let reply = "OK";
+                        write_back(writer, reply).await;
                     }
                     Request::Docs => {
                         info!("{} received, ignoring.", command)
@@ -60,4 +56,15 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
     //         }
     //     }
     // }
+}
+
+async fn write_back(writer: &mut OwnedWriteHalf, reply: &str) {
+    // Encode a "PONG" response
+    let pong = encode(&Value::Bulk(reply.into()));
+
+    // Write the response to the client
+    writer
+        .write_all(&pong)
+        .await
+        .expect("Unable to write back.");
 }
