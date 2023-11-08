@@ -1,7 +1,7 @@
 // use anyhow;
 
 use env_logger::Env;
-use log::{error, info, warn};
+use log::{info, warn};
 use resp::{Decoder, Value};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};

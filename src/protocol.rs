@@ -1,6 +1,6 @@
-use strum_macros::EnumString;
+use strum_macros::{EnumString, Display};
 
-#[derive(EnumString)]
+#[derive(EnumString, Display)]
 pub enum Request {
     Ping,
     Command,
