@@ -17,7 +17,7 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
             Value::Bulk(bulk_string) => {
                 info!("Processing value: {}", bulk_string);
 
-                let command = Request::from_str(&bulk_string)
+                let command = Request::from_str(&bulk_string.to_lowercase())
                     .expect("Unable to convert bulk string to protocol command");
                 match command {
                     Request::Ping => {
@@ -35,8 +35,7 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
                     }
                     Request::Docs => {
                         info!("{} received, ignoring.", command)
-                    }
-                    //_ => error!("Unknown command supplied"),
+                    } //_ => error!("Unknown command supplied"),
                 }
             }
             Value::Null => todo!(),
