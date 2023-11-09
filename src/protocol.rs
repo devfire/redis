@@ -6,6 +6,7 @@ pub enum Request {
     Ping,
     Command,
     Docs,
+    Echo,
 }
 
 pub enum Response {

@@ -31,7 +31,13 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
                     }
                     Request::Docs => {
                         info!("{} received, ignoring.", command)
-                    } //_ => error!("Unknown command supplied"),
+                    }
+                    Request::Echo => {
+                        info!("{} received, sending OK.", command);
+
+                        //echo back what we got
+                        write_back(writer, &bulk_string).await;
+                    }
                 }
             }
             Value::Null => todo!(),
