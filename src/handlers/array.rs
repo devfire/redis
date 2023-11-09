@@ -59,7 +59,7 @@ pub async fn handle_array(array: Vec<Value>, writer: &mut OwnedWriteHalf) {
 }
 
 async fn write_back(writer: &mut OwnedWriteHalf, reply: &str) {
-    // Encode a "PONG" response
+    // Encode the response
     let pong = encode(&Value::Bulk(reply.into()));
 
     // Write the response to the client
