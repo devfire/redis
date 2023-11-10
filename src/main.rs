@@ -3,10 +3,17 @@ use anyhow;
 use env_logger::Env;
 use log::{info, warn};
 
-use tokio::io::AsyncReadExt;
+use crate::codec::RespCodec;
+use futures::sink::SinkExt;
+use futures::StreamExt;
+use protocol::RespFrame;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
+mod codec;
+mod errors;
+mod parser;
+mod protocol;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -26,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
         let (stream, _address) = listener.accept().await?;
 
         // Spawn our handler to be run asynchronously.
-        // A new task is spawned for each inbound socket. 
+        // A new task is spawned for each inbound socket.
         // The socket is moved to the new task and processed there.
         tokio::spawn(async move {
             process(stream).await;
@@ -37,26 +44,23 @@ async fn main() -> anyhow::Result<()> {
 async fn process(stream: TcpStream) {
     let (mut reader, mut writer) = stream.into_split();
 
-    // let mut client_reader = FramedRead::new(reader, RespCodec::new());
-    // let mut client_writer = FramedWrite::new(writer, RespCodec::new());
+    let mut reader = FramedRead::new(reader, RespCodec::new());
+    let mut writer = FramedWrite::new(writer, RespCodec::new());
 
+    while let Some(message) = reader.next().await {
+        match message {
+            Ok(RespFrame::Integer(value)) => info!("Got an integer {}", value),
+            Ok(RespFrame::SimpleString(value)) => info!("Got a simple string {:?}", value),
+            Ok(RespFrame::Array(value)) => {
+                if let Some(msg) = value {
+                    info!("Got an array: {:?}", msg)
+                }
+            }
 
-    loop {
-        // Buffer to store the data
-        let mut buf = vec![0; 1024];
-
-        // Read data from the stream, n is the number of bytes read
-        let n = reader
-            .read(&mut buf)
-            .await
-            .expect("Unable to read from buffer");
-
-        if n == 0 {
-            warn!("Error: buffer empty");
-            break;
+            Ok(_) => {
+                warn!("This is a valid RESP message but not handled by the server")
+            }
+            Err(_) => todo!(),
         }
-
-        info!("Read {} bytes", n);
-
     }
 }

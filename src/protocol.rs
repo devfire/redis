@@ -1,6 +1,8 @@
 /// Enum for types defined in RESP specification.
 /// Its variants contain Vec<u8> or Option<Vec<u8>> for optional types (i.e. Bulk Strings and Arrays).
 /// https://redis.io/docs/reference/protocol-spec/
+
+#[derive(Debug, Clone)]
 pub enum RespFrame {
     /// Simple string in RESP.
     ///
@@ -67,12 +69,12 @@ pub enum RespFrame {
 }
 
 
-#[derive(Debug, Clone)]
-pub enum Command {
-    Ping,
-    Command,
-    Docs,
-    Echo(String),
-    Null,
-}
+// #[derive(Debug, Clone)]
+// pub enum Command {
+//     Ping,
+//     Command,
+//     Docs,
+//     Echo(String),
+//     Null,
+// }
 
