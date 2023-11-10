@@ -1,4 +1,4 @@
-// use anyhow;
+use anyhow;
 
 use env_logger::Env;
 use log::{info, warn};
@@ -8,7 +8,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     // Setup the logging framework
     let env = Env::default()
         .filter_or("LOG_LEVEL", "info")
@@ -22,7 +22,7 @@ async fn main() -> std::io::Result<()> {
 
     loop {
         // Asynchronously wait for an inbound TcpStream.
-        let (stream, _) = listener.accept().await?;
+        let (stream, _address) = listener.accept().await?;
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is
