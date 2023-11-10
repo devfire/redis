@@ -1,5 +1,5 @@
 use bytes::{BytesMut, Buf};
-use log::error;
+
 use log::info;
 use nom::Needed;
 use nom::Err;
@@ -7,10 +7,10 @@ use nom::Err;
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::errors::RedisError;
-use crate::protocol::RespFrame;
 use crate::parser::parse_resp;
-use crate::errors;
+use crate::protocol::RespFrame;
 
+#[derive(Clone, Debug)]
 pub struct RespCodec{}
 
 impl RespCodec {
@@ -30,7 +30,7 @@ impl Decoder for RespCodec {
     //NOTE: #[from] std::io::Error is required in the error definition
     type Error = RedisError;
     type Item = RespFrame;
-
+    
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         info!("Decoding a resp message {:?}", src);
         
