@@ -7,9 +7,9 @@ use nom::{
     IResult,
 };
 
-use crate::protocol::Resp;
+use crate::protocol::RespFrame;
 
-pub fn resp(input: &[u8]) -> IResult<&[u8], Resp> {
+pub fn parse_resp(input: &[u8]) -> IResult<&[u8], RespFrame> {
     let (input, val) = take(1usize)(input)?;
     match val[0] {
         b'+' => simple_string(input),
@@ -21,32 +21,32 @@ pub fn resp(input: &[u8]) -> IResult<&[u8], Resp> {
     }
 }
 
-fn simple_string(input: &[u8]) -> IResult<&[u8], Resp> {
+fn simple_string(input: &[u8]) -> IResult<&[u8], RespFrame> {
     let (input, val) = terminated(not_line_ending, crlf)(input)?;
-    Ok((input, Resp::SimpleString(val.to_vec())))
+    Ok((input, RespFrame::SimpleString(val.to_vec())))
 }
 
-fn integer(input: &[u8]) -> IResult<&[u8], Resp> {
+fn integer(input: &[u8]) -> IResult<&[u8], RespFrame> {
     let (input, val) = terminated(not_line_ending, crlf)(input)?;
     Ok((
         input,
-        Resp::Integer(String::from_utf8_lossy(val).parse::<i64>().unwrap()),
+        RespFrame::Integer(String::from_utf8_lossy(val).parse::<i64>().unwrap()),
     ))
 }
 
-fn error(input: &[u8]) -> IResult<&[u8], Resp> {
+fn error(input: &[u8]) -> IResult<&[u8], RespFrame> {
     let (input, val) = terminated(not_line_ending, crlf)(input)?;
-    Ok((input, Resp::Error(val.to_vec())))
+    Ok((input, RespFrame::Error(val.to_vec())))
 }
 
-fn bulk_string(input: &[u8]) -> IResult<&[u8], Resp> {
+fn bulk_string(input: &[u8]) -> IResult<&[u8], RespFrame> {
     let (input, len) = length(input)?;
     if len == 0 {
-        return Ok((input, Resp::BulkString(None)));
+        return Ok((input, RespFrame::BulkString(None)));
     }
     let (input, val) = terminated(take(len), crlf)(input)?;
 
-    Ok((input, Resp::BulkString(Some(val.to_vec()))))
+    Ok((input, RespFrame::BulkString(Some(val.to_vec()))))
 }
 
 fn length(input: &[u8]) -> IResult<&[u8], usize> {
@@ -54,11 +54,11 @@ fn length(input: &[u8]) -> IResult<&[u8], usize> {
     Ok((input, String::from_utf8_lossy(len).parse().unwrap()))
 }
 
-fn array(input: &[u8]) -> IResult<&[u8], Resp> {
+fn array(input: &[u8]) -> IResult<&[u8], RespFrame> {
     let (input, len) = length(input)?;
     if len == 0 {
-        return Ok((input, Resp::Array(None)));
+        return Ok((input, RespFrame::Array(None)));
     }
-    let (input, res) = count(resp, len)(input)?;
-    Ok((input, Resp::Array(Some(res))))
+    let (input, res) = count(parse_resp, len)(input)?;
+    Ok((input, RespFrame::Array(Some(res))))
 }

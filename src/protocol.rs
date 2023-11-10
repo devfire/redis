@@ -1,7 +1,7 @@
 /// Enum for types defined in RESP specification.
 /// Its variants contain Vec<u8> or Option<Vec<u8>> for optional types (i.e. Bulk Strings and Arrays).
 /// https://redis.io/docs/reference/protocol-spec/
-pub enum Resp {
+pub enum RespFrame {
     /// Simple string in RESP.
     ///
     /// # Examples
@@ -63,7 +63,7 @@ pub enum Resp {
     /// let empty_bulk_string = parser::resp(&b"$0\r\n"[..]);
     /// assert!(matches!(protocol::Resp::BulkString(None), empty_bulk_string));
     /// ```
-    Array(Option<Vec<Resp>>),
+    Array(Option<Vec<RespFrame>>),
 }
 
 

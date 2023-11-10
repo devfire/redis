@@ -5,6 +5,7 @@ use log::{info, warn};
 
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
+use tokio_util::codec::{FramedRead, FramedWrite};
 
 
 #[tokio::main]
@@ -25,8 +26,8 @@ async fn main() -> anyhow::Result<()> {
         let (stream, _address) = listener.accept().await?;
 
         // Spawn our handler to be run asynchronously.
-        // A new task is spawned for each inbound socket.  The socket is
-        // moved to the new task and processed there.
+        // A new task is spawned for each inbound socket. 
+        // The socket is moved to the new task and processed there.
         tokio::spawn(async move {
             process(stream).await;
         });
@@ -36,7 +37,9 @@ async fn main() -> anyhow::Result<()> {
 async fn process(stream: TcpStream) {
     let (mut reader, mut writer) = stream.into_split();
 
-    //let mut reader = BufReader::new(reader);
+    // let mut client_reader = FramedRead::new(reader, RespCodec::new());
+    // let mut client_writer = FramedWrite::new(writer, RespCodec::new());
+
 
     loop {
         // Buffer to store the data
