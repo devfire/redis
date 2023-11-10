@@ -1,14 +1,25 @@
-use strum_macros::{EnumString, Display};
+use bytes::Bytes;
 
-#[derive(EnumString, Display)]
-#[strum(serialize_all = "lowercase")]
 pub enum Request {
+    Simple(String),
+    Error(String),
+    Integer(u64),
+    Bulk(Bytes),
+    Null,
+    Array(Vec<Request >),
+}
+
+#[derive(Debug, Clone)]
+pub enum Command {
     Ping,
     Command,
     Docs,
-    Echo,
+    Echo(String),
+    Null,
 }
 
+#[derive(Debug,Clone, Copy)]
 pub enum Response {
     Pong,
+    Null,
 }
