@@ -3,7 +3,7 @@ use anyhow;
 use env_logger::Env;
 use log::{info, warn};
 
-use crate::codec::RespCodec;
+use crate::{codec::RespCodec, handlers::handle_array};
 use futures::sink::SinkExt;
 use futures::StreamExt;
 use protocol::RespFrame;
@@ -14,6 +14,7 @@ mod codec;
 mod errors;
 mod parser;
 mod protocol;
+mod handlers;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -53,7 +54,8 @@ async fn process(stream: TcpStream) {
             Ok(RespFrame::SimpleString(value)) => info!("Got a simple string {:?}", value),
             Ok(RespFrame::Array(value)) => {
                 if let Some(msg) = value {
-                    info!("Got an array: {:?}", msg)
+                    info!("Got an array: {:?}", msg);
+                    handle_array(msg);
                 }
             }
 
