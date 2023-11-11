@@ -1,9 +1,9 @@
 use bytes::BufMut;
-use bytes::{BytesMut, Buf};
+use bytes::{Buf, BytesMut};
 
 use log::info;
-use nom::Needed;
 use nom::Err;
+use nom::Needed;
 
 use tokio_util::codec::{Decoder, Encoder};
 
@@ -14,11 +14,11 @@ use crate::protocol::RespDataType;
 use crate::protocol::RespFrame;
 
 #[derive(Clone, Debug)]
-pub struct RespCodec{}
+pub struct RespCodec {}
 
 impl RespCodec {
-    pub fn new () -> Self {
-        Self{}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -28,15 +28,14 @@ impl Default for RespCodec {
     }
 }
 
-
 impl Decoder for RespCodec {
     //NOTE: #[from] std::io::Error is required in the error definition
     type Error = RedisError;
     type Item = RespFrame;
-    
+
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         info!("Decoding a resp message {:?}", src);
-        
+
         if src.is_empty() {
             return Ok(None);
         }
@@ -58,25 +57,21 @@ impl Decoder for RespCodec {
 impl Encoder<RespDataType> for RespCodec {
     type Error = RedisError;
 
-    
-    
     fn encode(&mut self, item: RespDataType, dst: &mut BytesMut) -> Result<(), errors::RedisError> {
-        let crlf  = "\r\n";
+        let crlf = "\r\n";
 
         match item {
             RespDataType::SimpleString(simple_string) => {
                 dst.reserve(1);
-                dst.put_u8 (b'+');
-                
-                let simple_string = simple_string.as_bytes();
+                dst.put_u8(b'+');
 
-                dst.put(simple_string);
+                let simple_string = simple_string.to_uppercase();
+
+                dst.put(simple_string.as_bytes());
 
                 dst.put(crlf.as_bytes());
-            },
+            }
         }
-        Ok(()) 
+        Ok(())
     }
-
-  
 }
