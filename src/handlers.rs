@@ -9,10 +9,10 @@ use crate::{
 };
 
 use futures::sink::SinkExt;
-use futures::StreamExt;
+// use futures::StreamExt;
 
 
-pub fn handle_array(array: Vec<RespFrame>, writer: &mut FramedWrite<OwnedWriteHalf, RespCodec>) {
+pub async fn handle_array(array: Vec<RespFrame>, writer: &mut FramedWrite<OwnedWriteHalf, RespCodec>) -> anyhow::Result<()> {
     for command in array {
         match command {
             RespFrame::SimpleString(_) => todo!(),
@@ -31,6 +31,7 @@ pub fn handle_array(array: Vec<RespFrame>, writer: &mut FramedWrite<OwnedWriteHa
                         "ping" => {
                             info!("Got ping, sending pong");
                             let reply = RespDataType::SimpleString(String::from("pong"));
+                            writer.send(reply).await?;
                             
                         }
                         _ => {
@@ -42,4 +43,6 @@ pub fn handle_array(array: Vec<RespFrame>, writer: &mut FramedWrite<OwnedWriteHa
             RespFrame::Array(_) => todo!(),
         }
     }
+
+    Ok(())
 }
