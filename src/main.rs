@@ -1,14 +1,17 @@
 use codec::RespCodec;
 use env_logger::Env;
-use futures::sink::SinkExt;
-use log::info;
-use std::error::Error;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+use errors::RedisError;
+use futures_util::StreamExt;
+use log::{info, warn};
+use protocol::RespFrame;
+
+
 use tokio::net::{TcpStream, TcpListener};
 
-use tokio_util::codec::{Framed, LinesCodec, FramedRead, FramedWrite};
+use tokio_util::codec::{FramedRead, FramedWrite};
 
-
+use crate::handlers::handle_array;
 
 mod codec;
 mod errors;
@@ -17,7 +20,7 @@ mod parser;
 mod protocol;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<(), RedisError> {
     // Setup the logging framework
     let env = Env::default()
         .filter_or("LOG_LEVEL", "info")
@@ -37,12 +40,14 @@ async fn main() -> anyhow::Result<()> {
         // A new task is spawned for each inbound socket.
         // The socket is moved to the new task and processed there.
         tokio::spawn(async move {
-            process(stream).await;
+            process(stream).await.expect("Failed spawning process()");
         });
     }
+
+    
 }
 
-async fn process(stream: TcpStream) {
+async fn process(stream: TcpStream) -> anyhow::Result<()> {
     let (reader, writer) = stream.into_split();
 
     let mut reader = FramedRead::new(reader, RespCodec::new());
@@ -55,19 +60,21 @@ async fn process(stream: TcpStream) {
     //  The first (and sometimes also the second) bulk string in the array is the command's name. 
     //  Subsequent elements of the array are the arguments for the command.
     // The server replies with a RESP type.
-    // while let Some(message) = reader.next().await {
-    //     match message {
-    //         Ok(RespFrame::Array(value)) => {
-    //             if let Some(msg) = value {
-    //                 info!("Got an array: {:?}", msg);
-    //                 handle_array(msg, &mut writer);
-    //             }
-    //         }
+    while let Some(message) = reader.next().await {
+        match message {
+            Ok(RespFrame::Array(value)) => {
+                if let Some(msg) = value {
+                    info!("Got an array: {:?}", msg);
+                    handle_array(msg, &mut writer).await?;
+                }
+            }
 
-    //         Ok(_) => {
-    //             warn!("This is a valid RESP message but not handled by the server")
-    //         }
-    //         Err(_) => todo!(),
-    //     }
-    // }
+            Ok(_) => {
+                warn!("This is a valid RESP message but not handled by the server")
+            }
+            Err(_) => todo!(),
+        }
+    }
+
+    Ok(())
 }
