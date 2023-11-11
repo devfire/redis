@@ -1,20 +1,20 @@
-use anyhow;
-
+use codec::RespCodec;
 use env_logger::Env;
-use log::{info, warn};
-
-use crate::{codec::RespCodec, handlers::handle_array};
 use futures::sink::SinkExt;
-use futures::StreamExt;
-use protocol::RespFrame;
-use tokio::net::{TcpListener, TcpStream};
-use tokio_util::codec::{FramedRead, FramedWrite};
+use log::info;
+use std::error::Error;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use tokio::net::{TcpStream, TcpListener};
+
+use tokio_util::codec::{Framed, LinesCodec, FramedRead, FramedWrite};
+
+
 
 mod codec;
 mod errors;
+mod handlers;
 mod parser;
 mod protocol;
-mod handlers;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -43,26 +43,31 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn process(stream: TcpStream) {
-    let (mut reader, mut writer) = stream.into_split();
+    let (reader, writer) = stream.into_split();
 
     let mut reader = FramedRead::new(reader, RespCodec::new());
     let mut writer = FramedWrite::new(writer, RespCodec::new());
+    
+    
 
-    while let Some(message) = reader.next().await {
-        match message {
-            Ok(RespFrame::Integer(value)) => info!("Got an integer {}", value),
-            Ok(RespFrame::SimpleString(value)) => info!("Got a simple string {:?}", value),
-            Ok(RespFrame::Array(value)) => {
-                if let Some(msg) = value {
-                    info!("Got an array: {:?}", msg);
-                    handle_array(msg);
-                }
-            }
+    // Redis generally uses RESP as a request-response protocol in the following way:
+    //  Clients send commands to a Redis server as an array of bulk strings. 
+    //  The first (and sometimes also the second) bulk string in the array is the command's name. 
+    //  Subsequent elements of the array are the arguments for the command.
+    // The server replies with a RESP type.
+    // while let Some(message) = reader.next().await {
+    //     match message {
+    //         Ok(RespFrame::Array(value)) => {
+    //             if let Some(msg) = value {
+    //                 info!("Got an array: {:?}", msg);
+    //                 handle_array(msg, &mut writer);
+    //             }
+    //         }
 
-            Ok(_) => {
-                warn!("This is a valid RESP message but not handled by the server")
-            }
-            Err(_) => todo!(),
-        }
-    }
+    //         Ok(_) => {
+    //             warn!("This is a valid RESP message but not handled by the server")
+    //         }
+    //         Err(_) => todo!(),
+    //     }
+    // }
 }
