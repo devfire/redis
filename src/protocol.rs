@@ -69,12 +69,9 @@ pub enum RespFrame {
 }
 
 
-// #[derive(Debug, Clone)]
-// pub enum Command {
-//     Ping,
-//     Command,
-//     Docs,
-//     Echo(String),
-//     Null,
-// }
+#[derive(Debug, Clone)]
+pub enum RespDataType {
+    // first byte is +
+    SimpleString(String),
+}
 
