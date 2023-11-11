@@ -35,7 +35,9 @@ pub async fn handle_array(array: Vec<RespFrame>, writer: &mut FramedWrite<OwnedW
                             
                         }
                         _ => {
-                            info!("{} is not handled at the moment", command_string)
+                            info!("{} is not handled at the moment", command_string);
+                            let reply = RespDataType::SimpleString(String::from("+OK"));
+                            writer.send(reply).await?;
                         }
                     }
                 }
