@@ -10,7 +10,7 @@ use tokio_util::codec::{Decoder, Encoder};
 use crate::errors;
 use crate::errors::RedisError;
 use crate::parser::parse_resp;
-use crate::protocol::RespDataType;
+
 use crate::protocol::RespFrame;
 
 #[derive(Clone, Debug)]
@@ -54,23 +54,24 @@ impl Decoder for RespCodec {
     }
 }
 
-impl Encoder<RespDataType> for RespCodec {
+impl Encoder<RespFrame> for RespCodec {
     type Error = RedisError;
 
-    fn encode(&mut self, item: RespDataType, dst: &mut BytesMut) -> Result<(), errors::RedisError> {
+    fn encode(&mut self, item: RespFrame, dst: &mut BytesMut) -> Result<(), errors::RedisError> {
         let crlf = "\r\n";
 
         match item {
-            RespDataType::SimpleString(simple_string) => {
+            RespFrame::SimpleString(simple_string) => {
                 dst.reserve(1);
                 dst.put_u8(b'+');
 
-                let simple_string = simple_string.to_uppercase();
+                let simple_string = simple_string.to_ascii_uppercase();
 
-                dst.put(simple_string.as_bytes());
+                dst.extend_from_slice(&simple_string);
 
                 dst.put(crlf.as_bytes());
             }
+            _ => todo!(),
         }
         Ok(())
     }
