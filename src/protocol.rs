@@ -74,4 +74,3 @@ pub enum RespDataType {
     // first byte is +
     SimpleString(String),
 }
-
