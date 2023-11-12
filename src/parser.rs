@@ -1,13 +1,41 @@
 // borrowed from https://raw.githubusercontent.com/pawelkobojek/respirator/main/src/parser.rs
 use nom::{
-    bytes::complete::take,
-    character::complete::{crlf, not_line_ending},
-    multi::count,
-    sequence::terminated,
+    branch::alt,
+    bytes::complete::{tag, take, take_while},
+    character::complete::{crlf, multispace0, not_line_ending},
+    combinator::map,
+    multi::{count, many0},
+    sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 
-use crate::protocol::RespFrame;
+use crate::protocol::{Command, RespFrame};
+
+fn parse_ping(input: &str) -> IResult<&str, Command> {
+    map(tag("PING"), |_| Command::Ping)(input)
+}
+
+fn parse_echo(input: &str) -> IResult<&str, Command> {
+    map(
+        preceded(
+            tag("ECHO"),
+            take_while(|c: char| c.is_whitespace()),
+        ),
+        |s: &str| Command::Echo(s.to_string()),
+    )(input)
+}
+
+fn parse_command(input: &str) -> IResult<&str, Command> {
+    alt((parse_ping, parse_echo))(input)
+}
+
+fn parse_vec_of_enums(input: &str) -> IResult<&str, Vec<Command >> {
+    delimited(
+        tag("["),
+        preceded(multispace0, many0(preceded(multispace0, parse_command))),
+        preceded(multispace0, tag("]")),
+    )(input)
+}
 
 pub fn parse_resp(input: &[u8]) -> IResult<&[u8], RespFrame> {
     let (input, val) = take(1usize)(input)?;

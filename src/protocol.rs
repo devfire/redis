@@ -2,7 +2,7 @@
 /// Its variants contain Vec<u8> or Option<Vec<u8>> for optional types (i.e. Bulk Strings and Arrays).
 /// https://redis.io/docs/reference/protocol-spec/
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RespFrame {
     /// Simple string in RESP.
     ///
@@ -73,4 +73,10 @@ pub enum RespFrame {
 pub enum RespDataType {
     // first byte is +
     SimpleString(String),
+}
+
+#[derive (Debug,PartialEq)]
+pub enum Command {
+    Ping,
+    Echo(String),
 }
