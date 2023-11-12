@@ -9,7 +9,7 @@ use tokio_util::codec::{Decoder, Encoder};
 
 use crate::errors;
 use crate::errors::RedisError;
-use crate::parser::parse_resp;
+use crate::parser::parse_command;
 
 use crate::protocol::RespFrame;
 
