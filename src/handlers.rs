@@ -5,7 +5,7 @@ use tokio_util::codec::FramedWrite;
 
 use crate::{
     codec::RespCodec,
-    protocol::{RespDataType, RespFrame},
+    protocol:: RespFrame,
 };
 
 use futures::sink::SinkExt;
@@ -27,16 +27,17 @@ pub async fn handle_array(array: Vec<RespFrame>, writer: &mut FramedWrite<OwnedW
                         String::from_utf8(command_vec).expect("Conversion to utf8 failed");
 
                     info!("Bulk string: {}", command_string);
+
                     match command_string.to_lowercase().as_str() {
                         "ping" => {
                             info!("Got ping, sending pong");
-                            let reply = RespDataType::SimpleString(String::from("pong"));
+                            let reply = RespFrame::SimpleString("pong".into());
                             writer.send(reply).await?;
                             
                         }
                         _ => {
                             info!("{} is not handled at the moment", command_string);
-                            let reply = RespDataType::SimpleString(String::from("+OK"));
+                            let reply = RespFrame::SimpleString("+OK".into());
                             writer.send(reply).await?;
                         }
                     }
