@@ -15,6 +15,10 @@ fn parse_ping(input: &str) -> IResult<&str, Command> {
     map(tag("PING"), |_| Command::Ping)(input)
 }
 
+// fn parse_ping(input: RespFrame) -> IResult<RespFrame, Command> {
+//     map(tag("PING"), |_| Command::Ping)(input)
+// }
+
 fn parse_echo(input: &str) -> IResult<&str, Command> {
     map(
         preceded(
