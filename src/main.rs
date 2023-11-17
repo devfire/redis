@@ -10,8 +10,6 @@ use tokio::net::{TcpListener, TcpStream};
 
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use crate::{handlers::handle_array, protocol::RespDataType};
-
 mod codec;
 mod errors;
 mod handlers;
@@ -55,10 +53,9 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
     //  The first (and sometimes also the second) bulk string in the array is the command's name.
     //  Subsequent elements of the array are the arguments for the command.
     // The server replies with a RESP type.
-    while let Some(command) = reader.next().await {
-        match command {
-            Ok(_) => todo!(),
-            Err(_) => todo!(),
+    while let Some(commands) = reader.next().await {
+        for command in commands {
+            info!("Received command: {:?}", command);
         }
     }
 

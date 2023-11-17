@@ -32,6 +32,8 @@ impl Default for RespCodec {
 impl Decoder for RespCodec {
     //NOTE: #[from] std::io::Error is required in the error definition
     type Error = RedisError;
+
+    // what comes back from the parser is a Vec of Commands.
     type Item = Vec<Command>;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
