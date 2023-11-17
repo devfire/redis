@@ -4,14 +4,15 @@ use bytes::{Buf, BytesMut};
 use log::info;
 use nom::Err;
 use nom::Needed;
+use std::str;
 
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::errors;
 use crate::errors::RedisError;
-use crate::parser::parse_resp;
-use crate::protocol::RespDataType;
-use crate::protocol::RespFrame;
+use crate::parser::parse_commands;
+use crate::protocol::{RespDataType, Command};
+
 
 #[derive(Clone, Debug)]
 pub struct RespCodec {}
@@ -31,15 +32,15 @@ impl Default for RespCodec {
 impl Decoder for RespCodec {
     //NOTE: #[from] std::io::Error is required in the error definition
     type Error = RedisError;
-    type Item = RespFrame;
+    type Item = Vec<Command>;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        // info!("Decoding a resp message {:?}", src);
+        info!("Decoding a resp message {:?}", src);
 
         if src.is_empty() {
             return Ok(None);
         }
-        match parse_resp(src) {
+        match parse_commands(str::from_utf8(src).expect("BytesMut to str conversion failed")) {
             Ok((remaining_bytes, parsed_message)) => {
                 // advance the cursor by the difference between what we read
                 // and what we parsed
