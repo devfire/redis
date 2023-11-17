@@ -34,7 +34,7 @@ impl Decoder for RespCodec {
     type Item = RespFrame;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        info!("Decoding a resp message {:?}", src);
+        // info!("Decoding a resp message {:?}", src);
 
         if src.is_empty() {
             return Ok(None);

@@ -2,16 +2,15 @@ use codec::RespCodec;
 use env_logger::Env;
 
 use errors::RedisError;
-use futures_util::StreamExt;
+use futures_util::{StreamExt, SinkExt};
 use log::{info, warn};
 use protocol::RespFrame;
 
-
-use tokio::net::{TcpStream, TcpListener};
+use tokio::net::{TcpListener, TcpStream};
 
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use crate::handlers::handle_array;
+use crate::{handlers::handle_array, protocol::RespDataType};
 
 mod codec;
 mod errors;
@@ -43,8 +42,6 @@ async fn main() -> anyhow::Result<(), RedisError> {
             process(stream).await.expect("Failed spawning process()");
         });
     }
-
-    
 }
 
 async fn process(stream: TcpStream) -> anyhow::Result<()> {
@@ -52,12 +49,10 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
 
     let mut reader = FramedRead::new(reader, RespCodec::new());
     let mut writer = FramedWrite::new(writer, RespCodec::new());
-    
-    
 
     // Redis generally uses RESP as a request-response protocol in the following way:
-    //  Clients send commands to a Redis server as an array of bulk strings. 
-    //  The first (and sometimes also the second) bulk string in the array is the command's name. 
+    //  Clients send commands to a Redis server as an array of bulk strings.
+    //  The first (and sometimes also the second) bulk string in the array is the command's name.
     //  Subsequent elements of the array are the arguments for the command.
     // The server replies with a RESP type.
     while let Some(message) = reader.next().await {
@@ -65,7 +60,9 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
             Ok(RespFrame::Array(value)) => {
                 if let Some(msg) = value {
                     info!("Got an array: {:?}", msg);
-                    handle_array(msg, &mut writer).await?;
+                    let reply = RespDataType::SimpleString(String::from("pong"));
+                    writer.send(reply).await?;
+                    // handle_array(msg, &mut writer).await?;
                 }
             }
 
