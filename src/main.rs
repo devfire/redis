@@ -2,7 +2,7 @@ use codec::RespCodec;
 use env_logger::Env;
 
 use errors::RedisError;
-use futures_util::{StreamExt, SinkExt};
+use futures_util::{SinkExt, StreamExt};
 use log::{info, warn};
 // use protocol::RespFrame;
 
@@ -53,10 +53,8 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
     //  The first (and sometimes also the second) bulk string in the array is the command's name.
     //  Subsequent elements of the array are the arguments for the command.
     // The server replies with a RESP type.
-    while let Some(commands) = reader.next().await {
-        for command in commands {
-            info!("Received command: {:?}", command);
-        }
+    while let Some(command) = reader.next().await {
+        info!("Received command: {:?}", command);
     }
 
     Ok(())

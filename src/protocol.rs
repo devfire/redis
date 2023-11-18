@@ -80,4 +80,5 @@ pub enum RespDataType {
 pub enum Command {
     Echo(String),
     Ping,
+    Set(String),
 }

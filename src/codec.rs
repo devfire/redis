@@ -10,7 +10,7 @@ use tokio_util::codec::{Decoder, Encoder};
 
 use crate::errors;
 use crate::errors::RedisError;
-use crate::parser::parse_commands;
+use crate::parser::parse_command;
 use crate::protocol::{RespDataType, Command};
 
 
@@ -33,8 +33,8 @@ impl Decoder for RespCodec {
     //NOTE: #[from] std::io::Error is required in the error definition
     type Error = RedisError;
 
-    // what comes back from the parser is a Vec of Commands.
-    type Item = Vec<Command>;
+    // what comes back from the parser is a Command:: enum variant .
+    type Item = Command;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         info!("Decoding a resp message {:?}", src);
@@ -42,7 +42,7 @@ impl Decoder for RespCodec {
         if src.is_empty() {
             return Ok(None);
         }
-        match parse_commands(str::from_utf8(src).expect("BytesMut to str conversion failed")) {
+        match parse_command(str::from_utf8(src).expect("BytesMut to str conversion failed")) {
             Ok((remaining_bytes, parsed_message)) => {
                 // advance the cursor by the difference between what we read
                 // and what we parsed
