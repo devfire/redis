@@ -2,7 +2,7 @@ use codec::RespCodec;
 use env_logger::Env;
 
 use errors::RedisError;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{StreamExt};
 use log::{info, warn};
 // use protocol::RespFrame;
 
@@ -48,7 +48,7 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
     let (reader, writer) = stream.into_split();
 
     let mut reader = FramedRead::new(reader, RespCodec::new());
-    let mut writer = FramedWrite::new(writer, RespCodec::new());
+    let _writer = FramedWrite::new(writer, RespCodec::new());
 
     // Redis generally uses RESP as a request-response protocol in the following way:
     //  Clients send commands to a Redis server as an array of bulk strings.

@@ -2,12 +2,10 @@ use log::info;
 use nom::{
     branch::alt,
     bytes::{
-        complete::{take, take_while},
         streaming::tag,
     },
-    character::streaming::{crlf, digit1, not_line_ending},
-    combinator::{map, map_res},
-    sequence::{delimited, preceded, terminated, tuple},
+    character::streaming::{crlf, not_line_ending},
+    sequence::{terminated},
     IResult,
 };
 
