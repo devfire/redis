@@ -40,8 +40,9 @@ fn parse_array(input: &[u8]) -> IResult<&[u8], Command> {
 }
 
 fn parse_unsupported(input: &[u8]) -> IResult<&[u8], Command> {
-    let (input, _) = tag(r"*")(input)?;
+    let (input, _) = tag(r"$")(input)?;
     let (input, _len) = length(input)?;
+    let (input, _unsupported_command) = terminated(not_line_ending, crlf)(input)?;
     Ok((input, Command::Unknown))
 }
 
