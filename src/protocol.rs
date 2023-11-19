@@ -68,17 +68,16 @@
 //     Array(Option<Vec<RespFrame>>),
 // }
 
-
 #[derive(Debug, Clone)]
 pub enum RespDataType {
     // first byte is +
     SimpleString(String),
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Echo(String),
     Ping,
     Set(String),
+    Unknown,
 }

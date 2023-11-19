@@ -11,8 +11,7 @@ use tokio_util::codec::{Decoder, Encoder};
 use crate::errors;
 use crate::errors::RedisError;
 use crate::parser::parse_command;
-use crate::protocol::{RespDataType, Command};
-
+use crate::protocol::{Command, RespDataType};
 
 #[derive(Clone, Debug)]
 pub struct RespCodec {}
@@ -42,7 +41,7 @@ impl Decoder for RespCodec {
         if src.is_empty() {
             return Ok(None);
         }
-        match parse_command(str::from_utf8(src).expect("BytesMut to str conversion failed")) {
+        match parse_command(src) {
             Ok((remaining_bytes, parsed_message)) => {
                 // advance the cursor by the difference between what we read
                 // and what we parsed
