@@ -2,7 +2,7 @@ use codec::RespCodec;
 use env_logger::Env;
 
 use errors::RedisError;
-use futures_util::{StreamExt};
+use futures_util::StreamExt;
 use log::{info, warn};
 // use protocol::RespFrame;
 
@@ -10,7 +10,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use crate::protocol::Command;
+use crate::protocol::{Command, RespDataType};
 
 mod codec;
 mod errors;
@@ -59,8 +59,9 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
         info!("Received command: {:?}", command);
         match command {
             Ok(Command::Ping) => {
-                
-            },
+                let reply = RespDataType::SimpleString(String::from("pong"));
+                writer.send(reply).await?;
+            }
             Ok(_) => {
                 warn!("Unknown command {:?}", command);
             }
