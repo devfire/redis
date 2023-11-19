@@ -1,11 +1,9 @@
-use log::info;
+use log::{info, warn};
 use nom::{
     branch::alt,
-    bytes::{
-        streaming::tag,
-    },
-    character::streaming::{crlf, not_line_ending},
-    sequence::{terminated},
+    bytes::complete::tag,
+    character::complete::{crlf, not_line_ending},
+    sequence::terminated,
     IResult,
 };
 
@@ -17,7 +15,8 @@ fn length(input: &[u8]) -> IResult<&[u8], usize> {
 }
 
 fn parse_ping(input: &[u8]) -> IResult<&[u8], Command> {
-    let (input, _) = tag(r"\$4\r\nPING\r\n")(input)?;
+    let (input, _) = tag(r"$4\r\nPING\r\n")(input)?;
+    info!("PING detected.");
     Ok((input, Command::Ping))
 }
 
@@ -33,7 +32,7 @@ fn parse_ping(input: &[u8]) -> IResult<&[u8], Command> {
 // }
 
 fn parse_echo(input: &[u8]) -> IResult<&[u8], Command> {
-    let (input, _) = tag(r"\$4\r\nECHO\r\n\$")(input)?;
+    let (input, _) = tag(r"$4\r\nECHO\r\n")(input)?;
     let (input, _len) = length(input)?;
     let (input, message) = terminated(not_line_ending, crlf)(input)?;
     Ok((
@@ -48,19 +47,23 @@ fn parse_echo(input: &[u8]) -> IResult<&[u8], Command> {
 
 fn parse_array(input: &[u8]) -> IResult<&[u8], Command> {
     let (input, _) = tag(r"*")(input)?;
-    let (input, _len) = length(input)?;
+    let (input, _len) = length(input)?; // length eats CRLF already
+
+    //let's eat trailing CRLF
+    // let (input, _crlf) = terminated(not_line_ending, crlf)(input)?;
+    info!("Array detected, moving on.");
     Ok((input, Command::Unknown))
 }
 
-// fn parse_unsupported(input: &[u8]) -> IResult<&[u8], Command> {
-//     let (input, _) = tag(r"$")(input)?;
-//     let (input, _len) = length(input)?;
-//     let (input, _unsupported_command) = terminated(not_line_ending, crlf)(input)?;
-//     Ok((input, Command::Unknown))
-// }
+fn parse_unsupported(input: &[u8]) -> IResult<&[u8], Command> {
+    let (input, _) = tag(r"$")(input)?;
+    let (input, _len) = length(input)?;
+    let (input, _unsupported_command) = terminated(not_line_ending, crlf)(input)?;
+    Ok((input, Command::Unknown))
+}
 
 pub fn parse_command(input: &[u8]) -> IResult<&[u8], Command> {
-    let (input, message) = alt((parse_array, parse_ping, parse_echo))(input)?;
+    let (input, message) = alt((parse_array, parse_ping, parse_echo, parse_unsupported))(input)?;
     info!("Parser finished, inbound message: {:?}", message);
     Ok((input, message))
 }
