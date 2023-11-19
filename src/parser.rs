@@ -1,9 +1,13 @@
 use log::info;
 use nom::{
     branch::alt,
-    bytes::{complete::take_while, streaming::tag},
+    bytes::{
+        complete::{take, take_while},
+        streaming::tag,
+    },
     character::streaming::{crlf, digit1, not_line_ending},
-    sequence::{delimited, preceded, terminated},
+    combinator::{map, map_res},
+    sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 
@@ -21,17 +25,28 @@ fn parse_ping(input: &[u8]) -> IResult<&[u8], Command> {
 
 // fn parse_bulk_string(input: &str) -> IResult<&str, &str> {
 //     preceded(
-//         delimited(tag("$"), length, tag("\r\n")),
+//         delimited(tag("$"), parse_number, tag("\r\n")),
 //         take_while(|c: char| c != '\r'),
 //     )(input)
 // }
 
-// fn parse_echo(input: &[u8]) -> IResult<&[u8], Command> {
-//     let (input, _) = tag(r"\$4\r\nECHO\r\n")(input)?;
-//     let (input, _) = tag(r"\$")(input)?;
-//     let (input, len) =
-//     Ok((input, Command::Ping))
+// fn parse_number(input: &str) -> IResult<&str, u32> {
+//     map_res(digit1, |digit_str: &str| digit_str.parse::<u32>())(input)
 // }
+
+fn parse_echo(input: &[u8]) -> IResult<&[u8], Command> {
+    let (input, _) = tag(r"\$4\r\nECHO\r\n\$")(input)?;
+    let (input, _len) = length(input)?;
+    let (input, message) = terminated(not_line_ending, crlf)(input)?;
+    Ok((
+        input,
+        Command::Echo(
+            String::from_utf8_lossy(message)
+                .parse()
+                .expect("Unable to convert message [u8] to String"),
+        ),
+    ))
+}
 
 fn parse_array(input: &[u8]) -> IResult<&[u8], Command> {
     let (input, _) = tag(r"*")(input)?;
@@ -39,15 +54,15 @@ fn parse_array(input: &[u8]) -> IResult<&[u8], Command> {
     Ok((input, Command::Unknown))
 }
 
-fn parse_unsupported(input: &[u8]) -> IResult<&[u8], Command> {
-    let (input, _) = tag(r"$")(input)?;
-    let (input, _len) = length(input)?;
-    let (input, _unsupported_command) = terminated(not_line_ending, crlf)(input)?;
-    Ok((input, Command::Unknown))
-}
+// fn parse_unsupported(input: &[u8]) -> IResult<&[u8], Command> {
+//     let (input, _) = tag(r"$")(input)?;
+//     let (input, _len) = length(input)?;
+//     let (input, _unsupported_command) = terminated(not_line_ending, crlf)(input)?;
+//     Ok((input, Command::Unknown))
+// }
 
 pub fn parse_command(input: &[u8]) -> IResult<&[u8], Command> {
-    let (input, message) = alt((parse_array, parse_ping, parse_unsupported))(input)?;
+    let (input, message) = alt((parse_array, parse_ping, parse_echo))(input)?;
     info!("Parser finished, inbound message: {:?}", message);
     Ok((input, message))
 }

@@ -10,6 +10,8 @@ use tokio::net::{TcpListener, TcpStream};
 
 use tokio_util::codec::{FramedRead, FramedWrite};
 
+use crate::protocol::Command;
+
 mod codec;
 mod errors;
 mod handlers;
@@ -55,6 +57,15 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
     // The server replies with a RESP type.
     while let Some(command) = reader.next().await {
         info!("Received command: {:?}", command);
+        match command {
+            Ok(Command::Ping) => {
+                
+            },
+            Ok(_) => {
+                warn!("Unknown command {:?}", command);
+            }
+            Err(_) => todo!(),
+        }
     }
 
     Ok(())
