@@ -2,9 +2,9 @@ use codec::RespCodec;
 use env_logger::Env;
 
 use errors::RedisError;
-use futures_util::{StreamExt, SinkExt};
+use futures_util::{SinkExt, StreamExt};
 use log::{info, warn};
-use protocol::RespFrame;
+use protocol::{Command, RespFrame};
 
 use tokio::net::{TcpListener, TcpStream};
 
@@ -57,13 +57,11 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
     // The server replies with a RESP type.
     while let Some(message) = reader.next().await {
         match message {
-            Ok(RespFrame::Array(value)) => {
-                if let Some(msg) = value {
-                    info!("Got an array: {:?}", msg);
-                    let reply = RespDataType::SimpleString(String::from("pong"));
-                    writer.send(reply).await?;
-                    // handle_array(msg, &mut writer).await?;
-                }
+            Ok(Command::Ping) => {
+                info!("Got ping");
+                let reply = RespDataType::SimpleString(String::from("pong"));
+                writer.send(reply).await?;
+                // handle_array(msg, &mut writer).await?;
             }
 
             Ok(_) => {

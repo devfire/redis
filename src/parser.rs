@@ -1,3 +1,4 @@
+use log::info;
 // borrowed from https://raw.githubusercontent.com/pawelkobojek/respirator/main/src/parser.rs
 use nom::{
     bytes::complete::take,
@@ -7,7 +8,35 @@ use nom::{
     IResult,
 };
 
-use crate::protocol::RespFrame;
+use crate::protocol::{Command, RespFrame};
+
+pub fn parse_command(input: &[u8]) -> IResult<&[u8], Command> {
+    let (input, cmd) = bulk_string(input)?;
+
+    match cmd {
+        RespFrame::BulkString(bulk_string) => {
+            // remember, BulkString(Option<Vec<u8>>)
+            // we may have gotten an empty string
+            if let Some(command_vec) = bulk_string {
+                // from bulk to Rust string returns a Result, we need to handle it
+                let command_string =
+                    String::from_utf8(command_vec).expect("Conversion to utf8 failed");
+
+                info!("Bulk string: {}", command_string);
+                match command_string.to_lowercase().as_str() {
+                    "ping" => {
+                        info!("Got ping, need to send pong.");
+                        return Ok((input, Command::Ping));
+                    }
+                    _ => return Ok((input, Command::Unknown)),
+                }
+            }
+        }
+        _ => todo!(),
+    }
+
+    Ok((input, Command::Unknown))
+}
 
 pub fn parse_resp(input: &[u8]) -> IResult<&[u8], RespFrame> {
     let (input, val) = take(1usize)(input)?;

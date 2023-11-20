@@ -74,3 +74,14 @@ pub enum RespDataType {
     // first byte is +
     SimpleString(String),
 }
+
+
+
+#[derive(Debug, Clone)]
+pub enum Command {
+    // first byte is +
+    Ping,
+    Unknown,
+}
+
+
