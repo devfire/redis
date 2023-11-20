@@ -11,7 +11,7 @@ use nom::{
 use crate::protocol::{Command, RespFrame};
 
 pub fn parse_command(input: &[u8]) -> IResult<&[u8], Command> {
-    let (input, cmd) = bulk_string(input)?;
+    let (input, cmd) = parse_resp(input)?;
 
     match cmd {
         RespFrame::BulkString(bulk_string) => {
@@ -32,7 +32,7 @@ pub fn parse_command(input: &[u8]) -> IResult<&[u8], Command> {
                 }
             }
         }
-        _ => todo!(),
+        _ => info!("Not a bulk string"),
     }
 
     Ok((input, Command::Unknown))

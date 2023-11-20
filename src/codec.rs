@@ -34,7 +34,7 @@ impl Decoder for RespCodec {
     type Item = Command;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        // info!("Decoding a resp message {:?}", src);
+        info!("Decoding a resp message {:?}", src);
 
         if src.is_empty() {
             return Ok(None);
@@ -46,6 +46,7 @@ impl Decoder for RespCodec {
                 src.advance(src.len() - remaining_bytes.len());
 
                 // return the parsed message
+                info!("Decoded {:?}", parsed_message);
                 Ok(Some(parsed_message))
             }
             Err(Err::Incomplete(Needed::Size(_))) => Ok(None),

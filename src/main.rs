@@ -65,7 +65,9 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
             }
 
             Ok(_) => {
-                warn!("This is a valid RESP message but not handled by the server")
+                warn!("This is a valid RESP message but not handled by the server");
+                let reply = RespDataType::SimpleString(String::from("+OK"));
+                writer.send(reply).await?;
             }
             Err(_) => todo!(),
         }
