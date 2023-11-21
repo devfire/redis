@@ -2,7 +2,7 @@ use codec::RespCodec;
 use env_logger::Env;
 
 use errors::RedisError;
-use futures_util::{StreamExt, SinkExt};
+use futures_util::{SinkExt, StreamExt};
 use log::{info, warn};
 use protocol::RespFrame;
 
@@ -58,10 +58,24 @@ async fn process(stream: TcpStream) -> anyhow::Result<()> {
     while let Some(message) = reader.next().await {
         match message {
             Ok(RespFrame::Array(value)) => {
-                if let Some(msg) = value {
-                    info!("Got an array: {:?}", msg);
-                    let reply = RespDataType::SimpleString(String::from("pong"));
-                    writer.send(reply).await?;
+                if let Some(resp_frames) = value {
+                    info!("Got an array: {:?}", resp_frames);
+                    for message in resp_frames {
+                        match message {
+                            RespFrame::SimpleString(_) => todo!(),
+                            RespFrame::Integer(_) => todo!(),
+                            RespFrame::Error(_) => todo!(),
+                            RespFrame::BulkString(ref bulk_string) => {
+                                if let Some(bulk_str) = bulk_string {
+                                    info!("Parsed to: {:?}", String::from_utf8_lossy(bulk_str));
+                                    let reply = RespDataType::SimpleString(String::from("pong"));
+                                    writer.send(reply).await?;
+                                }
+                            }
+                            RespFrame::Array(_) => todo!(),
+                        }
+                    }
+
                     // handle_array(msg, &mut writer).await?;
                 }
             }
