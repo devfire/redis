@@ -2,6 +2,8 @@
 
 pub mod protocol;
 
+use std::str::FromStr;
+
 use crate::protocol::Command;
 
 use env_logger::Env;
@@ -39,10 +41,21 @@ async fn main() -> std::io::Result<()> {
 fn handler(value: Value) -> Option<Command> {
     match value {
         Value::Bulk(raw_string) => {
-            if 
-        },
+            // https://docs.rs/strum_macros/0.25.3/strum_macros/derive.EnumString.html
+            let input_variant = Command::from_str(&raw_string).expect("Command::from_str failed");
+            match input_variant {
+                Command::Ping => Some(Command::Ping),
+                Command::Command => Some(Command::Command),
+                Command::Echo(_) => Some(Command::Echo(None)),
+                _ => None,
+            }
+        }
         Value::BufBulk(_) => todo!(),
-        Value::Array(_) => handler(value),
+        // Value::Array(array) => {
+        //     // if let Some(element) = array.remove(0) {
+        //     //     handler(element)
+        //     // }
+        // },
         _ => return None,
     }
 }
@@ -82,13 +95,18 @@ async fn process(stream: TcpStream) {
             Value::Integer(_) => todo!(),
             Value::Bulk(_) => todo!(),
             Value::BufBulk(_) => todo!(),
-            Value::Array(array) => {
+            Value::Array(mut array) => {
                 info!("Array received {:?}", array);
-                for command in array {
-                    if let Some(parsed_command) = handler(command){
+                while !array.is_empty() {
+                    if let Some(parsed_command) = handler(array.remove(0)) {
                         info!("Detected command {}", parsed_command);
                     }
                 }
+                // for command in array {
+                //     if let Some(parsed_command) = handler(command) {
+                //         info!("Detected command {}", parsed_command);
+                //     }
+                // }
             }
         }
     }
