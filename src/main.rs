@@ -1,11 +1,14 @@
 // use anyhow;
 
+pub mod protocol;
+
+use crate::protocol::Command;
+
 use env_logger::Env;
 use log::{info, warn};
 use resp::{Decoder, Value};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
-
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -33,6 +36,16 @@ async fn main() -> std::io::Result<()> {
     }
 }
 
+fn handler(value: Value) -> Option<Command> {
+    match value {
+        Value::Bulk(raw_string) => {
+            if 
+        },
+        Value::BufBulk(_) => todo!(),
+        Value::Array(_) => handler(value),
+        _ => return None,
+    }
+}
 async fn process(stream: TcpStream) {
     let (mut reader, mut writer) = stream.into_split();
 
@@ -71,6 +84,11 @@ async fn process(stream: TcpStream) {
             Value::BufBulk(_) => todo!(),
             Value::Array(array) => {
                 info!("Array received {:?}", array);
+                for command in array {
+                    if let Some(parsed_command) = handler(command){
+                        info!("Detected command {}", parsed_command);
+                    }
+                }
             }
         }
     }
