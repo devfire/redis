@@ -46,7 +46,7 @@ impl Decoder for RespCodec {
                 src.advance(src.len() - remaining_bytes.len());
 
                 // return the parsed message
-                Ok(Some(parsed_message))
+                Ok(Some(Some(parsed_message).expect("Unable to parse")))
             }
             Err(Err::Incomplete(Needed::Size(_))) => Ok(None),
             Err(_) => Err(RedisError::ParseFailure),
