@@ -150,7 +150,7 @@ async fn process(stream: TcpStream) {
                         match parsed_command {
                             RedisCommand::Ping => {
                                 // Encode the value to RESP binary buffer.
-                                let response = Value::String("pong".to_string()).encode();
+                                let response = Value::String("PONG".to_string()).encode();
                                 let _ = writer
                                     .write_all(&response)
                                     .await
