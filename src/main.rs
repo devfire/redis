@@ -3,8 +3,9 @@
 pub mod protocol;
 
 use std::str::FromStr;
+// use std::string::ToString;
 
-use crate::protocol::Command;
+use crate::protocol::RedisCommand;
 
 use env_logger::Env;
 use log::{info, warn};
@@ -38,16 +39,39 @@ async fn main() -> std::io::Result<()> {
     }
 }
 
-fn handler(value: Value) -> Option<Command> {
+fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
     match value {
         Value::Bulk(raw_string) => {
             // https://docs.rs/strum_macros/0.25.3/strum_macros/derive.EnumString.html
-            let input_variant = Command::from_str(&raw_string).expect("Command::from_str failed");
+            // this is crafting a possible enum variant from the string.
+            // So, if we are passed "PING" in raw_string, then this will construct a Command::Ping enum variant
+            let input_variant =
+                RedisCommand::from_str(&raw_string).expect("Command::from_str failed");
+
+            // now we try to match our variant against the arms of known command matches
             match input_variant {
-                Command::Ping => Some(Command::Ping),
-                Command::Command => Some(Command::Command),
-                Command::Echo(_) => Some(Command::Echo(None)),
-                _ => None,
+                RedisCommand::Ping => Some(RedisCommand::Ping), // got a ping!
+                RedisCommand::Command(_) => {
+                    todo!()
+                }
+                RedisCommand::Echo(_) => {
+                    // Echo is tricky because the RESP format is ECHO "MESSAGE" so we need to grab this ECHO command
+                    // and then take the one immediately following ECHO.
+                    info!("Assembling ECHO");
+
+                    // we are popping off one more element to grab the message that followed ECHO
+                    // let's make sure the array is not empty first, ECHO can be by itself with no message
+                    if !array.is_empty() {
+                        let echo_message = array.remove(0); // 0th element, i.e. first one
+
+                        //https://docs.rs/resp/latest/resp/enum.Value.html
+                        // Remember, Echo "MESSAGE", message is optional, so it needs a Some().
+                        // Then this function returns an Option<> so we need one more Some().
+                        return Some(RedisCommand::Echo(Some(echo_message.to_string_pretty())));
+                    } else {
+                        None
+                    }
+                } // _ => None,
             }
         }
         Value::BufBulk(_) => todo!(),
@@ -60,7 +84,7 @@ fn handler(value: Value) -> Option<Command> {
     }
 }
 async fn process(stream: TcpStream) {
-    let (mut reader, mut writer) = stream.into_split();
+    let (mut reader, mut _writer) = stream.into_split();
 
     //let mut reader = BufReader::new(reader);
 
@@ -96,17 +120,18 @@ async fn process(stream: TcpStream) {
             Value::Bulk(_) => todo!(),
             Value::BufBulk(_) => todo!(),
             Value::Array(mut array) => {
-                info!("Array received {:?}", array);
+                // info!("Array received {:?}", array);
+                // need to recast it as &mut because handler() manipulates the array of Values
+                let array = &mut array;
                 while !array.is_empty() {
-                    if let Some(parsed_command) = handler(array.remove(0)) {
-                        info!("Detected command {}", parsed_command);
+                    // we are popping off the first value, going through the whole array one by one.
+                    // TODO: Nested arrays are not supported yet.
+                    let top_value = array.remove(0);
+
+                    if let Some(parsed_command) = handler(top_value, array) {
+                        info!("Parsed command: {}", parsed_command);
                     }
                 }
-                // for command in array {
-                //     if let Some(parsed_command) = handler(command) {
-                //         info!("Detected command {}", parsed_command);
-                //     }
-                // }
             }
         }
     }

@@ -2,8 +2,8 @@ use strum_macros::{Display, EnumString};
 
 #[derive(Debug, PartialEq, EnumString, Display)]
 #[strum(ascii_case_insensitive)]
-pub enum Command {
+pub enum RedisCommand {
     Ping,
     Echo(Option<String>),
-    Command,
+    Command(Option<String>),
 }
