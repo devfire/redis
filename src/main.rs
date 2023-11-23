@@ -10,7 +10,7 @@ use crate::protocol::RedisCommand;
 use env_logger::Env;
 use log::{info, warn};
 use resp::{Decoder, Value};
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 #[tokio::main]
@@ -52,7 +52,24 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
             match input_variant {
                 RedisCommand::Ping => Some(RedisCommand::Ping), // got a ping!
                 RedisCommand::Command(_) => {
-                    todo!()
+                    // Command is tricky because the RESP format is COMMAND DOCS so we need to grab this COMMAND command
+                    // and then take the one immediately following COMMAND.
+                    info!("Assembling COMMAND");
+
+                    // we are popping off one more element to grab the message that followed ECHO
+                    // let's make sure the array is not empty first, ECHO can be by itself with no message
+                    if !array.is_empty() {
+                        let command_message = array.remove(0); // 0th element, i.e. first one
+
+                        //https://docs.rs/resp/latest/resp/enum.Value.html
+                        // Remember, COMMAND DOCS, DOCS is optional, so it needs a Some().
+                        // Then this function returns an Option<> so we need one more Some().
+                        return Some(RedisCommand::Command(Some(
+                            command_message.to_string_pretty(),
+                        )));
+                    } else {
+                        None
+                    }
                 }
                 RedisCommand::Echo(_) => {
                     // Echo is tricky because the RESP format is ECHO "MESSAGE" so we need to grab this ECHO command
@@ -75,6 +92,7 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
             }
         }
         Value::BufBulk(_) => todo!(),
+        // TODO: Need to handle nested arrays.
         // Value::Array(array) => {
         //     // if let Some(element) = array.remove(0) {
         //     //     handler(element)
@@ -84,7 +102,7 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
     }
 }
 async fn process(stream: TcpStream) {
-    let (mut reader, mut _writer) = stream.into_split();
+    let (mut reader, mut writer) = stream.into_split();
 
     //let mut reader = BufReader::new(reader);
 
@@ -130,6 +148,34 @@ async fn process(stream: TcpStream) {
 
                     if let Some(parsed_command) = handler(top_value, array) {
                         info!("Parsed command: {}", parsed_command);
+                        match parsed_command {
+                            RedisCommand::Ping => {
+                                // Encode the value to RESP binary buffer.
+                                let response = Value::String("pong".to_string()).encode();
+                                let _ = writer
+                                    .write_all(&response)
+                                    .await
+                                    .expect("Unable to write TCP");
+                            }
+                            RedisCommand::Echo(message) => {
+                                if let Some(msg) = message {
+                                    // Encode the value to RESP binary buffer.
+                                    let response = Value::String(msg.to_string()).encode();
+                                    let _ = writer
+                                        .write_all(&response)
+                                        .await
+                                        .expect("Unable to write TCP");
+                                }
+                            }
+                            RedisCommand::Command(_) => {
+                                // Encode the value to RESP binary buffer.
+                                let response = Value::String("+OK".to_string()).encode();
+                                let _ = writer
+                                    .write_all(&response)
+                                    .await
+                                    .expect("Unable to write TCP");
+                            }
+                        }
                     }
                 }
             }
