@@ -7,13 +7,3 @@ pub enum RedisCommand {
     Echo(Option<String>),
     Command(Option<String>),
 }
-<<<<<<< HEAD
-
-
-#[derive(Debug, Clone)]
-pub enum RespDataType {
-    // first byte is +
-    SimpleString(String),
-}
-=======
->>>>>>> resp-command-parser
