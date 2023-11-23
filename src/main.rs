@@ -74,13 +74,12 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
                 RedisCommand::Echo(_) => {
                     // Echo is tricky because the RESP format is ECHO "MESSAGE" so we need to grab this ECHO command
                     // and then take the one immediately following ECHO.
-                    info!("Assembling ECHO");
-
-                    // we are popping off one more element to grab the message that followed ECHO
+                    // We are popping off one more element to grab the message that followed ECHO
                     // let's make sure the array is not empty first, ECHO can be by itself with no message
                     if !array.is_empty() {
                         let echo_message = array.remove(0); // 0th element, i.e. first one
 
+                        info!("Assembling ECHO + {:?}", echo_message);
                         //https://docs.rs/resp/latest/resp/enum.Value.html
                         // Remember, Echo "MESSAGE", message is optional, so it needs a Some().
                         // Then this function returns an Option<> so we need one more Some().
