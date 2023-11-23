@@ -83,7 +83,11 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
                         //https://docs.rs/resp/latest/resp/enum.Value.html
                         // Remember, Echo "MESSAGE", message is optional, so it needs a Some().
                         // Then this function returns an Option<> so we need one more Some().
-                        return Some(RedisCommand::Echo(Some(echo_message.to_string_pretty())));
+                        return Some(RedisCommand::Echo(Some(
+                            echo_message
+                                .to_encoded_string()
+                                .expect("Encoding to String failed"),
+                        )));
                     } else {
                         None
                     }
