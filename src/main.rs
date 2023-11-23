@@ -8,30 +8,10 @@ use std::str::FromStr;
 use crate::protocol::RedisCommand;
 
 use env_logger::Env;
-<<<<<<< HEAD
-
-use errors::RedisError;
-use futures_util::{SinkExt, StreamExt};
-use log::{info, warn};
-use protocol::RespFrame;
-
-use tokio::net::{TcpListener, TcpStream};
-
-use tokio_util::codec::{FramedRead, FramedWrite};
-
-use crate::{handlers::handle_array, protocol::RespDataType};
-
-mod codec;
-mod errors;
-mod handlers;
-mod parser;
-mod protocol;
-=======
 use log::{info, warn};
 use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
->>>>>>> resp-command-parser
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -68,38 +48,6 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
             let input_variant =
                 RedisCommand::from_str(&raw_string).expect("Command::from_str failed");
 
-<<<<<<< HEAD
-    let mut reader = FramedRead::new(reader, RespCodec::new());
-    let mut writer = FramedWrite::new(writer, RespCodec::new());
-
-    // Redis generally uses RESP as a request-response protocol in the following way:
-    //  Clients send commands to a Redis server as an array of bulk strings.
-    //  The first (and sometimes also the second) bulk string in the array is the command's name.
-    //  Subsequent elements of the array are the arguments for the command.
-    // The server replies with a RESP type.
-    while let Some(message) = reader.next().await {
-        match message {
-            Ok(RespFrame::Array(value)) => {
-                if let Some(resp_frames) = value {
-                    info!("Got an array: {:?}", resp_frames);
-                    for message in resp_frames {
-                        match message {
-                            RespFrame::SimpleString(_) => todo!(),
-                            RespFrame::Integer(_) => todo!(),
-                            RespFrame::Error(_) => todo!(),
-                            RespFrame::BulkString(ref bulk_string) => {
-                                if let Some(bulk_str) = bulk_string {
-                                    info!("Parsed to: {:?}", String::from_utf8_lossy(bulk_str));
-                                    let reply = RespDataType::SimpleString(String::from("pong"));
-                                    writer.send(reply).await?;
-                                }
-                            }
-                            RespFrame::Array(_) => todo!(),
-                        }
-                    }
-
-                    // handle_array(msg, &mut writer).await?;
-=======
             // now we try to match our variant against the arms of known command matches
             match input_variant {
                 RedisCommand::Ping => Some(RedisCommand::Ping), // got a ping!
@@ -228,7 +176,6 @@ async fn process(stream: TcpStream) {
                             }
                         }
                     }
->>>>>>> resp-command-parser
                 }
             }
         }
