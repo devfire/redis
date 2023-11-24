@@ -62,11 +62,9 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
                         let command_message = array.remove(0); // 0th element, i.e. first one
 
                         //https://docs.rs/resp/latest/resp/enum.Value.html
-                        // Remember, COMMAND DOCS, DOCS is optional, so it needs a Some().
+                        // Remember, in COMMAND DOCS, DOCS is optional, so it needs a Some().
                         // Then this function returns an Option<> so we need one more Some().
-                        return Some(RedisCommand::Command(Some(
-                            command_message.to_string_pretty(),
-                        )));
+                        return Some(RedisCommand::Command(Some(command_message)));
                     } else {
                         None
                     }
@@ -74,7 +72,8 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
                 RedisCommand::Echo(_) => {
                     // Echo is tricky because the RESP format is ECHO "MESSAGE" so we need to grab this ECHO command
                     // and then take the one immediately following ECHO.
-                    // We are popping off one more element to grab the message that followed ECHO
+                    //
+                    // Then, we are popping off one more element to grab the message that followed ECHO
                     // let's make sure the array is not empty first, ECHO can be by itself with no message
                     if !array.is_empty() {
                         let echo_message = array.remove(0); // 0th element, i.e. first one
@@ -83,11 +82,7 @@ fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
                         //https://docs.rs/resp/latest/resp/enum.Value.html
                         // Remember, Echo "MESSAGE", message is optional, so it needs a Some().
                         // Then this function returns an Option<> so we need one more Some().
-                        return Some(RedisCommand::Echo(Some(
-                            echo_message
-                                .to_encoded_string()
-                                .expect("Encoding to String failed"),
-                        )));
+                        return Some(RedisCommand::Echo(Some(echo_message)));
                     } else {
                         None
                     }
@@ -163,7 +158,8 @@ async fn process(stream: TcpStream) {
                             RedisCommand::Echo(message) => {
                                 if let Some(msg) = message {
                                     // Encode the value to RESP binary buffer.
-                                    let response = Value::String(msg.to_string()).encode();
+                                    let response = msg.encode();
+
                                     let _ = writer
                                         .write_all(&response)
                                         .await
