@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use resp::Value;
 use strum_macros::{Display, EnumString};
 
@@ -7,4 +9,5 @@ pub enum RedisCommand {
     Ping,
     Echo(Option<Value>),
     Command(Option<Value>),
+    Set(HashMap<String,String>),
 }

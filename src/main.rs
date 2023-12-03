@@ -1,8 +1,8 @@
 // use anyhow;
 
-pub mod protocol;
+pub mod errors;
 pub mod handlers;
-
+pub mod protocol;
 
 // use std::string::ToString;
 
@@ -86,7 +86,9 @@ async fn process(stream: TcpStream) {
                     // TODO: Nested arrays are not supported yet.
                     let top_value = array.remove(0);
 
-                    if let Some(parsed_command) = handler(top_value, array) {
+                    if let Some(parsed_command) =
+                        handler(top_value, array).expect("Unable to identify command.")
+                    {
                         info!("Parsed command: {}", parsed_command);
                         match parsed_command {
                             RedisCommand::Ping => {
@@ -116,6 +118,7 @@ async fn process(stream: TcpStream) {
                                     .await
                                     .expect("Unable to write TCP");
                             }
+                            RedisCommand::Set(_) => todo!(),
                         }
                     }
                 }
