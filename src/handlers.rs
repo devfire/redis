@@ -1,12 +1,11 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use log::info;
 use resp::Value;
 
-use crate::protocol::RedisCommand;
+use crate::{errors::RedisError, protocol::RedisCommand};
 
-
-pub fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
+pub fn handler(value: Value, array: &mut Vec<Value>) -> Result<Option<RedisCommand>, RedisError> {
     match value {
         Value::Bulk(raw_string) => {
             // https://docs.rs/strum_macros/0.25.3/strum_macros/derive.EnumString.html
@@ -17,7 +16,7 @@ pub fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
 
             // now we try to match our variant against the arms of known command matches
             match input_variant {
-                RedisCommand::Ping => Some(RedisCommand::Ping), // got a ping!
+                RedisCommand::Ping => Ok(Some(RedisCommand::Ping)), // got a ping!
                 RedisCommand::Command(_) => {
                     // Command is tricky because the RESP format is COMMAND DOCS so we need to grab this COMMAND command
                     // and then take the one immediately following COMMAND.
@@ -31,9 +30,9 @@ pub fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
                         // https://docs.rs/resp/latest/resp/enum.Value.html
                         // Remember, in COMMAND DOCS, DOCS is optional, so it needs a Some().
                         // Then this function returns an Option<> so we need one more Some().
-                        return Some(RedisCommand::Command(Some(command_message)));
+                        return Ok(Some(RedisCommand::Command(Some(command_message))));
                     } else {
-                        None
+                        Ok(None)
                     }
                 }
                 RedisCommand::Echo(_) => {
@@ -54,7 +53,46 @@ pub fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
                     }
 
                     // Looks like we got ECHO followed by nothing so simply reply with an empty string.
-                    return Some(RedisCommand::Echo(Some(echo_message)));
+                    return Ok(Some(RedisCommand::Echo(Some(echo_message))));
+                }
+                RedisCommand::Set(_) => {
+                    // https://redis.io/commands/set/
+                    // Set key to hold the string value.
+                    // If key already holds a value, it is overwritten, regardless of its type.
+                    // Any previous time to live associated with the key is discarded on successful SET operation.
+
+                    // we are initializing these here so we can set them properly and still maintain scope
+                    let mut key = String::new();
+                    let mut value = String::new();
+
+                    // Remember, in SET KEY VALUE, both KEY & VALUE must be present.
+                    if !array.is_empty() {
+                        // ok looks like we've one parameter, at least!
+                        let set_key = array.remove(0); // 0th element, i.e. the first one
+
+                        key = set_key.to_beautify_string();
+
+                        info!("Assembling SET key {:?}", key);
+                    } else {
+                        return Err(RedisError::InputFailure); // oops, no key
+                    }
+
+                    // ok, let's see if there's a value present
+                    if !array.is_empty() {
+                        // ok looks like we've the second parameter!
+                        let set_value = array.remove(1); // 1st element, i.e. the second one
+
+                        value = set_value.to_beautify_string();
+
+                        info!("Assembling SET key {:?}", value);
+                    } else {
+                        return Err(RedisError::InputFailure); // oops, no value
+                    }
+
+                    let mut set_key_value: HashMap<String, String> = HashMap::new();
+                    set_key_value.insert(key, value);
+
+                    Ok(Some(RedisCommand::Set(set_key_value)))
                 } // _ => None,
             }
         }
@@ -65,6 +103,6 @@ pub fn handler(value: Value, array: &mut Vec<Value>) -> Option<RedisCommand> {
         //     //     handler(element)
         //     // }
         // },
-        _ => return None,
+        _ => return Err(RedisError::ParseFailure),
     }
 }
