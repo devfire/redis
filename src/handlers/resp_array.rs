@@ -5,7 +5,7 @@ use resp::Value;
 
 use crate::{errors::RedisError, protocol::RedisCommand};
 
-pub fn handler(value: Value, array: &mut Vec<Value>) -> Result<Option<RedisCommand>, RedisError> {
+pub fn resp_array_handler(value: Value, array: &mut Vec<Value>) -> Result<Option<RedisCommand>, RedisError> {
     match value {
         Value::Bulk(raw_string) => {
             // https://docs.rs/strum_macros/0.25.3/strum_macros/derive.EnumString.html
