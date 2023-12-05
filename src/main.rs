@@ -1,13 +1,13 @@
 // use anyhow;
 
 pub mod errors;
-pub mod handlers;
 pub mod protocol;
 pub mod actors;
+mod handlers;
 
 // use std::string::ToString;
 
-use crate::handlers::handler;
+use crate::handlers::resp_array::resp_array_handler;
 use crate::protocol::RedisCommand;
 
 use env_logger::Env;
@@ -88,7 +88,7 @@ async fn process(stream: TcpStream) {
                     let top_value = array.remove(0);
 
                     if let Some(parsed_command) =
-                        handler(top_value, array).expect("Unable to identify command.")
+                        resp_array_handler(top_value, array).expect("Unable to identify command.")
                     {
                         info!("Parsed command: {}", parsed_command);
                         match parsed_command {
