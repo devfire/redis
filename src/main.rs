@@ -1,14 +1,15 @@
 // use anyhow;
 
-pub mod errors;
-pub mod protocol;
 pub mod actors;
+pub mod errors;
 mod handlers;
 pub mod messages;
+pub mod protocol;
 
 // use std::string::ToString;
 
 use crate::handlers::resp_array::resp_array_handler;
+use crate::handlers::set_command::SetCommandActorHandle;
 use crate::protocol::RedisCommand;
 
 use env_logger::Env;
@@ -120,7 +121,19 @@ async fn process(stream: TcpStream) {
                                     .await
                                     .expect("Unable to write TCP");
                             }
-                            RedisCommand::Set(_) => todo!(),
+                            RedisCommand::Set(key_value_pair) => {
+                                // get a handle to the set actor
+                                let set_command_actor_handle = SetCommandActorHandle::new();
+
+                                set_command_actor_handle.set_value(key_value_pair).await;
+
+                                // Encode the value to RESP binary buffer.
+                                let response = Value::String("+OK".to_string()).encode();
+                                let _ = writer
+                                    .write_all(&response)
+                                    .await
+                                    .expect("Unable to write TCP");
+                            }
                         }
                     }
                 }

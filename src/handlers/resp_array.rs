@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use log::info;
 use resp::Value;
@@ -84,11 +84,10 @@ pub fn resp_array_handler(value: Value, array: &mut Vec<Value>) -> Result<Option
                     } else {
                         return Err(RedisError::InputFailure); // oops, no value
                     }
-                    
+
                     info!("Adding K {} V {} pair", key, value);
 
-                    let mut set_key_value: HashMap<String, String> = HashMap::new();
-                    set_key_value.insert(key, value);
+                    let set_key_value = (key, value);
 
                     Ok(Some(RedisCommand::Set(set_key_value)))
                 } // _ => None,
