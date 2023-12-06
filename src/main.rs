@@ -89,6 +89,7 @@ async fn process(stream: TcpStream) {
                     // TODO: Nested arrays are not supported yet.
                     let top_value = array.remove(0);
 
+                    // Let's figure out what command we got
                     if let Some(parsed_command) =
                         resp_array_handler(top_value, array).expect("Unable to identify command.")
                     {
