@@ -20,10 +20,10 @@ impl SetCommandActorHandle {
 
     /// implements the redis GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/get/
-    pub async fn get_value(&self, key: String) -> String {
+    pub async fn get_value(&self, key: &str) -> String {
         let (send, recv) = oneshot::channel();
         let msg = ActorMessage::GetValue {
-            key: key,
+            key: key.to_string(),
             respond_to: send,
         };
 

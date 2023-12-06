@@ -8,4 +8,5 @@ pub enum RedisCommand {
     Echo(Option<Value>),
     Command(Option<Value>),
     Set((String, String)), // key, value tuple for the Set command
+    Get(String),
 }
