@@ -5,9 +5,12 @@ use resp::Value;
 
 use crate::{errors::RedisError, protocol::RedisCommand};
 
-/// Goes through the array one element at a time. 
+/// Goes through the array one element at a time.
 /// If it detects a matching command, attempts to assemble the command with its proper parameters.
-pub fn resp_array_handler(value: Value, array: &mut Vec<Value>) -> Result<Option<RedisCommand>, RedisError> {
+pub fn resp_array_handler(
+    value: Value,
+    array: &mut Vec<Value>,
+) -> Result<Option<RedisCommand>, RedisError> {
     match value {
         Value::Bulk(raw_string) => {
             // https://docs.rs/strum_macros/0.25.3/strum_macros/derive.EnumString.html
@@ -64,35 +67,46 @@ pub fn resp_array_handler(value: Value, array: &mut Vec<Value>) -> Result<Option
                     // Any previous time to live associated with the key is discarded on successful SET operation.
 
                     // we are initializing these here so we can set them properly and still maintain scope
-                    let mut key = String::new();
-                    let mut value = String::new();
+                    let key: String;
+                    let value: String;
 
                     // Remember, in SET KEY VALUE, both KEY & VALUE must be present.
                     if !array.is_empty() {
                         // ok looks like we've one parameter, at least!
-                        let set_key = array.remove(0); // 0th element, i.e. the first one
-
-                        key = set_key.to_beautify_string();
+                        // Get the 0th element, i.e. the first one, also beautify it so we can set the hash properly
+                        key = array.remove(0).to_beautify_string();
                     } else {
                         return Err(RedisError::InputFailure); // oops, no key
                     }
 
+                  
                     // ok, let's see if there's a value present
                     if !array.is_empty() {
                         // ok looks like we've the second parameter!
-                        let set_value = array.remove(1); // 1st element, i.e. the second one
-
-                        value = set_value.to_beautify_string();
+                        value = array.remove(1).to_beautify_string(); // 1st element, i.e. the second one
                     } else {
                         return Err(RedisError::InputFailure); // oops, no value
                     }
 
-                    info!("Adding K {} V {} pair", key, value);
-
                     let set_key_value = (key, value);
 
                     Ok(Some(RedisCommand::Set(set_key_value)))
-                } // _ => None,
+                }
+                RedisCommand::Get(_) => {
+                    // https://redis.io/commands/get/
+                    // Get a value for a given key.
+                    let key: String;
+
+                    // Remember, in GET KEY, KEY must be present.
+                    if !array.is_empty() {
+                        // ok looks like we've one parameter, at least!
+                        key = array.remove(0).to_beautify_string(); // 0th element, i.e. the first one
+                    } else {
+                        return Err(RedisError::InputFailure); // oops, no key
+                    }
+
+                    Ok(Some(RedisCommand::Get(key)))
+                }
             }
         }
         Value::BufBulk(_) => todo!(),

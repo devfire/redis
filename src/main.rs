@@ -135,6 +135,22 @@ async fn process(stream: TcpStream) {
                                     .await
                                     .expect("Unable to write TCP");
                             }
+
+                            RedisCommand::Get(key) => {
+                                // get a handle to the set actor
+                                let set_command_actor_handle = SetCommandActorHandle::new();
+
+                                let value = set_command_actor_handle.get_value(&key).await;
+
+                                info!("For key {} found value {}", key, value);
+
+                                // Encode the value to RESP binary buffer.
+                                let response = Value::String("+OK".to_string()).encode();
+                                let _ = writer
+                                    .write_all(&response)
+                                    .await
+                                    .expect("Unable to write TCP");
+                            }
                         }
                     }
                 }
