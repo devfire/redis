@@ -5,6 +5,8 @@ use resp::Value;
 
 use crate::{errors::RedisError, protocol::RedisCommand};
 
+/// Goes through the array one element at a time. 
+/// If it detects a matching command, attempts to assemble the command with its proper parameters.
 pub fn resp_array_handler(value: Value, array: &mut Vec<Value>) -> Result<Option<RedisCommand>, RedisError> {
     match value {
         Value::Bulk(raw_string) => {
