@@ -3,20 +3,28 @@
 use std::collections::HashMap;
 
 use log::info;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
-struct SetCommandActor {
+use crate::messages::ActorMessage;
+
+pub struct SetCommandActor {
     receiver: mpsc::Receiver<ActorMessage>,
     kv_hash: HashMap<String, String>,
 }
 
 impl SetCommandActor {
-    fn new(receiver: mpsc::Receiver<ActorMessage>, kv_hash: HashMap<String, String>) -> Self {
+    pub fn new(receiver: mpsc::Receiver<ActorMessage>) -> Self {
         let mut kv_hash = HashMap::new();
         Self { receiver, kv_hash }
     }
 
-    fn handle_message(&mut self, msg: ActorMessage) {
+    pub async fn run(&mut self) {
+        while let Some(msg) = self.receiver.recv().await {
+            self.handle_message(msg);
+        }
+    }
+
+    pub fn handle_message(&mut self, msg: ActorMessage) {
         match msg {
             ActorMessage::GetValue { key, respond_to } => {
                 if let Some(value) = self.kv_hash.get(&key) {
@@ -34,13 +42,3 @@ impl SetCommandActor {
     }
 }
 
-enum ActorMessage {
-    GetValue {
-        key: String,
-        respond_to: oneshot::Sender<String>,
-    },
-    SetValue {
-        // a tuple works better than a hash since we can enforce a single pair always
-        input_kv: (String, String),
-    }, 
-}

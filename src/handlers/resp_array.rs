@@ -71,8 +71,6 @@ pub fn resp_array_handler(value: Value, array: &mut Vec<Value>) -> Result<Option
                         let set_key = array.remove(0); // 0th element, i.e. the first one
 
                         key = set_key.to_beautify_string();
-
-                        info!("Assembling SET key {:?}", key);
                     } else {
                         return Err(RedisError::InputFailure); // oops, no key
                     }
@@ -83,11 +81,11 @@ pub fn resp_array_handler(value: Value, array: &mut Vec<Value>) -> Result<Option
                         let set_value = array.remove(1); // 1st element, i.e. the second one
 
                         value = set_value.to_beautify_string();
-
-                        info!("Assembling SET key {:?}", value);
                     } else {
                         return Err(RedisError::InputFailure); // oops, no value
                     }
+                    
+                    info!("Adding K {} V {} pair", key, value);
 
                     let mut set_key_value: HashMap<String, String> = HashMap::new();
                     set_key_value.insert(key, value);

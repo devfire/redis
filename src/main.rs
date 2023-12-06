@@ -4,6 +4,7 @@ pub mod errors;
 pub mod protocol;
 pub mod actors;
 mod handlers;
+pub mod messages;
 
 // use std::string::ToString;
 
