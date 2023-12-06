@@ -14,7 +14,7 @@ pub struct SetCommandActor {
 
 impl SetCommandActor {
     pub fn new(receiver: mpsc::Receiver<ActorMessage>) -> Self {
-        let mut kv_hash = HashMap::new();
+        let kv_hash = HashMap::new();
         Self { receiver, kv_hash }
     }
 
