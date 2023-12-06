@@ -94,6 +94,11 @@ async fn process(stream: TcpStream) {
                         resp_array_handler(top_value, array).expect("Unable to identify command.")
                     {
                         info!("Parsed command: {}", parsed_command);
+
+                        // OK, what we get back from resp_array_handler is a neatly parsed command with all of its parameters.
+                        // Now we get to do stuff with the command.
+                        // If it's something simple like PING, we handle it immediately and return.
+                        // If not, we get an actor handle and send it to the actor to process.
                         match parsed_command {
                             RedisCommand::Ping => {
                                 // Encode the value to RESP binary buffer.
