@@ -132,7 +132,7 @@ async fn process(stream: TcpStream) {
                                 set_command_actor_handle.set_value(key_value_pair).await;
 
                                 // Encode the value to RESP binary buffer.
-                                let response = Value::String("+OK".to_string()).encode();
+                                let response = Value::String("OK".to_string()).encode();
                                 let _ = writer
                                     .write_all(&response)
                                     .await
