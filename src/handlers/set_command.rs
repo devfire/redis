@@ -42,6 +42,6 @@ impl SetCommandActorHandle {
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the
         // failure twice.
-        let _ = self.sender.send(msg).await.expect("Failed to set value");
+        let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
 }

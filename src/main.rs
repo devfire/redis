@@ -126,7 +126,7 @@ async fn process(stream: TcpStream) {
                                 let _ = writer
                                     .write_all(&response)
                                     .await
-                                    .expect("Unable to write TCP");
+                                    .expect("Unable to write TCP.");
                             }
                             RedisCommand::Set(key_value_pair) => {
                                 set_command_actor_handle.set_value(key_value_pair).await;
