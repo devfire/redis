@@ -47,7 +47,8 @@ async fn main() -> std::io::Result<()> {
 async fn process(stream: TcpStream) {
     let (mut reader, mut writer) = stream.into_split();
 
-    //let mut reader = BufReader::new(reader);
+    // Get a handle to the set actor, one per process. This starts the actor.
+    let set_command_actor_handle = SetCommandActorHandle::new();
 
     loop {
         // Buffer to store the data
@@ -64,7 +65,7 @@ async fn process(stream: TcpStream) {
             break;
         }
 
-        info!("Read {} bytes", n);
+        // info!("Read {} bytes", n);
 
         // https://docs.rs/resp/latest/resp/struct.Decoder.html
         let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
@@ -128,9 +129,6 @@ async fn process(stream: TcpStream) {
                                     .expect("Unable to write TCP");
                             }
                             RedisCommand::Set(key_value_pair) => {
-                                // get a handle to the set actor
-                                let set_command_actor_handle = SetCommandActorHandle::new();
-
                                 set_command_actor_handle.set_value(key_value_pair).await;
 
                                 // Encode the value to RESP binary buffer.
@@ -142,15 +140,12 @@ async fn process(stream: TcpStream) {
                             }
 
                             RedisCommand::Get(key) => {
-                                // get a handle to the set actor
-                                let set_command_actor_handle = SetCommandActorHandle::new();
-
                                 let value = set_command_actor_handle.get_value(&key).await;
 
                                 info!("For key {} found value {}", key, value);
 
                                 // Encode the value to RESP binary buffer.
-                                let response = Value::String("+OK".to_string()).encode();
+                                let response = Value::String(value.to_string()).encode();
                                 let _ = writer
                                     .write_all(&response)
                                     .await
