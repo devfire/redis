@@ -8,7 +8,7 @@ pub mod protocol;
 
 // use std::string::ToString;
 
-use crate::handlers::resp_array::resp_array_handler;
+use crate::handlers::resp_array::resp_array_parser;
 use crate::handlers::set_command::SetCommandActorHandle;
 use crate::protocol::RedisCommand;
 
@@ -90,13 +90,18 @@ async fn process(stream: TcpStream) {
                     // TODO: Nested arrays are not supported yet.
                     let top_value = array.remove(0);
 
-                    // Let's figure out what command we got
+                    // Let's figure out what command we got.
+                    // The logic here is twofold:
+                    // First, we send the first Value from the RESP Array to resp_array_parser.
+                    // This can return immediately for simple commands like PING or itself it can go through the array,
+                    // assembling the command as needed.
+                    // Second, once we get the assembled command back, we take action based on the command.
                     if let Some(parsed_command) =
-                        resp_array_handler(top_value, array).expect("Unable to identify command.")
+                        resp_array_parser(top_value, array).expect("Unable to identify command.")
                     {
                         info!("Parsed command: {}", parsed_command);
 
-                        // OK, what we get back from resp_array_handler is a neatly parsed command with all of its parameters.
+                        // OK, what we get back from the parser is a command with all of its parameters.
                         // Now we get to do stuff with the command.
                         // If it's something simple like PING, we handle it immediately and return.
                         // If not, we get an actor handle and send it to the actor to process.

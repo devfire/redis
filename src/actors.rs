@@ -7,15 +7,15 @@ use log::info;
 use resp::Value;
 use tokio::sync::mpsc;
 
-use crate::messages::ActorMessage;
+use crate::messages::SetActorMessage;
 
 pub struct SetCommandActor {
-    receiver: mpsc::Receiver<ActorMessage>,
+    receiver: mpsc::Receiver<SetActorMessage>,
     kv_hash: HashMap<String, Value>,
 }
 
 impl SetCommandActor {
-    pub fn new(receiver: mpsc::Receiver<ActorMessage>) -> Self {
+    pub fn new(receiver: mpsc::Receiver<SetActorMessage>) -> Self {
         let kv_hash = HashMap::new();
         Self { receiver, kv_hash }
     }
@@ -26,16 +26,16 @@ impl SetCommandActor {
         }
     }
 
-    pub fn handle_message(&mut self, msg: ActorMessage) {
+    pub fn handle_message(&mut self, msg: SetActorMessage) {
         match msg {
-            ActorMessage::GetValue { key, respond_to } => {
+            SetActorMessage::GetValue { key, respond_to } => {
                 if let Some(value) = self.kv_hash.get(&key) {
                     let _ = respond_to.send(value.clone());
                 } else {
                     let _ = respond_to.send(resp::Value::Error("Key not found".to_string()));
                 }
             }
-            ActorMessage::SetValue { input_kv } => {
+            SetActorMessage::SetValue { input_kv } => {
                 if let Some(_) = self.kv_hash.insert(input_kv.0, input_kv.1) {
                     info!("Successfully inserted kv pair.");
                 }

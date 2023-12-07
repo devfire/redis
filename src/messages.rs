@@ -1,13 +1,17 @@
 use resp::Value;
 use tokio::sync::oneshot;
 
-pub enum ActorMessage {
+use crate::protocol::SetCommandType;
+
+pub enum SetActorMessage {
+    // the idea here is that values are stored in a String->Value HashMap.
+    // so, to get a Value back the client must supply a String key.
     GetValue {
         key: String,
         respond_to: oneshot::Sender<Value>,
     },
     SetValue {
-        // a tuple works better than a hash since we can enforce a single pair always
-        input_kv: (String, Value),
-    }, 
+        // SetCommandType is defined in protocol.rs
+        input_kv: SetCommandType,
+    },
 }
