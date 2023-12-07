@@ -2,14 +2,16 @@
 
 use std::collections::HashMap;
 
+use anyhow::Error;
 use log::info;
+use resp::Value;
 use tokio::sync::mpsc;
 
 use crate::messages::ActorMessage;
 
 pub struct SetCommandActor {
     receiver: mpsc::Receiver<ActorMessage>,
-    kv_hash: HashMap<String, String>,
+    kv_hash: HashMap<String, Value>,
 }
 
 impl SetCommandActor {
@@ -30,7 +32,7 @@ impl SetCommandActor {
                 if let Some(value) = self.kv_hash.get(&key) {
                     let _ = respond_to.send(value.clone());
                 } else {
-                    let _ = respond_to.send(String::from("No such key exists"));
+                    let _ = respond_to.send(resp::Value::Error("Key not found".to_string()));
                 }
             }
             ActorMessage::SetValue { input_kv } => {

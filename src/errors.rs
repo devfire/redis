@@ -11,6 +11,10 @@ pub enum RedisError {
     #[error("Incorrect number of parameters")]
     InputFailure,
 
+    /// Key not found
+    #[error("Invalid key passed")]
+    KeyNotFound,
+
     /// Represents all other cases of `std::io::Error`.
     #[error(transparent)]
     IOError(#[from] std::io::Error),
