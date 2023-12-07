@@ -7,7 +7,7 @@ use crate::{errors::RedisError, protocol::RedisCommand};
 
 /// Goes through the array one element at a time.
 /// If it detects a matching command, attempts to assemble the command with its proper parameters.
-pub fn resp_array_handler(
+pub fn resp_array_parser(
     value: Value,
     array: &mut Vec<Value>,
 ) -> Result<Option<RedisCommand>, RedisError> {
