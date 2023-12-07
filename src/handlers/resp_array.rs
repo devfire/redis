@@ -74,7 +74,7 @@ pub fn resp_array_handler(
                     if !array.is_empty() {
                         // ok looks like we've one parameter, at least!
                         // Get the 0th element, i.e. the first one, also beautify it so we can set the hash properly
-                        key = array.remove(0).to_beautify_string();
+                        key = array.remove(0).to_encoded_string()?;
                     } else {
                         return Err(RedisError::InputFailure); // oops, no key
                     }
@@ -82,7 +82,7 @@ pub fn resp_array_handler(
                     // ok, let's see if there's a value present
                     if !array.is_empty() {
                         // ok looks like we've the second parameter!
-                        value = array.remove(0).to_beautify_string(); // 1st element, i.e. the second one
+                        value = array.remove(0).to_encoded_string()?; // 1st element, i.e. the second one
                     } else {
                         return Err(RedisError::InputFailure); // oops, no value
                     }
