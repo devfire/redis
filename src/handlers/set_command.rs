@@ -7,7 +7,6 @@ pub struct SetCommandActorHandle {
     sender: mpsc::Sender<ActorMessage>,
 }
 
-
 // Gives you access to the underlying actor.
 impl SetCommandActorHandle {
     pub fn new() -> Self {
@@ -43,6 +42,6 @@ impl SetCommandActorHandle {
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the
         // failure twice.
-        let _ = self.sender.send(msg).await;
+        let _ = self.sender.send(msg).await.expect("Failed to set value");
     }
 }

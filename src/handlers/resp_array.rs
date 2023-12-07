@@ -79,7 +79,6 @@ pub fn resp_array_handler(
                         return Err(RedisError::InputFailure); // oops, no key
                     }
 
-                  
                     // ok, let's see if there's a value present
                     if !array.is_empty() {
                         // ok looks like we've the second parameter!
@@ -89,6 +88,8 @@ pub fn resp_array_handler(
                     }
 
                     let set_key_value = (key, value);
+
+                    info!("Setting key value {:?}", set_key_value);
 
                     Ok(Some(RedisCommand::Set(set_key_value)))
                 }
