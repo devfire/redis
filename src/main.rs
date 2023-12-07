@@ -145,7 +145,7 @@ async fn process(stream: TcpStream) {
                                 info!("For key {} found value {}", key, value);
 
                                 // Encode the value to RESP binary buffer.
-                                let response = Value::String(value.to_string()).encode();
+                                let response = Value::String(value).encode();
                                 let _ = writer
                                     .write_all(&response)
                                     .await
