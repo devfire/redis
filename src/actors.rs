@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Error;
+// use anyhow::Error;
 use log::info;
 use resp::Value;
 use tokio::sync::mpsc;
