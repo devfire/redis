@@ -129,7 +129,10 @@ async fn process(stream: TcpStream) {
                                     .expect("Unable to write TCP.");
                             }
                             RedisCommand::Set(key_value_pair) => {
-                                set_command_actor_handle.set_value(key_value_pair).await;
+                                // key_value_pair is an Option, so we have to Some() it.
+                                if let Some(kvp) = key_value_pair {
+                                    set_command_actor_handle.set_value(kvp).await
+                                }
 
                                 // Encode the value to RESP binary buffer.
                                 let response = Value::String("OK".to_string()).encode();
@@ -140,16 +143,17 @@ async fn process(stream: TcpStream) {
                             }
 
                             RedisCommand::Get(key) => {
-                                let value = set_command_actor_handle.get_value(&key).await;
+                                if let Some(input_key) = key {
+                                    let value =
+                                        set_command_actor_handle.get_value(&input_key).await;
 
-                                info!("For key {} found value {}", key, value);
-
-                                // Encode the value to RESP binary buffer.
-                                let response = Value::String(value).encode();
-                                let _ = writer
-                                    .write_all(&response)
-                                    .await
-                                    .expect("Unable to write TCP");
+                                    // Encode the value to RESP binary buffer.
+                                    let response = value.encode();
+                                    let _ = writer
+                                        .write_all(&response)
+                                        .await
+                                        .expect("Unable to write TCP");
+                                }
                             }
                         }
                     }
