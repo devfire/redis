@@ -1,4 +1,3 @@
-use resp::Value;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{actors::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters};
@@ -20,7 +19,7 @@ impl SetCommandActorHandle {
 
     /// implements the redis GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/get/
-    pub async fn get_value(&self, key: &str) -> Value {
+    pub async fn get_value(&self, key: &str) -> String {
         let (send, recv) = oneshot::channel();
         let msg = SetActorMessage::GetValue {
             key: key.to_string(),
@@ -38,9 +37,7 @@ impl SetCommandActorHandle {
     pub async fn set_value(&self, parameters: SetCommandParameters) {
         let msg = SetActorMessage::SetValue { input: parameters };
 
-        // Ignore send errors. If this send fails, so does the
-        // recv.await below. There's no reason to check the
-        // failure twice.
+        // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
 }

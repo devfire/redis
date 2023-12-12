@@ -1,4 +1,3 @@
-use resp::Value;
 use tokio::sync::oneshot;
 
 use crate::protocol::SetCommandParameters;
