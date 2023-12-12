@@ -35,10 +35,10 @@ impl SetCommandActor {
                     let _ = respond_to.send(resp::Value::Error("Key not found".to_string()));
                 }
             }
-            SetActorMessage::SetValue { input_kv } => {
-                if let Some(_) = self.kv_hash.insert(input_kv.0, input_kv.1) {
-                    info!("Successfully inserted kv pair.");
-                }
+            SetActorMessage::SetValue { input } => {
+                // if let Some(_) = self.kv_hash.insert(input_kv.0, input_kv.1) {
+                //     info!("Successfully inserted kv pair.");
+                // }
             }
         }
     }
