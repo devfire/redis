@@ -4,7 +4,7 @@ use log::info;
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take, take_until},
+    bytes::complete::{tag, tag_no_case, take, take_until},
     character::complete::{crlf, not_line_ending},
     combinator::{map, opt},
     multi::many1,
@@ -44,7 +44,7 @@ fn parse_resp_string(input: &str) -> IResult<&str, String> {
 fn parse_echo(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
-    let (input, _) = tag("$4\r\nECHO\r\n$")(input)?;
+    let (input, _) = tag_no_case("$4\r\nECHO\r\n$")(input)?;
     let (input, _echo_length) = (length)(input)?;
     let (input, echo_string) = terminated(not_line_ending, crlf)(input)?;
 
@@ -53,8 +53,8 @@ fn parse_echo(input: &str) -> IResult<&str, RedisCommand> {
 
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     alt((
-        map(tag("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
-        map(tag("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {
+        map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
+        map(tag_no_case("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {
             RedisCommand::Command
         }),
         parse_echo,

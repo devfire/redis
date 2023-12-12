@@ -94,7 +94,7 @@ async fn process(stream: TcpStream) -> Result<()> {
 
                 // info!("Parsed command: {}", parsed_command);
 
-                let request_copy = request.clone().to_encoded_string()?.to_uppercase();
+                let request_copy = request.clone().to_encoded_string()?;
 
                 info!("Encoded: {:?}", request_copy);
 
