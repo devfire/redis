@@ -4,14 +4,14 @@ use std::collections::HashMap;
 
 // use anyhow::Error;
 use log::info;
-use resp::Value;
+
 use tokio::sync::mpsc;
 
 use crate::messages::SetActorMessage;
 
 pub struct SetCommandActor {
     receiver: mpsc::Receiver<SetActorMessage>,
-    kv_hash: HashMap<String, Value>,
+    kv_hash: HashMap<String, String>,
 }
 
 impl SetCommandActor {
@@ -36,11 +36,9 @@ impl SetCommandActor {
                 }
             }
             SetActorMessage::SetValue { input } => {
-                // if let Some(_) = self.kv_hash.insert(input_kv.0, input_kv.1) {
-                //     info!("Successfully inserted kv pair.");
-                // }
+                self.kv_hash.insert(input.key, input.value);
+                info!("Successfully inserted kv pair.");
             }
         }
     }
 }
-

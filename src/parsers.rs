@@ -34,15 +34,15 @@ fn length(input: &str) -> IResult<&str, usize> {
     ))
 }
 
-fn parse_resp_string(input: &str) -> IResult<&str, String> {
-    let (input, len) = length(input)?;
-    if len == 0 {
-        return Ok((input, "".to_string()));
-    }
-    let (input, val) = terminated(take(len), crlf)(input)?;
+// fn parse_resp_string(input: &str) -> IResult<&str, String> {
+//     let (input, len) = length(input)?;
+//     if len == 0 {
+//         return Ok((input, "".to_string()));
+//     }
+//     let (input, val) = terminated(take(len), crlf)(input)?;
 
-    Ok((input, val.to_string()))
-}
+//     Ok((input, val.to_string()))
+// }
 
 fn parse_echo(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;

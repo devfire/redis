@@ -65,8 +65,8 @@ async fn process(stream: TcpStream) -> Result<()> {
 
         if n == 0 {
             info!("Empty buffer.");
-            return Ok(()) // we don't want to return an error since an empty buffer is not a problem.
-            // return Err(RedisError::ParseFailure.into());
+            return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
+                           // return Err(RedisError::ParseFailure.into());
         }
 
         // info!("Read {} bytes", n);
@@ -125,24 +125,19 @@ async fn process(stream: TcpStream) -> Result<()> {
                             .write_all(&response)
                             .await
                             .expect("Unable to write TCP.");
-                    } 
+                    }
                     Ok((_, RedisCommand::Set(set_parameters))) => {
-                          
                         info!("Set command parameters: {:?}", set_parameters);
-                        
-                        //   if let Some(kvp) = key_value_pair {
-                        //       set_command_actor_handle.set_value(kvp).await
-                        //   }
 
-                          // Encode the value to RESP binary buffer.
-                          let response = Value::String("OK".to_string()).encode();
-                          let _ = writer
-                              .write_all(&response)
-                              .await
-                              .expect("Unable to write TCP");
-                      }
+                        set_command_actor_handle.set_value(set_parameters).await;
 
-                      // RedisCommand::Get(key) => {
+                        // Encode the value to RESP binary buffer.
+                        let response = Value::String("OK".to_string()).encode();
+                        let _ = writer
+                            .write_all(&response)
+                            .await
+                            .expect("Unable to write TCP");
+                    } // RedisCommand::Get(key) => {
                       //     if let Some(input_key) = key {
                       //         let value = set_command_actor_handle.get_value(&input_key).await;
 
