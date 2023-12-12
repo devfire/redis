@@ -1,122 +1,55 @@
 use std::str::FromStr;
 
 use log::info;
+
+use nom::{
+    branch::alt,
+    bytes::complete::{tag, take, take_until},
+    character::complete::{crlf, not_line_ending},
+    combinator::{map, opt},
+    multi::many1,
+    sequence::{preceded, terminated, tuple},
+    IResult,
+};
 use resp::Value;
 
 use crate::{errors::RedisError, protocol::RedisCommand};
 
 /// Goes through the array one element at a time.
 /// If it detects a matching command, attempts to assemble the command with its proper parameters.
-pub fn resp_array_parser(
-    value: Value,
-    array: &mut Vec<Value>,
-) -> Result<Option<RedisCommand>, RedisError> {
-    match value {
-        Value::Bulk(raw_string) => {
-            // https://docs.rs/strum_macros/0.25.3/strum_macros/derive.EnumString.html
-            // this is crafting a possible enum variant from the string.
-            // So, if we are passed "PING" in raw_string, then this will construct a Command::Ping enum variant
-            let input_variant =
-                RedisCommand::from_str(&raw_string).expect("Command::from_str failed");
+// pub fn parse_command(
+//     resp_encoded_string: &str,
+// ) -> Result<Option<RedisCommand>, RedisError> {
 
-            // now we try to match our variant against the arms of known command matches
-            match input_variant {
-                RedisCommand::Ping => Ok(Some(RedisCommand::Ping)), // got a ping!
-                RedisCommand::Command(_) => {
-                    // Command is tricky because the RESP format is COMMAND DOCS so we need to grab this COMMAND command
-                    // and then take the one immediately following COMMAND.
-                    info!("Assembling COMMAND");
+// }
 
-                    // we are popping off one more element to grab the message that followed ECHO
-                    // let's make sure the array is not empty first, ECHO can be by itself with no message
-                    if !array.is_empty() {
-                        let command_message = array.remove(0); // 0th element, i.e. first one
+fn length(input: &[u8]) -> IResult<&[u8], usize> {
+    let (input, len) = terminated(not_line_ending, crlf)(input)?;
+    Ok((input, String::from_utf8_lossy(len).parse().unwrap()))
+}
 
-                        // https://docs.rs/resp/latest/resp/enum.Value.html
-                        // Remember, in COMMAND DOCS, DOCS is optional, so it needs a Some().
-                        // Then this function returns an Option<> so we need one more Some().
-                        return Ok(Some(RedisCommand::Command(Some(command_message))));
-                    } else {
-                        Ok(None)
-                    }
-                }
-                RedisCommand::Echo(_) => {
-                    // Echo is tricky because the RESP format is ECHO "MESSAGE" so we need to grab this ECHO command
-                    // and then take the one immediately following ECHO.
-                    //
-                    // Then, we are popping off one more element to grab the message that followed ECHO
-                    // let's make sure the array is not empty first, ECHO can be by itself with no message
-                    let mut echo_message = Value::String("".to_string());
-
-                    if !array.is_empty() {
-                        echo_message = array.remove(0); // 0th element, i.e. first one
-
-                        info!("Assembling ECHO + {:?}", echo_message);
-                        //https://docs.rs/resp/latest/resp/enum.Value.html
-                        // Remember, Echo "MESSAGE", message is optional, so it needs a Some().
-                        // Then this function returns an Option<> so we need one more Some().
-                    }
-
-                    // Looks like we got ECHO followed by nothing so simply reply with an empty string.
-                    return Ok(Some(RedisCommand::Echo(Some(echo_message))));
-                }
-                RedisCommand::Set(_) => {
-                    // https://redis.io/commands/set/
-                    // Set key to hold the string value.
-                    // If key already holds a value, it is overwritten, regardless of its type.
-                    // Any previous time to live associated with the key is discarded on successful SET operation.
-
-                    // we are initializing these here so we can set them properly and still maintain scope
-                    let key: String;
-                    let value: Value;
-
-                    // Remember, in SET KEY VALUE, both KEY & VALUE must be present.
-                    if !array.is_empty() {
-                        // ok looks like we've one parameter, at least!
-                        // Get the 0th element, i.e. the first one.
-                        key = array.remove(0).to_string_pretty();
-                    } else {
-                        return Err(RedisError::InputFailure); // oops, no key
-                    }
-
-                    // ok, let's see if there's a value present
-                    if !array.is_empty() {
-                        // ok looks like we've the second parameter!
-                        value = array.remove(0); // 1st element, i.e. the second one
-                    } else {
-                        return Err(RedisError::InputFailure); // oops, no value
-                    }
-
-                    let set_key_value = (key, value);
-
-                    info!("Setting key value {:?}", set_key_value);
-
-                    Ok(Some(RedisCommand::Set(Some(set_key_value))))
-                }
-                RedisCommand::Get(_) => {
-                    // https://redis.io/commands/get/
-                    // Get a value for a given key.
-                    let key: String;
-
-                    // Remember, in GET KEY, KEY must be present.
-                    if !array.is_empty() {
-                        // ok looks like we've one parameter, at least!
-                        key = array.remove(0).to_string_pretty(); // 0th element, i.e. the first one
-                    } else {
-                        return Err(RedisError::InputFailure); // oops, no key
-                    }
-
-                    Ok(Some(RedisCommand::Get(Some(key))))
-                }
-            }
-        }
-        Value::BufBulk(_) => todo!(),
-        // TODO: Need to handle nested arrays.
-        // Value::Array(array) => {
-        //     // if let Some(element) = array.remove(0) {
-        //     //     handler(element)
-        //     // }
-        // },
-        _ => return Err(RedisError::ParseFailure),
+fn parse_resp_string(input: &[u8]) -> IResult<&[u8], String> {
+    let (input, len) = length(input)?;
+    if len == 0 {
+        return Ok((input, "".to_string()));
     }
+    let (input, val) = terminated(take(len), crlf)(input)?;
+
+    Ok((
+        input,
+        String::from_utf8(val.to_vec()).expect("Unable to convert [u8] to String"),
+    ))
+}
+
+
+
+
+pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
+    alt((
+        map(tag("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
+        map(tag("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| RedisCommand::Command),
+        // map(tag("*2\r\n$4\r\nECHO\r\n$5\r\nhello\r\n"), |_| {
+        //     RedisCommand::Echo("hello".to_string())
+        // }),
+    ))(input)
 }

@@ -7,8 +7,8 @@ pub type SetCommandType = (String, Value);
 #[strum(ascii_case_insensitive)]
 pub enum RedisCommand {
     Ping,
-    Echo(Option<Value>),
-    Command(Option<Value>),
-    Set(Option<SetCommandType>), // key, value tuple for the Set command
-    Get(Option<String>),
+    // Echo(Option<Value>),
+    Command,
+    // Set(Option<SetCommandType>), // key, value tuple for the Set command
+    // Get(Option<String>),
 }
