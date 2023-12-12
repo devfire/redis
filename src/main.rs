@@ -1,4 +1,4 @@
-// use anyhow;
+use anyhow::Result;
 
 pub mod actors;
 pub mod errors;
@@ -8,13 +8,14 @@ pub mod protocol;
 
 // use std::string::ToString;
 
-use crate::handlers::resp_array::resp_array_parser;
+use crate::errors::RedisError;
+use crate::handlers::resp_array::parse_command;
 use crate::handlers::set_command::SetCommandActorHandle;
 use crate::protocol::RedisCommand;
 
 use env_logger::Env;
 use log::{info, warn};
-use resp::{Decoder, Value};
+use resp::{encode, encode_slice, Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -44,7 +45,7 @@ async fn main() -> std::io::Result<()> {
     }
 }
 
-async fn process(stream: TcpStream) {
+async fn process(stream: TcpStream) -> Result<()> {
     let (mut reader, mut writer) = stream.into_split();
 
     // Get a handle to the set actor, one per process. This starts the actor.
@@ -62,7 +63,7 @@ async fn process(stream: TcpStream) {
 
         if n == 0 {
             warn!("Error: buffer empty");
-            break;
+            return Err(RedisError::ParseFailure.into());
         }
 
         // info!("Read {} bytes", n);
@@ -71,7 +72,7 @@ async fn process(stream: TcpStream) {
         let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
         let request: resp::Value = decoder.decode().expect("Unable to decode request");
-        info!("Received {:?}", request);
+        // info!("Received {:?}", request);
 
         match request {
             Value::Null => todo!(),
@@ -81,87 +82,80 @@ async fn process(stream: TcpStream) {
             Value::Integer(_) => todo!(),
             Value::Bulk(_) => todo!(),
             Value::BufBulk(_) => todo!(),
-            Value::Array(mut array) => {
+            Value::Array(_) => {
                 // info!("Array received {:?}", array);
                 // need to recast it as &mut because handler() manipulates the array of Values
-                let array = &mut array;
-                while !array.is_empty() {
-                    // we are popping off the first value, going through the whole array one by one.
-                    // TODO: Nested arrays are not supported yet.
-                    let top_value = array.remove(0);
+                // let array_encoded_string = request.encode(); // to_encoded_string()?;
 
-                    // Let's figure out what command we got.
-                    // The logic here is twofold:
-                    // First, we send the first Value from the RESP Array to resp_array_parser.
-                    // This can return immediately for simple commands like PING or itself it can go through the array,
-                    // assembling the command as needed.
-                    // Second, once we get the assembled command back, we take action based on the command.
-                    if let Some(parsed_command) =
-                        resp_array_parser(top_value, array).expect("Unable to identify command.")
-                    {
-                        info!("Parsed command: {}", parsed_command);
+                // info!("Received: {:?}", request.to_encoded_string());
+                // Let's figure out what command we got.
+                //
+                // let (_,parsed_command) = parse_command(&request.clone().encode())?;
 
-                        // OK, what we get back from the parser is a command with all of its parameters.
-                        // Now we get to do stuff with the command.
-                        // If it's something simple like PING, we handle it immediately and return.
-                        // If not, we get an actor handle and send it to the actor to process.
-                        match parsed_command {
-                            RedisCommand::Ping => {
-                                // Encode the value to RESP binary buffer.
-                                let response = Value::String("PONG".to_string()).encode();
-                                let _ = writer
-                                    .write_all(&response)
-                                    .await
-                                    .expect("Unable to write TCP");
-                            }
-                            RedisCommand::Echo(message) => {
-                                if let Some(msg) = message {
-                                    // Encode the value to RESP binary buffer.
-                                    let response = msg.encode();
+                // info!("Parsed command: {}", parsed_command);
 
-                                    let _ = writer
-                                        .write_all(&response)
-                                        .await
-                                        .expect("Unable to write TCP");
-                                }
-                            }
-                            RedisCommand::Command(_) => {
-                                // Encode the value to RESP binary buffer.
-                                let response = Value::String("+OK".to_string()).encode();
-                                let _ = writer
-                                    .write_all(&response)
-                                    .await
-                                    .expect("Unable to write TCP.");
-                            }
-                            RedisCommand::Set(key_value_pair) => {
-                                // key_value_pair is an Option, so we have to Some() it.
-                                if let Some(kvp) = key_value_pair {
-                                    set_command_actor_handle.set_value(kvp).await
-                                }
+                let request_copy = request.clone().to_encoded_string()?.to_uppercase();
 
-                                // Encode the value to RESP binary buffer.
-                                let response = Value::String("OK".to_string()).encode();
-                                let _ = writer
-                                    .write_all(&response)
-                                    .await
-                                    .expect("Unable to write TCP");
-                            }
+                info!("Encoded: {:?}", request_copy);
 
-                            RedisCommand::Get(key) => {
-                                if let Some(input_key) = key {
-                                    let value =
-                                        set_command_actor_handle.get_value(&input_key).await;
-
-                                    // Encode the value to RESP binary buffer.
-                                    let response = value.encode();
-                                    let _ = writer
-                                        .write_all(&response)
-                                        .await
-                                        .expect("Unable to write TCP");
-                                }
-                            }
-                        }
+                // OK, what we get back from the parser is a command with all of its parameters.
+                // Now we get to do stuff with the command.
+                // If it's something simple like PING, we handle it immediately and return.
+                // If not, we get an actor handle and send it to the actor to process.
+                match parse_command(&request_copy) {
+                    Ok((_remaining_bytes, RedisCommand::Ping)) => {
+                        // Encode the value to RESP binary buffer.
+                        let response = Value::String("PONG".to_string()).encode();
+                        let _ = writer
+                            .write_all(&response)
+                            .await
+                            .expect("Unable to write TCP");
                     }
+                    Err(_) => todo!(),
+                    // RedisCommand::Echo(message) => {
+                    //     if let Some(msg) = message {
+                    //         // Encode the value to RESP binary buffer.
+                    //         let response = msg.encode();
+
+                    //         let _ = writer
+                    //             .write_all(&response)
+                    //             .await
+                    //             .expect("Unable to write TCP");
+                    //     }
+                    // }
+                    Ok((_, RedisCommand::Command)) => {
+                        // Encode the value to RESP binary buffer.
+                        let response = Value::String("+OK".to_string()).encode();
+                        let _ = writer
+                            .write_all(&response)
+                            .await
+                            .expect("Unable to write TCP.");
+                    } // RedisCommand::Set(key_value_pair) => {
+                      //     // key_value_pair is an Option, so we have to Some() it.
+                      //     if let Some(kvp) = key_value_pair {
+                      //         set_command_actor_handle.set_value(kvp).await
+                      //     }
+
+                      //     // Encode the value to RESP binary buffer.
+                      //     let response = Value::String("OK".to_string()).encode();
+                      //     let _ = writer
+                      //         .write_all(&response)
+                      //         .await
+                      //         .expect("Unable to write TCP");
+                      // }
+
+                      // RedisCommand::Get(key) => {
+                      //     if let Some(input_key) = key {
+                      //         let value = set_command_actor_handle.get_value(&input_key).await;
+
+                      //         // Encode the value to RESP binary buffer.
+                      //         let response = value.encode();
+                      //         let _ = writer
+                      //             .write_all(&response)
+                      //             .await
+                      //             .expect("Unable to write TCP");
+                      //     }
+                      // }
                 }
             }
         }
