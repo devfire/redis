@@ -4,14 +4,14 @@ pub mod actors;
 pub mod errors;
 mod handlers;
 pub mod messages;
+pub mod parsers;
 pub mod protocol;
 
 // use std::string::ToString;
 
 use crate::errors::RedisError;
-use crate::handlers::parsers::parse_command;
-use crate::handlers::set_command::SetCommandActorHandle;
 use crate::protocol::RedisCommand;
+use crate::{handlers::set_command::SetCommandActorHandle, parsers::parse_command};
 
 use env_logger::Env;
 use log::{info, warn};
@@ -64,8 +64,9 @@ async fn process(stream: TcpStream) -> Result<()> {
             .expect("Unable to read from buffer");
 
         if n == 0 {
-            warn!("Error: buffer empty");
-            return Err(RedisError::ParseFailure.into());
+            info!("Empty buffer.");
+            return Ok(()) // we don't want to return an error since an empty buffer is not a problem.
+            // return Err(RedisError::ParseFailure.into());
         }
 
         // info!("Read {} bytes", n);
