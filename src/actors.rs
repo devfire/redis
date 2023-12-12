@@ -7,7 +7,7 @@ use log::info;
 
 use tokio::sync::mpsc;
 
-use crate::messages::SetActorMessage;
+use crate::{errors::RedisError, messages::SetActorMessage};
 
 pub struct SetCommandActor {
     receiver: mpsc::Receiver<SetActorMessage>,
@@ -32,7 +32,8 @@ impl SetCommandActor {
                 if let Some(value) = self.kv_hash.get(&key) {
                     let _ = respond_to.send(value.clone());
                 } else {
-                    let _ = respond_to.send(resp::Value::Error("Key not found".to_string()));
+                    // Move this to a proper error type
+                    let _ = respond_to.send("Key not found".to_string());
                 }
             }
             SetActorMessage::SetValue { input } => {

@@ -80,6 +80,16 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Set(set_params)))
 }
 
+fn parse_get(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$3\r\nGET\r\n$")(input)?;
+    let (input, _echo_length) = (length)(input)?;
+    let (input, key) = terminated(not_line_ending, crlf)(input)?;
+
+    Ok((input, RedisCommand::Echo(key.to_string())))
+}
+
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
@@ -88,5 +98,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         }),
         parse_echo,
         parse_set,
+        parse_get,
     ))(input)
 }
