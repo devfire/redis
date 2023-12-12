@@ -9,7 +9,7 @@ pub mod protocol;
 // use std::string::ToString;
 
 use crate::errors::RedisError;
-use crate::handlers::resp_array::parse_command;
+use crate::handlers::parsers::parse_command;
 use crate::handlers::set_command::SetCommandActorHandle;
 use crate::protocol::RedisCommand;
 
@@ -40,7 +40,9 @@ async fn main() -> std::io::Result<()> {
         // A new task is spawned for each inbound socket.  The socket is
         // moved to the new task and processed there.
         tokio::spawn(async move {
-            process(stream).await;
+            process(stream)
+                .await
+                .expect("Failed to spawn process thread.");
         });
     }
 }
@@ -83,26 +85,18 @@ async fn process(stream: TcpStream) -> Result<()> {
             Value::Bulk(_) => todo!(),
             Value::BufBulk(_) => todo!(),
             Value::Array(_) => {
-                // info!("Array received {:?}", array);
-                // need to recast it as &mut because handler() manipulates the array of Values
-                // let array_encoded_string = request.encode(); // to_encoded_string()?;
+                // it's a bit clunky here but we need the original request, not what's inside Value::Array().
+                // reason is, nom parser operates on str not Vec<Value>. so sending request as an encoded string,
+                // we can avoid recreating the original RESP array and just encode the request.
+                let request_as_encoded_string = request.to_encoded_string()?;
 
-                // info!("Received: {:?}", request.to_encoded_string());
-                // Let's figure out what command we got.
-                //
-                // let (_,parsed_command) = parse_command(&request.clone().encode())?;
-
-                // info!("Parsed command: {}", parsed_command);
-
-                let request_copy = request.clone().to_encoded_string()?;
-
-                info!("Encoded: {:?}", request_copy);
+                info!("Encoded: {:?}", request_as_encoded_string);
 
                 // OK, what we get back from the parser is a command with all of its parameters.
                 // Now we get to do stuff with the command.
                 // If it's something simple like PING, we handle it immediately and return.
                 // If not, we get an actor handle and send it to the actor to process.
-                match parse_command(&request_copy) {
+                match parse_command(&request_as_encoded_string) {
                     Ok((_remaining_bytes, RedisCommand::Ping)) => {
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("PONG".to_string()).encode();
