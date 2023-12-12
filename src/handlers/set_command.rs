@@ -1,7 +1,7 @@
 use resp::Value;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::{actors::SetCommandActor, messages::SetActorMessage, protocol::SetCommandType};
+use crate::{actors::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters};
 
 #[derive(Clone)]
 pub struct SetCommandActorHandle {
@@ -35,10 +35,8 @@ impl SetCommandActorHandle {
     }
 
     /// implements the redis SET command, taking a key, value pair as input. Returns nothing.
-    pub async fn set_value(&self, key_value_pair: SetCommandType) {
-        let msg = SetActorMessage::SetValue {
-            input_kv: key_value_pair,
-        };
+    pub async fn set_value(&self, parameters: SetCommandParameters) {
+        let msg = SetActorMessage::SetValue { input: parameters };
 
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the

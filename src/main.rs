@@ -125,19 +125,22 @@ async fn process(stream: TcpStream) -> Result<()> {
                             .write_all(&response)
                             .await
                             .expect("Unable to write TCP.");
-                    } // RedisCommand::Set(key_value_pair) => {
-                      //     // key_value_pair is an Option, so we have to Some() it.
-                      //     if let Some(kvp) = key_value_pair {
-                      //         set_command_actor_handle.set_value(kvp).await
-                      //     }
+                    } 
+                    Ok((_, RedisCommand::Set(set_parameters))) => {
+                          
+                        info!("Set command parameters: {:?}", set_parameters);
+                        
+                        //   if let Some(kvp) = key_value_pair {
+                        //       set_command_actor_handle.set_value(kvp).await
+                        //   }
 
-                      //     // Encode the value to RESP binary buffer.
-                      //     let response = Value::String("OK".to_string()).encode();
-                      //     let _ = writer
-                      //         .write_all(&response)
-                      //         .await
-                      //         .expect("Unable to write TCP");
-                      // }
+                          // Encode the value to RESP binary buffer.
+                          let response = Value::String("OK".to_string()).encode();
+                          let _ = writer
+                              .write_all(&response)
+                              .await
+                              .expect("Unable to write TCP");
+                      }
 
                       // RedisCommand::Get(key) => {
                       //     if let Some(input_key) = key {

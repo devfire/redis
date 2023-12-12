@@ -1,7 +1,7 @@
 use resp::Value;
 use tokio::sync::oneshot;
 
-use crate::protocol::SetCommandType;
+use crate::protocol::SetCommandParameters;
 
 pub enum SetActorMessage {
     // the idea here is that values are stored in a String->Value HashMap.
@@ -12,6 +12,6 @@ pub enum SetActorMessage {
     },
     SetValue {
         // SetCommandType is defined in protocol.rs
-        input_kv: SetCommandType,
+        input: SetCommandParameters,
     },
 }
