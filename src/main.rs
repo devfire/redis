@@ -112,17 +112,17 @@ async fn process(stream: TcpStream) -> Result<()> {
                             .expect("Unable to write TCP");
                     }
                     Err(_) => todo!(),
-                    // RedisCommand::Echo(message) => {
-                    //     if let Some(msg) = message {
-                    //         // Encode the value to RESP binary buffer.
-                    //         let response = msg.encode();
+                    Ok((_, RedisCommand::Echo(message))) => {
+                        // if let Some(msg) = message {
+                        // Encode the value to RESP binary buffer.
+                        let response = Value::String(message).encode();
 
-                    //         let _ = writer
-                    //             .write_all(&response)
-                    //             .await
-                    //             .expect("Unable to write TCP");
-                    //     }
-                    // }
+                        let _ = writer
+                            .write_all(&response)
+                            .await
+                            .expect("Unable to write TCP");
+                        // }
+                    }
                     Ok((_, RedisCommand::Command)) => {
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("+OK".to_string()).encode();
