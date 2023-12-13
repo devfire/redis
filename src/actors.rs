@@ -33,7 +33,7 @@ impl SetCommandActor {
                     let _ = respond_to.send(value.clone());
                 } else {
                     // Move this to a proper error type
-                    let _ = respond_to.send("Key not found".to_string());
+                    let _ = respond_to.send(RedisError::KeyNotFound.to_string());
                 }
             }
             SetActorMessage::SetValue { input } => {
