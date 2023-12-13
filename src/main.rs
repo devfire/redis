@@ -101,39 +101,25 @@ async fn process(stream: TcpStream) -> Result<()> {
                     Ok((_remaining_bytes, RedisCommand::Ping)) => {
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("PONG".to_string()).encode();
-                        let _ = writer
-                            .write_all(&response)
-                            .await
-                            .expect("Unable to write TCP");
+                        let _ = writer.write_all(&response).await?;
                     }
                     // return Err(RedisError::ParseFailure.into()) closes the connection so let's not do that
                     Err(_) => {
                         let err_response =
                             Value::Error(RedisError::ParseFailure.to_string()).encode();
-                            
-                        let _ = writer
-                            .write_all(&err_response)
-                            .await
-                            .expect("Unable to write TCP");
+
+                        let _ = writer.write_all(&err_response).await?;
                     }
                     Ok((_, RedisCommand::Echo(message))) => {
-                        // if let Some(msg) = message {
                         // Encode the value to RESP binary buffer.
                         let response = Value::String(message).encode();
 
-                        let _ = writer
-                            .write_all(&response)
-                            .await
-                            .expect("Unable to write TCP");
-                        // }
+                        let _ = writer.write_all(&response).await?;
                     }
                     Ok((_, RedisCommand::Command)) => {
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("+OK".to_string()).encode();
-                        let _ = writer
-                            .write_all(&response)
-                            .await
-                            .expect("Unable to write TCP.");
+                        let _ = writer.write_all(&response).await?;
                     }
                     Ok((_, RedisCommand::Set(set_parameters))) => {
                         info!("Set command parameters: {:?}", set_parameters);
@@ -142,20 +128,19 @@ async fn process(stream: TcpStream) -> Result<()> {
 
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("OK".to_string()).encode();
-                        let _ = writer
-                            .write_all(&response)
-                            .await
-                            .expect("Unable to write TCP");
+                        let _ = writer.write_all(&response).await?;
                     }
                     Ok((_, RedisCommand::Get(key))) => {
-                        let value = set_command_actor_handle.get_value(&key).await;
-
-                        // Encode the value to RESP binary buffer.
-                        let response = Value::String(value).encode();
-                        let _ = writer
-                            .write_all(&response)
-                            .await
-                            .expect("Unable to write TCP");
+                        // we may or may not get a value for the supplied key.
+                        // if we do, we return it. If not, we encode Null and send that back.
+                        if let Some(value) = set_command_actor_handle.get_value(&key).await {
+                            let response = Value::String(value).encode();
+                            // Encode the value to RESP binary buffer.
+                            let _ = writer.write_all(&response).await?;
+                        } else {
+                            let response = Value::Null.encode();
+                            let _ = writer.write_all(&response).await?;
+                        }
                     }
                 }
             }

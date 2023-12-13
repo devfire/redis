@@ -1,18 +1,14 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, tag_no_case, take, take_until},
+    bytes::complete::{tag, tag_no_case},
     character::complete::{crlf, not_line_ending},
-    combinator::{map, opt},
+    combinator::map,
 
-    sequence::{preceded, terminated, tuple},
+    sequence::terminated,
     IResult,
 };
-use resp::Value;
 
-use crate::{
-    errors::RedisError,
-    protocol::{RedisCommand, SetCommandParameters},
-};
+use crate::protocol::{RedisCommand, SetCommandParameters};
 
 /// Goes through the array one element at a time.
 /// If it detects a matching command, attempts to assemble the command with its proper parameters.
