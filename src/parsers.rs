@@ -1,13 +1,9 @@
-use std::str::FromStr;
-
-use log::info;
-
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take, take_until},
     character::complete::{crlf, not_line_ending},
     combinator::{map, opt},
-    multi::many1,
+
     sequence::{preceded, terminated, tuple},
     IResult,
 };
@@ -87,7 +83,7 @@ fn parse_get(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _echo_length) = (length)(input)?;
     let (input, key) = terminated(not_line_ending, crlf)(input)?;
 
-    Ok((input, RedisCommand::Echo(key.to_string())))
+    Ok((input, RedisCommand::Get(key.to_string())))
 }
 
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
