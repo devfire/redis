@@ -47,10 +47,8 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
 
     // get the key first
     let (input, key) = (parse_resp_string)(input)?;
-    // let (input, key) = terminated(not_line_ending, crlf)(input)?;
-
+    
     // let's get the value next
-    // let (input, _) = tag("$")(input)?;
     let (input, value) = (parse_resp_string)(input)?;
     // let (input, value) = terminated(not_line_ending, crlf)(input)?;
 
