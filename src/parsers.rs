@@ -1,13 +1,14 @@
+use log::info;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
     character::complete::{crlf, not_line_ending},
     combinator::{map, opt},
-    sequence::terminated,
+    sequence::{terminated, tuple},
     IResult,
 };
 
-use crate::protocol::{RedisCommand, SetCommandParameters, SetCommandSetOption};
+use crate::protocol::{RedisCommand, SetCommandParameters};
 
 fn length(input: &str) -> IResult<&str, usize> {
     let (input, len) = terminated(not_line_ending, crlf)(input)?;
@@ -45,35 +46,26 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$3\r\nSET\r\n")(input)?;
 
-    // get the key first
-    let (input, key) = (parse_resp_string)(input)?;
+    let (input, (key, value, option, get, expire)) = tuple((
+        parse_resp_string,
+        parse_resp_string,
+        // opt(alt((map(tag("NX"), |_| "NX"), map(tag("NX"), |_| "NX")))),
+        opt(map(
+            alt((tag_no_case("NX"), tag_no_case("XX"))),
+            |s: &str| s.to_string(),
+        )),
+        opt(map(tag_no_case("GET"), |_| "GET".to_string())),
+        opt(parse_resp_string),
+    ))(input)?;
 
-    // let's get the value next
-    let (input, value) = (parse_resp_string)(input)?;
-    // let (input, value) = terminated(not_line_ending, crlf)(input)?;
-
-    let mut set_params = SetCommandParameters {
-        key: key.to_string(),
-        value: value.to_string(),
-        option: None,
-        get: None,
-        expire: None,
+    let set_params = SetCommandParameters {
+        key,
+        value,
+        option,
+        get,
+        expire,
     };
-
-    // everything from here on is optional
-    let (input, set_options) = opt(parse_resp_string)(input)?;
-
-    if let Some(option) = set_options {
-        match option.to_uppercase().as_str() {
-            "NX" => {
-                set_params.option = Some(SetCommandSetOption::NX);
-            }
-            "XX" => {
-                set_params.option = Some(SetCommandSetOption::XX);
-            }
-            _ => {}
-        }
-    }
+    info!("Parsed SET: {:?}", set_params);
 
     Ok((input, RedisCommand::Set(set_params)))
 }

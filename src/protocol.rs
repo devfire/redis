@@ -12,13 +12,13 @@ pub enum RedisCommand {
 pub struct SetCommandParameters {
     pub key: String,
     pub value: String,
-    pub option: Option<SetCommandSetOption>,
-    pub get: Option<bool>,
-    pub expire: Option<usize>,
+    pub option: Option<String>,
+    pub get: Option<String>,
+    pub expire: Option<String>,
 }
 
-#[derive(Debug)]
-pub enum SetCommandSetOption {
-    NX,
-    XX,
-}
+// #[derive(Debug)]
+// pub enum SetCommandSetOption {
+//     NX,
+//     XX,
+// }
