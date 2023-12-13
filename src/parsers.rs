@@ -2,12 +2,12 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
     character::complete::{crlf, not_line_ending},
-    combinator::map,
+    combinator::{map, opt},
     sequence::terminated,
     IResult,
 };
 
-use crate::protocol::{RedisCommand, SetCommandParameters};
+use crate::protocol::{RedisCommand, SetCommandParameters, SetCommandSetOption};
 
 fn length(input: &str) -> IResult<&str, usize> {
     let (input, len) = terminated(not_line_ending, crlf)(input)?;
@@ -47,19 +47,34 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
 
     // get the key first
     let (input, key) = (parse_resp_string)(input)?;
-    
+
     // let's get the value next
     let (input, value) = (parse_resp_string)(input)?;
     // let (input, value) = terminated(not_line_ending, crlf)(input)?;
 
-    // everything from here on is optional
-    // let (input, _) = opt(tag("$"))(input)?;
-    let set_params = SetCommandParameters {
+    let mut set_params = SetCommandParameters {
         key: key.to_string(),
         value: value.to_string(),
         option: None,
+        get: None,
         expire: None,
     };
+
+    // everything from here on is optional
+    let (input, set_options) = opt(parse_resp_string)(input)?;
+
+    if let Some(option) = set_options {
+        match option.to_uppercase().as_str() {
+            "NX" => {
+                set_params.option = Some(SetCommandSetOption::NX);
+            }
+            "XX" => {
+                set_params.option = Some(SetCommandSetOption::XX);
+            }
+            _ => {}
+        }
+    }
+
     Ok((input, RedisCommand::Set(set_params)))
 }
 

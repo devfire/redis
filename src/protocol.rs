@@ -13,6 +13,7 @@ pub struct SetCommandParameters {
     pub key: String,
     pub value: String,
     pub option: Option<SetCommandSetOption>,
+    pub get: Option<bool>,
     pub expire: Option<usize>,
 }
 
