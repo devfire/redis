@@ -14,8 +14,8 @@ use crate::protocol::RedisCommand;
 use crate::{handlers::set_command::SetCommandActorHandle, parsers::parse_command};
 
 use env_logger::Env;
-use log::{info, warn};
-use resp::{encode, encode_slice, Decoder, Value};
+use log::info;
+use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -42,7 +42,7 @@ async fn main() -> std::io::Result<()> {
         tokio::spawn(async move {
             process(stream)
                 .await
-                .expect("Failed to spawn process thread.");
+                .expect("Failed to spawn process thread");
         });
     }
 }
@@ -106,7 +106,16 @@ async fn process(stream: TcpStream) -> Result<()> {
                             .await
                             .expect("Unable to write TCP");
                     }
-                    Err(_) => todo!(),
+                    // return Err(RedisError::ParseFailure.into()) closes the connection so let's not do that
+                    Err(_) => {
+                        let err_response =
+                            Value::Error(RedisError::ParseFailure.to_string()).encode();
+                            
+                        let _ = writer
+                            .write_all(&err_response)
+                            .await
+                            .expect("Unable to write TCP");
+                    }
                     Ok((_, RedisCommand::Echo(message))) => {
                         // if let Some(msg) = message {
                         // Encode the value to RESP binary buffer.
