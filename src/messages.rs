@@ -7,7 +7,7 @@ pub enum SetActorMessage {
     // So, to get a Value back the client must supply a String key.
     GetValue {
         key: String,
-        respond_to: oneshot::Sender<String>,
+        respond_to: oneshot::Sender<Option<String>>,
     },
     SetValue {
         // SetCommandParameters is defined in protocol.rs

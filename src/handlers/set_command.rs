@@ -19,7 +19,7 @@ impl SetCommandActorHandle {
 
     /// implements the redis GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/get/
-    pub async fn get_value(&self, key: &str) -> String {
+    pub async fn get_value(&self, key: &str) -> Option<String> {
         let (send, recv) = oneshot::channel();
         let msg = SetActorMessage::GetValue {
             key: key.to_string(),
@@ -30,7 +30,14 @@ impl SetCommandActorHandle {
         // recv.await below. There's no reason to check the
         // failure twice.
         let _ = self.sender.send(msg).await;
-        recv.await.expect("Actor task has been killed")
+
+        // this is going back once the msg comes back from the actor.
+        // NOTE: we might get None back, i.e. no value for the given key.
+        if let Some(value) = recv.await.expect("Actor task has been killed") {
+            Some(value)
+        } else {
+            None
+        }
     }
 
     /// implements the redis SET command, taking a key, value pair as input. Returns nothing.
