@@ -3,20 +3,11 @@ use nom::{
     bytes::complete::{tag, tag_no_case},
     character::complete::{crlf, not_line_ending},
     combinator::map,
-
     sequence::terminated,
     IResult,
 };
 
 use crate::protocol::{RedisCommand, SetCommandParameters};
-
-/// Goes through the array one element at a time.
-/// If it detects a matching command, attempts to assemble the command with its proper parameters.
-// pub fn parse_command(
-//     resp_encoded_string: &str,
-// ) -> Result<Option<RedisCommand>, RedisError> {
-
-// }
 
 fn length(input: &str) -> IResult<&str, usize> {
     let (input, len) = terminated(not_line_ending, crlf)(input)?;
@@ -26,22 +17,24 @@ fn length(input: &str) -> IResult<&str, usize> {
     ))
 }
 
-// fn parse_resp_string(input: &str) -> IResult<&str, String> {
-//     let (input, len) = length(input)?;
-//     if len == 0 {
-//         return Ok((input, "".to_string()));
-//     }
-//     let (input, val) = terminated(take(len), crlf)(input)?;
+// RESP bulk string format: $<length>\r\n<data>\r\n
+fn parse_resp_string(input: &str) -> IResult<&str, String> {
+    let (input, _) = tag("$")(input)?;
+    let (input, _len) = length(input)?;
+    // if len == 0 {
+    //     return Ok((input, "".to_string()));
+    // }
+    let (input, value) = terminated(not_line_ending, crlf)(input)?;
 
-//     Ok((input, val.to_string()))
-// }
+    Ok((input, value.to_string()))
+}
 
 fn parse_echo(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
-    let (input, _) = tag_no_case("$4\r\nECHO\r\n$")(input)?;
-    let (input, _echo_length) = (length)(input)?;
-    let (input, echo_string) = terminated(not_line_ending, crlf)(input)?;
+    let (input, _) = tag_no_case("$4\r\nECHO\r\n")(input)?;
+    // let (input, _echo_length) = (length)(input)?;
+    let (input, echo_string) = (parse_resp_string)(input)?;
 
     Ok((input, RedisCommand::Echo(echo_string.to_string())))
 }
@@ -50,16 +43,16 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
     // test string: *3\r\n$3\r\nset\r\n$5\r\nhello\r\n$7\r\noranges\r\n
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
-    let (input, _) = tag_no_case("$3\r\nSET\r\n$")(input)?;
+    let (input, _) = tag_no_case("$3\r\nSET\r\n")(input)?;
 
     // get the key first
-    let (input, _key_length) = (length)(input)?;
-    let (input, key) = terminated(not_line_ending, crlf)(input)?;
+    let (input, key) = (parse_resp_string)(input)?;
+    // let (input, key) = terminated(not_line_ending, crlf)(input)?;
 
     // let's get the value next
-    let (input, _) = tag("$")(input)?;
-    let (input, _value_length) = (length)(input)?;
-    let (input, value) = terminated(not_line_ending, crlf)(input)?;
+    // let (input, _) = tag("$")(input)?;
+    let (input, value) = (parse_resp_string)(input)?;
+    // let (input, value) = terminated(not_line_ending, crlf)(input)?;
 
     // everything from here on is optional
     // let (input, _) = opt(tag("$"))(input)?;
@@ -75,9 +68,9 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
 fn parse_get(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
-    let (input, _) = tag_no_case("$3\r\nGET\r\n$")(input)?;
-    let (input, _echo_length) = (length)(input)?;
-    let (input, key) = terminated(not_line_ending, crlf)(input)?;
+    let (input, _) = tag_no_case("$3\r\nGET\r\n")(input)?;
+    // let (input, _echo_length) = (length)(input)?;
+    let (input, key) = (parse_resp_string)(input)?;
 
     Ok((input, RedisCommand::Get(key.to_string())))
 }
