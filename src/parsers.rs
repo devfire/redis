@@ -57,7 +57,7 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
         opt(map(tag_no_case("GET"), |_| "GET".to_string())),
         opt(parse_resp_string),
     ))(input)?;
-
+    
     let set_params = SetCommandParameters {
         key,
         value,
