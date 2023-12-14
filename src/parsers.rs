@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
     character::complete::{crlf, not_line_ending},
-    combinator::{map, opt},
+    combinator::{map, opt, value},
     sequence::{terminated, tuple},
     IResult,
 };
@@ -22,9 +22,7 @@ fn length(input: &str) -> IResult<&str, usize> {
 fn parse_resp_string(input: &str) -> IResult<&str, String> {
     let (input, _) = tag("$")(input)?;
     let (input, _len) = length(input)?;
-    // if len == 0 {
-    //     return Ok((input, "".to_string()));
-    // }
+
     let (input, value) = terminated(not_line_ending, crlf)(input)?;
 
     Ok((input, value.to_string()))
@@ -50,14 +48,18 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
         parse_resp_string,
         parse_resp_string,
         // opt(alt((map(tag("NX"), |_| "NX"), map(tag("NX"), |_| "NX")))),
-        opt(map(
-            alt((tag_no_case("NX"), tag_no_case("XX"))),
-            |s: &str| s.to_string(),
-        )),
+        // opt(map(
+        //     alt((tag_no_case("$2\r\nNX\r\n"), tag_no_case("$2\r\nXX\r\n"))),
+        //     |s: &str| s.to_string(),
+        // )),
+        opt(alt((
+            value("NX".to_string(), tag_no_case("$2\r\nNX\r\n")),
+            value("XX".to_string(), tag_no_case("$2\r\nXX\r\n")),
+        ))),
         opt(map(tag_no_case("GET"), |_| "GET".to_string())),
         opt(parse_resp_string),
     ))(input)?;
-    
+
     let set_params = SetCommandParameters {
         key,
         value,
