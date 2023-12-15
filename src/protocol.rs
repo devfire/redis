@@ -14,7 +14,7 @@ pub struct SetCommandParameters {
     pub value: String,
     pub option: Option<SetCommandSetOption>,
     pub get: Option<bool>,
-    pub expire: Option<(String,usize)>,
+    pub expire: Option<SetCommandExpireOption>,
 }
 
 #[derive(Debug, Clone, Copy)]
