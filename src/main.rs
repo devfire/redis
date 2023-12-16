@@ -30,28 +30,29 @@ async fn main() -> std::io::Result<()> {
 
     let listener = TcpListener::bind("0.0.0.0:6379").await?;
 
+    // Get a handle to the set actor, one per redis. This starts the actor.
+    let set_command_actor_handle = SetCommandActorHandle::new();
+
     info!("Redis is running.");
 
     loop {
         // Asynchronously wait for an inbound TcpStream.
         let (stream, _) = listener.accept().await?;
 
+        let set_command_handler_clone = set_command_actor_handle.clone();
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is
         // moved to the new task and processed there.
         tokio::spawn(async move {
-            process(stream)
+            process(stream, set_command_handler_clone)
                 .await
                 .expect("Failed to spawn process thread");
         });
     }
 }
 
-async fn process(stream: TcpStream) -> Result<()> {
+async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHandle) -> Result<()> {
     let (mut reader, mut writer) = stream.into_split();
-
-    // Get a handle to the set actor, one per process. This starts the actor.
-    let set_command_actor_handle = SetCommandActorHandle::new();
 
     loop {
         // Buffer to store the data
