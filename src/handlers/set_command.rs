@@ -1,6 +1,11 @@
+use log::info;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::{actors::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters};
+use crate::{
+    actors::SetCommandActor,
+    messages::SetActorMessage,
+    protocol::{SetCommandExpireOption, SetCommandParameters},
+};
 
 #[derive(Clone)]
 pub struct SetCommandActorHandle {
@@ -42,7 +47,39 @@ impl SetCommandActorHandle {
 
     /// implements the redis SET command, taking a key, value pair as input. Returns nothing.
     pub async fn set_value(&self, parameters: SetCommandParameters) {
-        let msg = SetActorMessage::SetValue { input: parameters };
+        let msg = SetActorMessage::SetValue {
+            input: parameters.clone(),
+        };
+
+        if let Some(expiration_parameters) = parameters.expire {
+            match expiration_parameters {
+                SetCommandExpireOption::EX(_) => todo!(),
+                SetCommandExpireOption::PX(_milliseconds) => {
+                    let msg = SetActorMessage::ExpireValue {
+                        expiry: parameters,
+                    };
+
+                    let _ = self.sender.send(msg).await; 
+                }
+                SetCommandExpireOption::EXAT(_) => todo!(),
+                SetCommandExpireOption::PXAT(_) => todo!(),
+                SetCommandExpireOption::KEEPTTL => todo!(),
+            }
+        }
+        // match parameters.expire {
+        //     Some(SetCommandExpireOption::EX(seconds)) => info!("Expire in {} seconds", seconds),
+        //     Some(SetCommandExpireOption::PX(milliseconds)) => {
+        //         info!("Expire in {} milliseconds", milliseconds);
+        //         let msg = SetActorMessage::ExpireValue {
+        //             expiry: parameters.expire.map(SetCommandExpireOption::PX),
+        //         };
+        //         let _ = self.sender.send(msg).await;
+        //     }
+        //     Some(SetCommandExpireOption::EXAT(timestamp)) => info!("Expire at {}", timestamp),
+        //     Some(SetCommandExpireOption::PXAT(timestamp)) => info!("Expire at {}", timestamp),
+        //     Some(SetCommandExpireOption::KEEPTTL) => info!("Keep TTL"),
+        //     None => info!("No expire option"),
+        // }
 
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
