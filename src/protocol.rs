@@ -8,7 +8,7 @@ pub enum RedisCommand {
 }
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SetCommandParameters {
     pub key: String,
     pub value: String,
