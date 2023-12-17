@@ -59,7 +59,11 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
 
     let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
 
+    // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let expire_command_handler_clone = set_command_actor_handle.clone();
+
+    // this will listen for messages on the expire_tx channel. 
+    // Once a msg comes, it'll see if it's an expiry message and if it is, will move everything and spawn off a thread to expire in the future.
     let _expiry_handle_loop = tokio::spawn(async move {
         // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
         // This method blocks until a message is received.

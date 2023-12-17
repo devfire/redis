@@ -1,14 +1,6 @@
-use log::info;
-use tokio::{
-    sync::{mpsc, oneshot},
-    time::{sleep, Duration},
-};
+use tokio::sync::{mpsc, oneshot};
 
-use crate::{
-    actors::{self, SetCommandActor},
-    messages::SetActorMessage,
-    protocol::{SetCommandExpireOption, SetCommandParameters},
-};
+use crate::{actors::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters};
 
 #[derive(Clone)]
 pub struct SetCommandActorHandle {
@@ -60,9 +52,8 @@ impl SetCommandActorHandle {
 
     pub async fn expire_value(&self, parameters: SetCommandParameters) {
         let msg = SetActorMessage::ExpireValue { expiry: parameters };
-        
+
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
-
     }
 }
