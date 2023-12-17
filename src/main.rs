@@ -1,4 +1,7 @@
 use anyhow::Result;
+use protocol::SetCommandParameters;
+use tokio::sync::mpsc;
+use tokio::time::{sleep, Duration};
 
 pub mod actors;
 pub mod errors;
@@ -53,6 +56,33 @@ async fn main() -> std::io::Result<()> {
 
 async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHandle) -> Result<()> {
     let (mut reader, mut writer) = stream.into_split();
+
+    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
+
+    let expire_command_handler_clone = set_command_actor_handle.clone();
+    let _expiry_handle_loop = tokio::spawn(async move {
+        // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
+        // This method blocks until a message is received.
+        while let Some(msg) = expire_rx.recv().await {
+            // info!("Writer manager: sending {msg:?} to {addr}");
+            if let Some(duration) = msg.expire {
+                match duration {
+                    protocol::SetCommandExpireOption::EX(_) => todo!(),
+                    protocol::SetCommandExpireOption::PX(milliseconds) => {
+                        let expire_command_handler_clone = expire_command_handler_clone.clone();
+                        let _expiry_handle = tokio::spawn(async move {
+                            sleep(Duration::from_millis(milliseconds as u64)).await;
+                            info!("Expiring {:?}", msg);
+                            expire_command_handler_clone.expire_value(msg.clone()).await;
+                        });
+                    }
+                    protocol::SetCommandExpireOption::EXAT(_) => todo!(),
+                    protocol::SetCommandExpireOption::PXAT(_) => todo!(),
+                    protocol::SetCommandExpireOption::KEEPTTL => todo!(),
+                }
+            }
+        }
+    });
 
     loop {
         // Buffer to store the data
@@ -125,8 +155,14 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                     Ok((_, RedisCommand::Set(set_parameters))) => {
                         info!("Set command parameters: {:?}", set_parameters);
 
-                        set_command_actor_handle.set_value(set_parameters).await;
+                        set_command_actor_handle
+                            .set_value(set_parameters.clone())
+                            .await;
 
+                        expire_tx
+                            .send(set_parameters.clone())
+                            .await
+                            .expect("Unable to start the expiry thread.");
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("OK".to_string()).encode();
                         let _ = writer.write_all(&response).await?;
