@@ -6,6 +6,7 @@ use crate::protocol::{SetCommandExpireOption, SetCommandParameters};
 /// By using an enum, we can have many different message types, and each message type can have its own set of arguments.
 /// We return a value to the sender by using an oneshot channel, which is a message passing channel that allows
 /// sending exactly one message.
+#[derive(Debug)]
 pub enum SetActorMessage {
     // the idea here is that values are stored in a String->Value HashMap.
     // So, to get a Value back the client must supply a String key.

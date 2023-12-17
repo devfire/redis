@@ -41,7 +41,8 @@ impl SetCommandActor {
                 info!("Successfully inserted kv pair.");
             }
             SetActorMessage::ExpireValue { expiry } => {
-                info!("Expiring ")
+                info!("Expiring {:?}", expiry);
+                self.kv_hash.remove(&expiry.key);
             }
         }
     }
