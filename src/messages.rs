@@ -1,6 +1,6 @@
 use tokio::sync::oneshot;
 
-use crate::protocol::{SetCommandExpireOption, SetCommandParameters};
+use crate::protocol::SetCommandParameters;
 
 /// The ActorMessage enum defines the kind of messages we can send to the actor.
 /// By using an enum, we can have many different message types, and each message type can have its own set of arguments.
