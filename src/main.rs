@@ -42,10 +42,12 @@ async fn main() -> std::io::Result<()> {
         // Asynchronously wait for an inbound TcpStream.
         let (stream, _) = listener.accept().await?;
 
+
+        // Must clone the handler because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
+
         // Spawn our handler to be run asynchronously.
-        // A new task is spawned for each inbound socket.  The socket is
-        // moved to the new task and processed there.
+        // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
         tokio::spawn(async move {
             process(stream, set_command_handler_clone)
                 .await
@@ -68,15 +70,18 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
         // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
         // This method blocks until a message is received.
         while let Some(msg) = expire_rx.recv().await {
-            // info!("Writer manager: sending {msg:?} to {addr}");
+            // We may or may not need to expire a value. If not, no big deal, just wait again.
             if let Some(duration) = msg.expire {
                 match duration {
                     protocol::SetCommandExpireOption::EX(_) => todo!(),
                     protocol::SetCommandExpireOption::PX(milliseconds) => {
+                        // Must clone again because we're about to move this into a dedicated sleep thread.
                         let expire_command_handler_clone = expire_command_handler_clone.clone();
                         let _expiry_handle = tokio::spawn(async move {
                             sleep(Duration::from_millis(milliseconds as u64)).await;
                             info!("Expiring {:?}", msg);
+
+                            // Fire off a command to the handler to remove the value immediately.
                             expire_command_handler_clone.expire_value(msg.clone()).await;
                         });
                     }
@@ -163,6 +168,9 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                             .set_value(set_parameters.clone())
                             .await;
 
+                        // don't even bother checking whether there is an expiry field or not.
+                        // Reason is, this will always send to the channel and the while loop will figure out if there's an expiry field or not.
+                        // if not, this is a noop.
                         expire_tx
                             .send(set_parameters.clone())
                             .await
