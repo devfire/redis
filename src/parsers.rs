@@ -2,11 +2,14 @@ use log::info;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
-    character::complete::{crlf, not_line_ending},
-    combinator::{map, opt, value, map_opt},
+    character::complete::{crlf, digit1, not_line_ending},
+    combinator::{cut, map, map_opt, opt, value},
+    error::{Error, ErrorKind},
     sequence::{terminated, tuple},
     IResult, Parser,
 };
+
+use anyhow::anyhow;
 
 use crate::{
     errors::RedisError,
@@ -30,6 +33,22 @@ fn parse_resp_string(input: &str) -> IResult<&str, String> {
 
     Ok((input, value.to_string()))
 }
+
+// fn parse_expire_time(input: &str) -> Result<usize, RedisError> {
+//     // let (input, time_as_str) =
+//     //     digit1(input).map_err(|_| anyhow!("Failed to parse expire time"))?;
+
+//     let time = input
+//         .lines()
+//         .map(|time| time.parse::<usize>())
+//         .filter_map(|r| r.map_err(|e| e).ok());
+//     // input.lines().map(|time| Ok(time?.parse::<usize>()?));
+//     // // let time = time_as_s = tr
+//     //     .parse::<usize>()
+//     //     .map_err(|_| anyhow!("Failed to parse expire time"))?;
+
+//     Ok((input,time))
+// }
 
 fn parse_echo(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
@@ -84,26 +103,29 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
         opt(map(tag_no_case("$3\r\nGET\r\n"), |_| true)),
         // These maps all handle the various expiration options.
         opt(alt((
-            map_opt(
+            cut(map_opt(
                 tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
                 |(_expire_option, seconds)| {
+                    // seconds
+                    //     .parse::<usize>()
+                    //     .ok()
+                    //     .map(SetCommandExpireOption::EX)
+                    // buf.lines().map(|l| Ok(l?.parse()?)).collect()
+
+                    // seconds.parse::<usize>().map(|seconds| Ok(seconds?.parse))
                     seconds
                         .parse::<usize>()
-                        .ok().map(SetCommandExpireOption::EX)
-
-                    // seconds
-                    //     .parse::<usize>().into_iter()
-                    //     .filter_map(|seconds: usize|SetCommandExpireOption::EX(seconds))
-                    // .map(|seconds| SetCommandExpireOption::EX(seconds))
-                    // .or_else(|_| Err(RedisError::ParseIntError))
+                        .ok()
+                        .map(|seconds| SetCommandExpireOption::EX(seconds))
                 },
-            ),
+            )),
             map_opt(
                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
                 |(_expire_option, milliseconds)| {
                     milliseconds
                         .parse::<usize>()
-                        .ok().map(SetCommandExpireOption::PX)
+                        .ok()
+                        .map(SetCommandExpireOption::PX)
 
                     // seconds
                     //     .parse::<usize>().into_iter()
