@@ -1,19 +1,17 @@
+use std::usize;
+
 use log::info;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
-    character::complete::{crlf, digit1, not_line_ending},
-    combinator::{cut, map, map_opt, opt, value},
-    error::{Error, ErrorKind},
+    character::complete::{crlf, not_line_ending},
+    combinator::{map, opt, value},
     sequence::{terminated, tuple},
-    IResult, Parser,
+    IResult,
 };
 
-use anyhow::anyhow;
-
-use crate::{
-    errors::RedisError,
-    protocol::{RedisCommand, SetCommandExpireOption, SetCommandParameters, SetCommandSetOption},
+use crate::protocol::{
+    RedisCommand, SetCommandExpireOption, SetCommandParameters, SetCommandSetOption,
 };
 
 fn length(input: &str) -> IResult<&str, usize> {
@@ -102,39 +100,59 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
         // GET: Return the old string stored at key, or nil if key did not exist.
         opt(map(tag_no_case("$3\r\nGET\r\n"), |_| true)),
         // These maps all handle the various expiration options.
+
+        // These maps all handle the various expiration options.
         opt(alt((
-            cut(map_opt(
+            map(
                 tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
                 |(_expire_option, seconds)| {
-                    // seconds
-                    //     .parse::<usize>()
-                    //     .ok()
-                    //     .map(SetCommandExpireOption::EX)
-                    // buf.lines().map(|l| Ok(l?.parse()?)).collect()
-
-                    // seconds.parse::<usize>().map(|seconds| Ok(seconds?.parse))
-                    seconds
-                        .parse::<usize>()
-                        .ok()
-                        .map(|seconds| SetCommandExpireOption::EX(seconds))
+                    SetCommandExpireOption::EX(seconds.parse().expect("Seconds conversion failed"))
                 },
-            )),
-            map_opt(
+            ),
+            map(
                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
                 |(_expire_option, milliseconds)| {
-                    milliseconds
-                        .parse::<usize>()
-                        .ok()
-                        .map(SetCommandExpireOption::PX)
-
-                    // seconds
-                    //     .parse::<usize>().into_iter()
-                    //     .filter_map(|seconds: usize|SetCommandExpireOption::EX(seconds))
-                    // .map(|seconds| SetCommandExpireOption::EX(seconds))
-                    // .or_else(|_| Err(RedisError::ParseIntError))
+                    SetCommandExpireOption::PX(
+                        milliseconds
+                            .parse()
+                            .expect("Milliseconds conversion failed"),
+                    )
                 },
             ),
         ))),
+        // opt(alt((
+        //     map_opt(
+        //         tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
+        //         |(_expire_option, seconds)| {
+        //             // seconds
+        //             //     .parse::<usize>()
+        //             //     .ok()
+        //             //     .map(SetCommandExpireOption::EX)
+        //             // buf.lines().map(|l| Ok(l?.parse()?)).collect()
+
+        //             // seconds.parse::<usize>().map(|seconds| Ok(seconds?.parse))
+        //             seconds
+        //                 .parse::<usize>()
+        //                 .ok()
+        //                 .map(|seconds| SetCommandExpireOption::EX(seconds))
+        //         },
+        //     ),
+        //     map_opt(
+        //         tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
+        //         |(_expire_option, milliseconds)| {
+        //             milliseconds
+        //                 .parse::<usize>()
+        //                 .ok()
+        //                 .map(SetCommandExpireOption::PX)
+
+        //             // seconds
+        //             //     .parse::<usize>().into_iter()
+        //             //     .filter_map(|seconds: usize|SetCommandExpireOption::EX(seconds))
+        //             // .map(|seconds| SetCommandExpireOption::EX(seconds))
+        //             // .or_else(|_| Err(RedisError::ParseIntError))
+        //         },
+        //     ),
+        // ))),
     ))(input)?;
 
     let set_params = SetCommandParameters {
