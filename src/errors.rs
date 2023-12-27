@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 use thiserror::Error;
 
 /// RedisError enumerates all possible errors returned by this library.
@@ -17,9 +19,9 @@ pub enum RedisError {
 
     /// Represents all other cases of `std::io::Error`.
     #[error("Invalid digit parsing")]
-    ParseIntError(#[from] std::num::ParseIntError),
+    ParseIntError(#[from] ParseIntError),
 
     /// Represents all other cases of `std::io::Error`.
-    #[error(transparent)]
+    #[error("Failed to read line")]
     IOError(#[from] std::io::Error),
 }
