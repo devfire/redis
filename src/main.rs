@@ -42,7 +42,6 @@ async fn main() -> std::io::Result<()> {
         // Asynchronously wait for an inbound TcpStream.
         let (stream, _) = listener.accept().await?;
 
-
         // Must clone the handler because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
 
@@ -64,7 +63,7 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let expire_command_handler_clone = set_command_actor_handle.clone();
 
-    // this will listen for messages on the expire_tx channel. 
+    // this will listen for messages on the expire_tx channel.
     // Once a msg comes, it'll see if it's an expiry message and if it is, will move everything and spawn off a thread to expire in the future.
     let _expiry_handle_loop = tokio::spawn(async move {
         // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
@@ -73,7 +72,17 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
             // We may or may not need to expire a value. If not, no big deal, just wait again.
             if let Some(duration) = msg.expire {
                 match duration {
-                    protocol::SetCommandExpireOption::EX(_) => todo!(),
+                    protocol::SetCommandExpireOption::EX(seconds) => {
+                        // Must clone again because we're about to move this into a dedicated sleep thread.
+                        let expire_command_handler_clone = expire_command_handler_clone.clone();
+                        let _expiry_handle = tokio::spawn(async move {
+                            sleep(Duration::from_secs(seconds as u64)).await;
+                            info!("Expiring {:?}", msg);
+
+                            // Fire off a command to the handler to remove the value immediately.
+                            expire_command_handler_clone.expire_value(msg.clone()).await;
+                        });
+                    }
                     protocol::SetCommandExpireOption::PX(milliseconds) => {
                         // Must clone again because we're about to move this into a dedicated sleep thread.
                         let expire_command_handler_clone = expire_command_handler_clone.clone();
