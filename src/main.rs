@@ -211,6 +211,19 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         let response = Value::Integer(keys.len() as i64).encode();
                         let _ = writer.write_all(&response).await?;
                     }
+                    Ok((_, RedisCommand::Strlen(key))) => {
+                        // we may or may not get a value for the supplied key.
+                        // if we do, we return the length. If not, we encode 0 and send that back.
+                        // https://redis.io/commands/strlen/
+                        if let Some(value) = set_command_actor_handle.get_value(&key).await {
+                            let response = Value::Integer(value.len() as i64).encode();
+                            // Encode the value to RESP binary buffer.
+                            let _ = writer.write_all(&response).await?;
+                        } else {
+                            let response = Value::Integer(0 as i64).encode();
+                            let _ = writer.write_all(&response).await?;
+                        }
+                    }
                 }
             }
         }
