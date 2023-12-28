@@ -207,8 +207,8 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         for key in &keys {
                             set_command_actor_handle.expire_value(key).await;
                         }
-                        
-                        let response = Value::String(keys.len().to_string()).encode();
+
+                        let response = Value::Integer(keys.len() as i64).encode();
                         let _ = writer.write_all(&response).await?;
                     }
                 }
