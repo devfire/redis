@@ -20,6 +20,6 @@ pub enum SetActorMessage {
     },
     ExpireValue {
         // Expires the value at a given interval
-        expiry: SetCommandParameters,
+        expiry: String,
     },
 }
