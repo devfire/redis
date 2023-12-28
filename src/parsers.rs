@@ -58,6 +58,18 @@ fn parse_echo(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Echo(echo_string.to_string())))
 }
 
+fn parse_del(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$3\r\nDEL\r\n")(input)?;
+
+    // many1 runs the embedded parser, gathering the results in a Vec.
+    // This stops on Err::Error if there is at least one result, 
+    // and returns the results that were accumulated. 
+    let (input, keys_to_delete) = nom::multi::many1(parse_resp_string)(input)?;
+    Ok((input, RedisCommand::Del(keys_to_delete)))
+}
+
 fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
     // test string: *3\r\n$3\r\nset\r\n$5\r\nhello\r\n$7\r\noranges\r\n
     let (input, _) = tag("*")(input)?;
@@ -99,8 +111,6 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
         ))),
         // GET: Return the old string stored at key, or nil if key did not exist.
         opt(map(tag_no_case("$3\r\nGET\r\n"), |_| true)),
-        // These maps all handle the various expiration options.
-
         // These maps all handle the various expiration options.
         opt(alt((
             map(
@@ -186,5 +196,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_echo,
         parse_set,
         parse_get,
+        parse_del,
     ))(input)
 }

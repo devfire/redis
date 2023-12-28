@@ -5,6 +5,7 @@ pub enum RedisCommand {
     Command,
     Set(SetCommandParameters), // key, value tuple for the Set command
     Get(String),
+    Del(Vec<String>)
 }
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
