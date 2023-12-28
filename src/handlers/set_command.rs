@@ -51,8 +51,10 @@ impl SetCommandActorHandle {
     }
 
     /// implements immediate removal of keys. This is triggered by a tokio::spawn sleep thread in main.rs
-    pub async fn expire_value(&self, parameters: SetCommandParameters) {
-        let msg = SetActorMessage::ExpireValue { expiry: parameters };
+    pub async fn expire_value(&self, key: &String) {
+        let msg = SetActorMessage::ExpireValue {
+            expiry: key.clone(),
+        };
 
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");

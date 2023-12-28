@@ -80,7 +80,7 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                             info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
-                            expire_command_handler_clone.expire_value(msg.clone()).await;
+                            expire_command_handler_clone.expire_value(&msg.key).await;
                         });
                     }
                     protocol::SetCommandExpireOption::PX(milliseconds) => {
@@ -91,7 +91,7 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                             info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
-                            expire_command_handler_clone.expire_value(msg.clone()).await;
+                            expire_command_handler_clone.expire_value(&msg.key).await;
                         });
                     }
                     protocol::SetCommandExpireOption::EXAT(_) => todo!(),
@@ -204,25 +204,28 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         // iterate over all the keys, deleting them one by one
                         // https://redis.io/commands/del/
 
-                        // 0 milliseconds = immediate
-                        let immediate_expire_option = SetCommandExpireOption::EX(0);
-
                         for key in &keys {
-                            // construct a dummy set payload to reuse the expire functionality of SET
-                            let set_params_for_deletion = SetCommandParameters {
-                                key: key.clone(),
-                                value: "".to_string(), //empty string, doesn't matter we are deleting it anyway
-                                option: None,
-                                get: None,
-                                expire: Some(immediate_expire_option),
-                            };
-
-                            // fire off an expiry msg to the expiry channel
-                            expire_tx
-                                .send(set_params_for_deletion)
-                                .await
-                                .expect("Unable to start the expiry thread.");
+                            set_command_actor_handle.expire_value(key).await;
                         }
+                        // 0 milliseconds = immediate
+                        // let immediate_expire_option = SetCommandExpireOption::EX(0);
+
+                        // for key in &keys {
+                        //     // construct a dummy set payload to reuse the expire functionality of SET
+                        //     let set_params_for_deletion = SetCommandParameters {
+                        //         key: key.clone(),
+                        //         value: "".to_string(), //empty string, doesn't matter we are deleting it anyway
+                        //         option: None,
+                        //         get: None,
+                        //         expire: Some(immediate_expire_option),
+                        //     };
+
+                        //     // fire off an expiry msg to the expiry channel
+                        //     expire_tx
+                        //         .send(set_params_for_deletion)
+                        //         .await
+                        //         .expect("Unable to start the expiry thread.");
+                        // }
                         // Encode the value to RESP binary buffer.
                         let response = Value::String(keys.len().to_string()).encode();
                         let _ = writer.write_all(&response).await?;

@@ -61,7 +61,7 @@ impl SetCommandActor {
                info!("Expiring {:?}", expiry);
 
                // Remove the key-value pair from the hash map. Triggered by expire_value handler call from tokio::spawn sleep thread in main.rs.
-               self.kv_hash.remove(&expiry.key);
+               self.kv_hash.remove(&expiry);
            }
        }
    }
