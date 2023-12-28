@@ -58,6 +58,18 @@ fn parse_echo(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Echo(echo_string.to_string())))
 }
 
+/// https://redis.io/commands/strlen/
+/// STRLEN key
+fn parse_strlen(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$6\r\nSTRLEN\r\n")(input)?;
+    // let (input, _echo_length) = (length)(input)?;
+    let (input, key_string) = (parse_resp_string)(input)?;
+
+    Ok((input, RedisCommand::Strlen(key_string.to_string())))
+}
+
 fn parse_del(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
@@ -197,5 +209,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_set,
         parse_get,
         parse_del,
+        parse_strlen,
     ))(input)
 }
