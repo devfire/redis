@@ -57,6 +57,6 @@ impl SetCommandActorHandle {
         };
 
         // Ignore send errors.
-        let _ = self.sender.send(msg).await.expect("Failed to set value.");
+        let _ = self.sender.send(msg).await.expect("Failed to expire value.");
     }
 }
