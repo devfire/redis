@@ -13,7 +13,7 @@ pub mod protocol;
 // use std::string::ToString;
 
 use crate::errors::RedisError;
-use crate::protocol::RedisCommand;
+use crate::protocol::{RedisCommand, SetCommandExpireOption};
 use crate::{handlers::set_command::SetCommandActorHandle, parsers::parse_command};
 
 use env_logger::Env;
@@ -199,6 +199,33 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                             let response = Value::Null.encode();
                             let _ = writer.write_all(&response).await?;
                         }
+                    }
+                    Ok((_, RedisCommand::Del(keys))) => {
+                        // iterate over all the keys, deleting them one by one
+                        // https://redis.io/commands/del/
+
+                        // 0 milliseconds = immediate
+                        let immediate_expire_option = SetCommandExpireOption::EX(0);
+
+                        for key in &keys {
+                            // construct a dummy set payload to reuse the expire functionality of SET
+                            let set_params_for_deletion = SetCommandParameters {
+                                key: key.clone(),
+                                value: "".to_string(), //empty string, doesn't matter we are deleting it anyway
+                                option: None,
+                                get: None,
+                                expire: Some(immediate_expire_option),
+                            };
+
+                            // fire off an expiry msg to the expiry channel
+                            expire_tx
+                                .send(set_params_for_deletion)
+                                .await
+                                .expect("Unable to start the expiry thread.");
+                        }
+                        // Encode the value to RESP binary buffer.
+                        let response = Value::String(keys.len().to_string()).encode();
+                        let _ = writer.write_all(&response).await?;
                     }
                 }
             }

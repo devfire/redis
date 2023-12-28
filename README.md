@@ -3,11 +3,12 @@ This started as a toy project for ["Build Your Own Redis" Challenge](https://cod
 
 # Commands
 The following Redis commands have been implemented:
-- [x] SET
+- [x] SET [EX|PX]
 - [x] GET
 - [x] PING
-- [ ] COMMAND DOCS (WIP)
+- [ ] COMMAND DOCS (always returns +OK)
 - [x] ECHO
+- [x] DEL
 
 # Design Overview
 
