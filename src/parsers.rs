@@ -82,6 +82,18 @@ fn parse_del(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Del(keys_to_delete)))
 }
 
+fn parse_mget(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$4\r\nMGET\r\n")(input)?;
+
+    // many1 runs the embedded parser, gathering the results in a Vec.
+    // This stops on Err::Error if there is at least one result, 
+    // and returns the results that were accumulated. 
+    let (input, keys_to_get) = nom::multi::many1(parse_resp_string)(input)?;
+    Ok((input, RedisCommand::Mget(keys_to_get)))
+}
+
 fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
     // test string: *3\r\n$3\r\nset\r\n$5\r\nhello\r\n$7\r\noranges\r\n
     let (input, _) = tag("*")(input)?;
@@ -210,5 +222,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_get,
         parse_del,
         parse_strlen,
+        parse_mget,
     ))(input)
 }

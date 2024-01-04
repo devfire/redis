@@ -18,7 +18,7 @@ use crate::{handlers::set_command::SetCommandActorHandle, parsers::parse_command
 
 use env_logger::Env;
 use log::info;
-use resp::{Decoder, Value};
+use resp::{encode_slice, Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -209,6 +209,33 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         }
 
                         let response = Value::Integer(keys.len() as i64).encode();
+                        let _ = writer.write_all(&response).await?;
+                    }
+                    Ok((_, RedisCommand::Mget(keys))) => {
+                        // iterate over all the keys, getting them one by one
+                        // https://redis.io/commands/mget/
+
+                        let mut key_collection: Vec<String> = Vec::new();
+
+                        for key in &keys {
+                            if let Some(value) = set_command_actor_handle.get_value(&key).await {
+                                // let response = Value::String(value);
+
+                                key_collection.push(value);
+                                // Encode the value to RESP binary buffer.
+                                // let _ = writer.write_all(&response).await?;
+                            } else {
+                                let response = Value::Null;
+                                key_collection.push(response.to_encoded_string()?);
+                                // let _ = writer.write_all(&response).await?;
+                            }
+                        }
+                        // let response = Value::Array(key_collection).encode();
+
+                        // https://stackoverflow.com/questions/33216514/how-do-i-convert-a-vecstring-to-vecstr
+                        let slice_of_str: Vec<&str> =
+                            key_collection.iter().map(|s| s as &str).collect();
+                        let response = encode_slice(&slice_of_str);
                         let _ = writer.write_all(&response).await?;
                     }
                     Ok((_, RedisCommand::Strlen(key))) => {

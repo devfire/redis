@@ -10,6 +10,7 @@ The following Redis commands have been implemented:
 - [x] ECHO
 - [x] DEL
 - [x] MGET
+- [x] STRLEN
 
 # Design Overview
 
