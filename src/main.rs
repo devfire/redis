@@ -212,31 +212,24 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         let _ = writer.write_all(&response).await?;
                     }
                     Ok((_, RedisCommand::Mget(keys))) => {
-                        // iterate over all the keys, getting them one by one
+                        // Returns the values of all specified keys. 
+                        // For every key that does not hold a string value or does not exist, the special value nil is returned. 
+                        // Because of this, the operation never fails.
                         // https://redis.io/commands/mget/
 
-                        let mut key_collection: Vec<String> = Vec::new();
+                        let mut key_collection: Vec<Value> = Vec::new();
 
                         for key in &keys {
                             if let Some(value) = set_command_actor_handle.get_value(&key).await {
-                                // let response = Value::String(value);
-
-                                key_collection.push(value);
-                                // Encode the value to RESP binary buffer.
-                                // let _ = writer.write_all(&response).await?;
+                                let response = Value::String(value);
+                                key_collection.push(response);
                             } else {
-                                let response = Value::Null;
-                                key_collection.push(String::from_utf8(response.encode())?);
+                                let response = Value::Null; // key does not exist, return nil
+                                key_collection.push(response);
                                 // let _ = writer.write_all(&response).await?;
                             }
                         }
-                        // let response = Value::Array(key_collection).encode();
-
-                        // https://stackoverflow.com/questions/33216514/how-do-i-convert-a-vecstring-to-vecstr
-                        let slice_of_str: Vec<&str> =
-                            key_collection.iter().map(|s| s as &str).collect();
-                        let response = encode_slice(&slice_of_str);
-                        info!("Sending back: {:?}", response);
+                        let response = Value::Array(key_collection).encode();
 
                         let _ = writer.write_all(&response).await?;
                     }
