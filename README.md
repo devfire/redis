@@ -9,6 +9,8 @@ The following Redis commands have been implemented:
 - [ ] COMMAND DOCS (always returns +OK)
 - [x] ECHO
 - [x] DEL
+- [x] MGET
+- [x] STRLEN
 
 # Design Overview
 
