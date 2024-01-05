@@ -226,7 +226,7 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                                 // let _ = writer.write_all(&response).await?;
                             } else {
                                 let response = Value::Null;
-                                key_collection.push(response.to_encoded_string()?);
+                                key_collection.push(String::from_utf8(response.encode())?);
                                 // let _ = writer.write_all(&response).await?;
                             }
                         }
@@ -236,6 +236,8 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         let slice_of_str: Vec<&str> =
                             key_collection.iter().map(|s| s as &str).collect();
                         let response = encode_slice(&slice_of_str);
+                        info!("Sending back: {:?}", response);
+
                         let _ = writer.write_all(&response).await?;
                     }
                     Ok((_, RedisCommand::Strlen(key))) => {
