@@ -18,7 +18,7 @@ use crate::{handlers::set_command::SetCommandActorHandle, parsers::parse_command
 
 use env_logger::Env;
 use log::info;
-use resp::{encode_slice, Decoder, Value};
+use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -256,10 +256,12 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         // https://redis.io/commands/append/
 
                         // Initialize an empty string for the future.
-                        let mut new_value: String = "".to_string();
+                        let new_value: String;
                         if let Some(original_value) = set_command_actor_handle.get_value(&key).await
                         {
                             new_value = original_value + &value_to_append;
+                        } else {
+                            new_value = value_to_append;
                         }
 
                         // populate the set parameters struct.
