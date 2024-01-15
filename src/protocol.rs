@@ -3,11 +3,12 @@ pub enum RedisCommand {
     Ping,
     Echo(String),
     Command,
-    Set(SetCommandParameters), // key, value tuple for the Set command
+    Set(SetCommandParameters),
     Get(String),
     Del(Vec<String>),
-    Strlen(String),
-    Mget(Vec<String>),
+    Strlen(String), // https://redis.io/commands/strlen
+    Mget(Vec<String>), // https://redis.io/commands/mget
+    Append(String, String) // https://redis.io/commands/append/
 }
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]

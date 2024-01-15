@@ -212,8 +212,8 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         let _ = writer.write_all(&response).await?;
                     }
                     Ok((_, RedisCommand::Mget(keys))) => {
-                        // Returns the values of all specified keys. 
-                        // For every key that does not hold a string value or does not exist, the special value nil is returned. 
+                        // Returns the values of all specified keys.
+                        // For every key that does not hold a string value or does not exist, the special value nil is returned.
                         // Because of this, the operation never fails.
                         // https://redis.io/commands/mget/
 
@@ -245,6 +245,38 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                             let response = Value::Integer(0 as i64).encode();
                             let _ = writer.write_all(&response).await?;
                         }
+                    }
+
+                    // If key already exists and is a string, this command appends the value at the end of the string.
+                    // If key does not exist it is created and set as an empty string,
+                    // so APPEND will be similar to SET in this special case.
+                    Ok((_, RedisCommand::Append(key, value_to_append))) => {
+                        // we may or may not already have a value for the supplied key.
+                        // if we do, we append. If not, we create via a SET
+                        // https://redis.io/commands/append/
+
+                        // Initialize an empty string for the future.
+                        let mut new_value: String = "".to_string();
+                        if let Some(original_value) = set_command_actor_handle.get_value(&key).await
+                        {
+                            new_value = original_value + &value_to_append;
+                        }
+
+                        // populate the set parameters struct.
+                        // All the extraneous options are None since this is a pure APPEND op.
+                        let set_parameters = SetCommandParameters {
+                            key,
+                            value: new_value.clone(),
+                            expire: None,
+                            get: None,
+                            option: None,
+                        };
+
+                        set_command_actor_handle.set_value(set_parameters).await;
+
+                        let response = Value::Integer(new_value.len() as i64).encode();
+                        // Encode the value to RESP binary buffer.
+                        let _ = writer.write_all(&response).await?;
                     }
                 }
             }

@@ -32,22 +32,6 @@ fn parse_resp_string(input: &str) -> IResult<&str, String> {
     Ok((input, value.to_string()))
 }
 
-// fn parse_expire_time(input: &str) -> Result<usize, RedisError> {
-//     // let (input, time_as_str) =
-//     //     digit1(input).map_err(|_| anyhow!("Failed to parse expire time"))?;
-
-//     let time = input
-//         .lines()
-//         .map(|time| time.parse::<usize>())
-//         .filter_map(|r| r.map_err(|e| e).ok());
-//     // input.lines().map(|time| Ok(time?.parse::<usize>()?));
-//     // // let time = time_as_s = tr
-//     //     .parse::<usize>()
-//     //     .map_err(|_| anyhow!("Failed to parse expire time"))?;
-
-//     Ok((input,time))
-// }
-
 fn parse_echo(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
@@ -69,6 +53,21 @@ fn parse_strlen(input: &str) -> IResult<&str, RedisCommand> {
 
     Ok((input, RedisCommand::Strlen(key_string.to_string())))
 }
+
+fn parse_append(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$6\r\nAPPEND\r\n")(input)?;
+    
+    // let's get the key to append to, first
+    let (input, key) = (parse_resp_string)(input)?;
+
+    // now let's grab the value we are appending
+    let (input, value) = (parse_resp_string)(input)?;
+
+    Ok((input, RedisCommand::Append(key.to_string(), value.to_string())))
+}
+
 
 fn parse_del(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
@@ -154,39 +153,6 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
                 },
             ),
         ))),
-        // opt(alt((
-        //     map_opt(
-        //         tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
-        //         |(_expire_option, seconds)| {
-        //             // seconds
-        //             //     .parse::<usize>()
-        //             //     .ok()
-        //             //     .map(SetCommandExpireOption::EX)
-        //             // buf.lines().map(|l| Ok(l?.parse()?)).collect()
-
-        //             // seconds.parse::<usize>().map(|seconds| Ok(seconds?.parse))
-        //             seconds
-        //                 .parse::<usize>()
-        //                 .ok()
-        //                 .map(|seconds| SetCommandExpireOption::EX(seconds))
-        //         },
-        //     ),
-        //     map_opt(
-        //         tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
-        //         |(_expire_option, milliseconds)| {
-        //             milliseconds
-        //                 .parse::<usize>()
-        //                 .ok()
-        //                 .map(SetCommandExpireOption::PX)
-
-        //             // seconds
-        //             //     .parse::<usize>().into_iter()
-        //             //     .filter_map(|seconds: usize|SetCommandExpireOption::EX(seconds))
-        //             // .map(|seconds| SetCommandExpireOption::EX(seconds))
-        //             // .or_else(|_| Err(RedisError::ParseIntError))
-        //         },
-        //     ),
-        // ))),
     ))(input)?;
 
     let set_params = SetCommandParameters {
@@ -223,5 +189,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_del,
         parse_strlen,
         parse_mget,
+        parse_append,
     ))(input)
 }
