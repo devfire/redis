@@ -11,6 +11,7 @@ The following Redis commands have been implemented:
 - [x] DEL
 - [x] MGET
 - [x] STRLEN
+- [x] APPEND
 
 # Design Overview
 
