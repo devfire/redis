@@ -1,17 +1,20 @@
 use anyhow::Result;
+use clap::Parser;
 use protocol::SetCommandParameters;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
 pub mod actors;
 pub mod errors;
-mod handlers;
+pub mod cli;
+pub mod handlers;
 pub mod messages;
 pub mod parsers;
 pub mod protocol;
 
 // use std::string::ToString;
 
+use crate::cli::Cli;
 use crate::errors::RedisError;
 use crate::protocol::RedisCommand;
 use crate::{handlers::set_command::SetCommandActorHandle, parsers::parse_command};
@@ -30,6 +33,17 @@ async fn main() -> std::io::Result<()> {
         .write_style_or("LOG_STYLE", "always");
 
     env_logger::init_from_env(env);
+
+    let cli = Cli::parse();
+
+    // Check the value provided by the arguments
+    if let Some(dir) = cli.dir.as_deref() {
+        info!("Config directory: {dir}");
+    }
+
+    if let Some(dbfilename) = cli.dbfilename.as_deref() {
+        println!("Config db filename: {}", dbfilename.display());
+    }
 
     let listener = TcpListener::bind("0.0.0.0:6379").await?;
 
