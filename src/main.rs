@@ -36,9 +36,9 @@ async fn main() -> std::io::Result<()> {
 
     let cli = Cli::parse();
 
-    // You can check the value provided by positional arguments, or option arguments
+    // Check the value provided by the arguments
     if let Some(dir) = cli.dir.as_deref() {
-        info!("Director: {dir}");
+        info!("Config directory: {dir}");
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
