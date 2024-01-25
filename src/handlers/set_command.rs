@@ -1,6 +1,7 @@
 use tokio::sync::{mpsc, oneshot};
+// pub mod actors;
 
-use crate::{actors::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters};
+use crate::{actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters};
 
 #[derive(Clone)]
 pub struct SetCommandActorHandle {
