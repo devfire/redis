@@ -30,7 +30,7 @@ pub enum ConfigActorMessage {
     // So, to get a CONFIG Value back the client must supply a String key.
     // NOTE: Only dir and dbfilename keys are supported.
     GetValue {
-        key: String,
+        config_key: String,
         respond_to: oneshot::Sender<Option<String>>,
     },
     SetValue {

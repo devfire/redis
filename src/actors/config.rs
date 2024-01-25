@@ -37,9 +37,9 @@ impl ConfigCommandActor {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
-            ConfigActorMessage::GetValue { key, respond_to } => {
+            ConfigActorMessage::GetValue { config_key, respond_to } => {
                 // If the key exists in the hash map, send the value back
-                if let Some(value) = self.kv_hash.get(&key) {
+                if let Some(value) = self.kv_hash.get(&config_key) {
                     let _ = respond_to.send(Some(value.clone()));
                 } else {
                     // If the key does not exist in the hash map, send None
