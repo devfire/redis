@@ -27,14 +27,16 @@ pub enum SetActorMessage {
 #[derive(Debug)]
 pub enum ConfigActorMessage {
     // the idea here is that values are stored in a HashMap.
-    // So, to get a Value back the client must supply a String key.
+    // So, to get a CONFIG Value back the client must supply a String key.
+    // NOTE: Only dir and dbfilename keys are supported.
     GetValue {
         key: String,
         respond_to: oneshot::Sender<Option<String>>,
     },
     SetValue {
-        // SetCommandParameters is defined in protocol.rs
-        input: SetCommandParameters,
+        // should be either dir or dbfilename
+        config_key: String,
+        config_value: String,
     },
 }
 

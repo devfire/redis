@@ -1,5 +1,6 @@
 // Import necessary modules and types
 use crate::messages::ConfigActorMessage;
+// use clap::builder::Str;
 use log::info;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -16,7 +17,7 @@ pub struct ConfigCommandActor {
 impl ConfigCommandActor {
     // Constructor for the actor
     pub fn new(receiver: mpsc::Receiver<ConfigActorMessage>) -> Self {
-        // Initialize the key-value hash map
+        // Initialize the key-value hash map. The key is an enum of two types, dir and dbfilename.
         let kv_hash = HashMap::new();
 
         // Return a new actor with the given receiver and an empty key-value hash map
@@ -47,9 +48,9 @@ impl ConfigCommandActor {
             }
 
             // Handle a SetValue message
-            ConfigActorMessage::SetValue { input } => {
+            ConfigActorMessage::SetValue { config_key, config_value } => {
                 // Insert the key-value pair into the hash map
-                self.kv_hash.insert(input.key, input.value);
+                self.kv_hash.insert(config_key, config_value);
 
                 // Log a success message
                 info!("Successfully inserted kv pair.");
