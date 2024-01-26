@@ -5,19 +5,23 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
 pub mod actors;
-pub mod errors;
 pub mod cli;
+pub mod errors;
 pub mod handlers;
 pub mod messages;
 pub mod parsers;
 pub mod protocol;
 
-// use std::string::ToString;
-
 use crate::cli::Cli;
 use crate::errors::RedisError;
+
+// Handlers for all the actors defined
+use crate::{
+    handlers::{config_command::ConfigCommandActorHandle, set_command::SetCommandActorHandle},
+    parsers::parse_command,
+};
+
 use crate::protocol::RedisCommand;
-use crate::{handlers::set_command::SetCommandActorHandle, parsers::parse_command};
 
 use env_logger::Env;
 use log::info;
@@ -36,12 +40,20 @@ async fn main() -> std::io::Result<()> {
 
     let cli = Cli::parse();
 
-    // Check the value provided by the arguments
+    // Get a handle to the config actor, one per redis. This starts the actor.
+    let config_command_actor_handle = ConfigCommandActorHandle::new();
+
+    // Check the value provided by the arguments.
+    // Store the config values if they are valid.
     if let Some(dir) = cli.dir.as_deref() {
+        config_command_actor_handle.set_value(&"dir", &dir).await;
         info!("Config directory: {dir}");
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
+        config_command_actor_handle
+            .set_value("dbfilename", &dbfilename.to_string_lossy())
+            .await;
         println!("Config db filename: {}", dbfilename.display());
     }
 
