@@ -1,29 +1,28 @@
 use tokio::sync::{mpsc, oneshot};
-// pub mod actors;
 
-use crate::{actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters};
+use crate::{actors::config::ConfigCommandActor, messages::ConfigActorMessage};
 
 #[derive(Clone)]
-pub struct SetCommandActorHandle {
-    sender: mpsc::Sender<SetActorMessage>,
+pub struct ConfigCommandActorHandle {
+    sender: mpsc::Sender<ConfigActorMessage>,
 }
 
 // Gives you access to the underlying actor.
-impl SetCommandActorHandle {
+impl ConfigCommandActorHandle {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(8);
-        let mut actor = SetCommandActor::new(receiver);
+        let mut actor = ConfigCommandActor::new(receiver);
         tokio::spawn(async move { actor.run().await });
 
         Self { sender }
     }
 
-    /// implements the redis GET command, taking a key as input and returning a value.
+    /// implements the redis CONFIG GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/get/
     pub async fn get_value(&self, key: &str) -> Option<String> {
         let (send, recv) = oneshot::channel();
-        let msg = SetActorMessage::GetValue {
-            key: key.to_string(),
+        let msg = ConfigActorMessage::GetValue {
+            config_key: key.to_string(),
             respond_to: send,
         };
 
@@ -41,23 +40,14 @@ impl SetCommandActorHandle {
         }
     }
 
-    /// implements the redis SET command, taking a key, value pair as input. Returns nothing.
-    pub async fn set_value(&self, parameters: SetCommandParameters) {
-        let msg = SetActorMessage::SetValue {
-            input: parameters.clone(),
+    /// implements the redis CONFIG SET command, taking a key, value pair as input. Returns nothing.
+    pub async fn set_value(&self, config_key: &str, config_value: &str) {
+        let msg = ConfigActorMessage::SetValue {
+            config_key: config_key.to_string(),
+            config_value: config_value.to_string(),
         };
 
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
-    }
-
-    /// implements immediate removal of keys. This is triggered by a tokio::spawn sleep thread in main.rs
-    pub async fn expire_value(&self, key: &String) {
-        let msg = SetActorMessage::ExpireValue {
-            expiry: key.clone(),
-        };
-
-        // Ignore send errors.
-        let _ = self.sender.send(msg).await.expect("Failed to expire value.");
     }
 }

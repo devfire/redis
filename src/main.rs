@@ -5,19 +5,23 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
 pub mod actors;
-pub mod errors;
 pub mod cli;
+pub mod errors;
 pub mod handlers;
 pub mod messages;
 pub mod parsers;
 pub mod protocol;
 
-// use std::string::ToString;
-
 use crate::cli::Cli;
 use crate::errors::RedisError;
+
+// Handlers for all the actors defined
+use crate::{
+    handlers::{config_command::ConfigCommandActorHandle, set_command::SetCommandActorHandle},
+    parsers::parse_command,
+};
+
 use crate::protocol::RedisCommand;
-use crate::{handlers::set_command::SetCommandActorHandle, parsers::parse_command};
 
 use env_logger::Env;
 use log::info;
@@ -36,12 +40,20 @@ async fn main() -> std::io::Result<()> {
 
     let cli = Cli::parse();
 
-    // Check the value provided by the arguments
+    // Get a handle to the config actor, one per redis. This starts the actor.
+    let config_command_actor_handle = ConfigCommandActorHandle::new();
+
+    // Check the value provided by the arguments.
+    // Store the config values if they are valid.
     if let Some(dir) = cli.dir.as_deref() {
+        config_command_actor_handle.set_value(&"dir", &dir).await;
         info!("Config directory: {dir}");
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
+        config_command_actor_handle
+            .set_value("dbfilename", &dbfilename.to_string_lossy())
+            .await;
         println!("Config db filename: {}", dbfilename.display());
     }
 
@@ -56,20 +68,29 @@ async fn main() -> std::io::Result<()> {
         // Asynchronously wait for an inbound TcpStream.
         let (stream, _) = listener.accept().await?;
 
-        // Must clone the handler because tokio::spawn move will grab everything.
+        // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
+        let config_command_handler_clone = config_command_actor_handle.clone();
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
         tokio::spawn(async move {
-            process(stream, set_command_handler_clone)
-                .await
-                .expect("Failed to spawn process thread");
+            process(
+                stream,
+                set_command_handler_clone,
+                config_command_handler_clone,
+            )
+            .await
+            .expect("Failed to spawn process thread");
         });
     }
 }
 
-async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHandle) -> Result<()> {
+async fn process(
+    stream: TcpStream,
+    set_command_actor_handle: SetCommandActorHandle,
+    config_command_actor_handle: ConfigCommandActorHandle,
+) -> Result<()> {
     let (mut reader, mut writer) = stream.into_split();
 
     let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
@@ -293,6 +314,25 @@ async fn process(stream: TcpStream, set_command_actor_handle: SetCommandActorHan
                         let response = Value::Integer(new_value.len() as i64).encode();
                         // Encode the value to RESP binary buffer.
                         let _ = writer.write_all(&response).await?;
+                    }
+                    Ok((_, RedisCommand::Config(key))) => {
+                        // we may or may not get a value for the supplied key.
+                        // if we do, we return it. If not, we encode Null and send that back.
+                        if let Some(value) = config_command_actor_handle.get_value(&key).await {
+                            // let response = Value::String(value).encode();
+                            let mut response: Vec<Value> = Vec::new();
+                            response.push(Value::String(key));
+
+                            response.push(Value::String(value));
+
+                            let response_encoded = Value::Array(response).encode();
+
+                            // Encode the value to RESP binary buffer.
+                            let _ = writer.write_all(&response_encoded).await?;
+                        } else {
+                            let response = Value::Null.encode();
+                            let _ = writer.write_all(&response).await?;
+                        }
                     }
                 }
             }
