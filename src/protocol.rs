@@ -8,7 +8,8 @@ pub enum RedisCommand {
     Del(Vec<String>),
     Strlen(String), // https://redis.io/commands/strlen
     Mget(Vec<String>), // https://redis.io/commands/mget
-    Append(String, String) // https://redis.io/commands/append/
+    Append(String, String), // https://redis.io/commands/append/
+    Config(String) // CONFIG GET
 }
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
