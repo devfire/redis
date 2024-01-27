@@ -12,6 +12,9 @@ The following Redis commands have been implemented:
 - [x] MGET
 - [x] STRLEN
 - [x] APPEND
+- [x] CONFIG GET
+
+In addition, you can pass command-line `--dir` and `--dbfilename` parameters to restore state from disk.
 
 # Design Overview
 
