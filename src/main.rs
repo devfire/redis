@@ -91,6 +91,9 @@ async fn process(
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
 ) -> Result<()> {
+    // Split the TCP stream into a reader and writer.
+    // Create a multi-producer, single-consumer channel to send expiration messages.
+    // The channel capacity is set to 9600.
     let (mut reader, mut writer) = stream.into_split();
 
     let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
