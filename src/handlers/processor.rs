@@ -1,4 +1,4 @@
-use tokio::sync::mpsc;
+use tokio::{net::tcp::OwnedWriteHalf, sync::mpsc};
 
 use crate::{actors::process::ProcessActor, protocol::RedisCommand};
 
@@ -18,7 +18,7 @@ impl ProcessActorHandle {
     }
 
     /// Processes a valid redis command. Returns nothing.
-    pub async fn set_value(&self, command: RedisCommand) {
+    pub async fn process_value(&self, command: RedisCommand, writer: OwnedWriteHalf) {
         // Ignore send errors.
         let _ = self
             .sender
