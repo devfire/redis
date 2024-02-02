@@ -1,8 +1,11 @@
 // Import necessary modules and types
 use crate::protocol::RedisCommand;
 
+
+
 use log::info;
 
+use resp::Value;
 use tokio::sync::mpsc;
 
 /// Handles CONFIG command. Receives message from the ConfigCommandActorHandle and processes them accordingly.
@@ -33,31 +36,30 @@ impl ProcessActor {
     }
 
     // Handle a message
-    pub fn handle_message(&mut self, msg: RedisCommand) {
+    pub async fn handle_message(&mut self, msg: RedisCommand) -> Vec<u8>{
         // Match on the type of the message
         match msg {
-            Ok((_remaining_bytes, RedisCommand::Ping)) => {
+            RedisCommand::Ping => {
                 // Encode the value to RESP binary buffer.
-                let response = Value::String("PONG".to_string()).encode();
-                let _ = writer.write_all(&response).await?;
+                return Value::String("PONG".to_string()).encode();
+                // let _ = writer.write_all(&response).await?;
             }
             // return Err(RedisError::ParseFailure.into()) closes the connection so let's not do that
-            Err(_) => {
-                let err_response =
-                    Value::Error(RedisError::ParseFailure.to_string()).encode();
+            // Err(_) => {
+            //     return Value::Error(RedisError::ParseFailure.to_string()).encode();
 
-                let _ = writer.write_all(&err_response).await?;
-            }
+            //     // let _ = writer.write_all(&err_response).await?;
+            // }
             Ok((_, RedisCommand::Echo(message))) => {
                 // Encode the value to RESP binary buffer.
                 let response = Value::String(message).encode();
 
-                let _ = writer.write_all(&response).await?;
+                // let _ = writer.write_all(&response).await.expect("Failed to write to writer");
             }
             Ok((_, RedisCommand::Command)) => {
                 // Encode the value to RESP binary buffer.
                 let response = Value::String("+OK".to_string()).encode();
-                let _ = writer.write_all(&response).await?;
+                // let _ = writer.write_all(&response).await?;
             }
             Ok((_, RedisCommand::Set(set_parameters))) => {
                 info!("Set command parameters: {:?}", set_parameters);
@@ -75,7 +77,7 @@ impl ProcessActor {
                     .expect("Unable to start the expiry thread.");
                 // Encode the value to RESP binary buffer.
                 let response = Value::String("OK".to_string()).encode();
-                let _ = writer.write_all(&response).await?;
+                // let _ = writer.write_all(&response).await?;
             }
             Ok((_, RedisCommand::Get(key))) => {
                 // we may or may not get a value for the supplied key.
@@ -83,10 +85,10 @@ impl ProcessActor {
                 if let Some(value) = set_command_actor_handle.get_value(&key).await {
                     let response = Value::String(value).encode();
                     // Encode the value to RESP binary buffer.
-                    let _ = writer.write_all(&response).await?;
+                    // let _ = writer.write_all(&response).await?;
                 } else {
                     let response = Value::Null.encode();
-                    let _ = writer.write_all(&response).await?;
+                    // let _ = writer.write_all(&response).await?;
                 }
             }
             Ok((_, RedisCommand::Del(keys))) => {
