@@ -38,21 +38,26 @@ pub enum ConfigActorMessage {
         config_key: ConfigCommandParameters,
         config_value: String,
     },
-}
-
-#[derive(Debug)]
-pub enum ProcessActorMessage {
-    // the idea here is that values are stored in a HashMap.
-    // So, to get a CONFIG Value back the client must supply a String key.
-    // NOTE: Only dir and dbfilename keys are supported.
     LoadConfig {
-        config_key: String,
-        respond_to: oneshot::Sender<Option<String>>,
-    },
-    SetValue {
         // should be either dir or dbfilename
-        config_key: String,
+        config_key: ConfigCommandParameters,
         config_value: String,
     },
 }
+
+// #[derive(Debug)]
+// pub enum ProcessActorMessage {
+//     // the idea here is that values are stored in a HashMap.
+//     // So, to get a CONFIG Value back the client must supply a String key.
+//     // NOTE: Only dir and dbfilename keys are supported.
+//     LoadConfig {
+//         config_key: String,
+//         respond_to: oneshot::Sender<Option<String>>,
+//     },
+//     SetValue {
+//         // should be either dir or dbfilename
+//         config_key: String,
+//         config_value: String,
+//     },
+// }
 

@@ -1,6 +1,9 @@
 use tokio::sync::{mpsc, oneshot};
 
-use crate::{actors::config::ConfigCommandActor, messages::ConfigActorMessage, protocol::ConfigCommandParameters};
+use crate::{
+    actors::config::ConfigCommandActor, messages::ConfigActorMessage,
+    protocol::ConfigCommandParameters,
+};
 
 #[derive(Clone)]
 pub struct ConfigCommandActorHandle {
@@ -44,6 +47,17 @@ impl ConfigCommandActorHandle {
     /// https://redis.io/commands/config-set/
     pub async fn set_value(&self, config_key: ConfigCommandParameters, config_value: &str) {
         let msg = ConfigActorMessage::SetValue {
+            config_key,
+            config_value: config_value.to_string(),
+        };
+
+        // Ignore send errors.
+        let _ = self.sender.send(msg).await.expect("Failed to set value.");
+    }
+
+    /// Loads the config file on startup
+    pub async fn load_config(&self, config_key: ConfigCommandParameters, config_value: &str) {
+        let msg = ConfigActorMessage::LoadConfig {
             config_key,
             config_value: config_value.to_string(),
         };
