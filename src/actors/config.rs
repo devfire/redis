@@ -55,6 +55,14 @@ impl ConfigCommandActor {
                 // Log a success message
                 info!("Successfully inserted kv pair.");
             }
+
+            ConfigActorMessage::LoadConfig { config_key, config_value } => {
+                // Insert the key-value pair into the hash map
+                // self.kv_hash.insert(config_key, config_value);
+
+                // Log a success message
+                info!("Successfully loaded config.");
+            }
         }
     }
 }

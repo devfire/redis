@@ -1,5 +1,7 @@
 use core::fmt;
 
+use clap::builder::Str;
+
 #[derive(Debug)]
 pub enum RedisCommand {
     Ping,
@@ -39,7 +41,7 @@ pub enum SetCommandExpireOption {
     KEEPTTL,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq,Copy, Eq, Hash)]
 pub enum ConfigCommandParameters {
     Dir,
     DbFilename,
