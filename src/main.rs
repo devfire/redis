@@ -18,7 +18,7 @@ use crate::errors::RedisError;
 // Handlers for all the actors defined
 use crate::{
     handlers::{
-        config_command::ConfigCommandActorHandle, processor::ProcessActorHandle,
+        config_command::ConfigCommandActorHandle,
         set_command::SetCommandActorHandle,
     },
     parsers::parse_command,
@@ -70,7 +70,7 @@ async fn main() -> std::io::Result<()> {
     // Get a handle to the set actor, one per redis. This starts the actor.
     let set_command_actor_handle = SetCommandActorHandle::new();
 
-    let process_actor_handle = ProcessActorHandle::new();
+    // let process_actor_handle = ProcessActorHandle::new();
 
     info!("Redis is running.");
 
@@ -81,7 +81,7 @@ async fn main() -> std::io::Result<()> {
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
-        let process_handler_clone = process_actor_handle.clone();
+        // let process_handler_clone = process_actor_handle.clone();
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
@@ -90,7 +90,6 @@ async fn main() -> std::io::Result<()> {
                 stream,
                 set_command_handler_clone,
                 config_command_handler_clone,
-                process_handler_clone,
             )
             .await
         });
@@ -101,7 +100,6 @@ async fn process(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
-    processor_handle: ProcessActorHandle,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     // Create a multi-producer, single-consumer channel to send expiration messages.
@@ -192,9 +190,9 @@ async fn process(
 
                 info!("Encoded: {:?}", request_as_encoded_string);
 
-                let return_value =
-                    processor_handle.process_value(parse_command(&request_as_encoded_string));
-                let _ = writer.write_all(&return_value).await?;
+                // let return_value =
+                //     processor_handle.process_value(parse_command(&request_as_encoded_string));
+                // let _ = writer.write_all(&return_value).await?;
 
                 // OK, what we get back from the parser is a command with all of its parameters.
                 // Now we get to do stuff with the command.
