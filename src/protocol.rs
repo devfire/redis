@@ -1,3 +1,5 @@
+use core::fmt;
+
 #[derive(Debug)]
 pub enum RedisCommand {
     Ping,
@@ -6,10 +8,10 @@ pub enum RedisCommand {
     Set(SetCommandParameters),
     Get(String),
     Del(Vec<String>),
-    Strlen(String),         // https://redis.io/commands/strlen
-    Mget(Vec<String>),      // https://redis.io/commands/mget
-    Append(String, String), // https://redis.io/commands/append/
-    Config(ConfigCommandParameters),         // CONFIG GET
+    Strlen(String),                  // https://redis.io/commands/strlen
+    Mget(Vec<String>),               // https://redis.io/commands/mget
+    Append(String, String),          // https://redis.io/commands/append/
+    Config(ConfigCommandParameters), // CONFIG GET
 }
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
@@ -37,10 +39,18 @@ pub enum SetCommandExpireOption {
     KEEPTTL,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ConfigCommandParameters {
     Dir,
     DbFilename,
 }
 
+// this is needed to convert the enum variants to strings
+impl fmt::Display for ConfigCommandParameters {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigCommandParameters::Dir => write!(f, "dir"),
+            ConfigCommandParameters::DbFilename => write!(f, "dbfilename"),
+        }
+    }
+}
