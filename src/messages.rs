@@ -1,3 +1,4 @@
+// use clap::builder::Str;
 use tokio::sync::oneshot;
 
 use crate::protocol::{ConfigCommandParameters, SetCommandParameters};
@@ -40,8 +41,8 @@ pub enum ConfigActorMessage {
     },
     LoadConfig {
         // should be either dir or dbfilename
-        config_key: ConfigCommandParameters,
-        config_value: String,
+        dir: String,
+        dbfilename: String,
     },
 }
 
