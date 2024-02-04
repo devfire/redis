@@ -24,7 +24,7 @@ use crate::{
     parsers::parse_command,
 };
 
-use crate::protocol::RedisCommand;
+use crate::protocol::{ConfigCommandParameters, RedisCommand};
 
 use env_logger::Env;
 use log::info;
@@ -49,13 +49,18 @@ async fn main() -> std::io::Result<()> {
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
     if let Some(dir) = cli.dir.as_deref() {
-        config_command_actor_handle.set_value(&"dir", &dir).await;
+        config_command_actor_handle
+            .set_value(ConfigCommandParameters::Dir, dir)
+            .await;
         info!("Config directory: {dir}");
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
         config_command_actor_handle
-            .set_value("dbfilename", &dbfilename.to_string_lossy())
+            .set_value(
+                ConfigCommandParameters::DbFilename,
+                &dbfilename.to_string_lossy(),
+            )
             .await;
         println!("Config db filename: {}", dbfilename.display());
     }
@@ -331,10 +336,10 @@ async fn process(
                         // Encode the value to RESP binary buffer.
                         let _ = writer.write_all(&response).await?;
                     }
-                    Ok((_, RedisCommand::Config(key))) => {
+                    Ok((_, RedisCommand::Config(config_keyy))) => {
                         // we may or may not get a value for the supplied key.
                         // if we do, we return it. If not, we encode Null and send that back.
-                        if let Some(value) = config_command_actor_handle.get_value(&key).await {
+                        if let Some(value) = config_command_actor_handle.get_value(config_key).await {
                             // let response = Value::String(value).encode();
                             let mut response: Vec<Value> = Vec::new();
                             response.push(Value::String(key));

@@ -1,6 +1,6 @@
 use tokio::sync::{mpsc, oneshot};
 
-use crate::{actors::config::ConfigCommandActor, messages::ConfigActorMessage};
+use crate::{actors::config::ConfigCommandActor, messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 
 #[derive(Clone)]
 pub struct ConfigCommandActorHandle {
@@ -18,11 +18,11 @@ impl ConfigCommandActorHandle {
     }
 
     /// implements the redis CONFIG GET command, taking a key as input and returning a value.
-    /// https://redis.io/commands/get/
-    pub async fn get_value(&self, key: &str) -> Option<String> {
+    /// https://redis.io/commands/config-get/
+    pub async fn get_value(&self, config_key: ConfigCommandParameters) -> Option<String> {
         let (send, recv) = oneshot::channel();
         let msg = ConfigActorMessage::GetValue {
-            config_key: key.to_string(),
+            config_key,
             respond_to: send,
         };
 
@@ -41,9 +41,10 @@ impl ConfigCommandActorHandle {
     }
 
     /// implements the redis CONFIG SET command, taking a key, value pair as input. Returns nothing.
-    pub async fn set_value(&self, config_key: &str, config_value: &str) {
+    /// https://redis.io/commands/config-set/
+    pub async fn set_value(&self, config_key: ConfigCommandParameters, config_value: &str) {
         let msg = ConfigActorMessage::SetValue {
-            config_key: config_key.to_string(),
+            config_key,
             config_value: config_value.to_string(),
         };
 
