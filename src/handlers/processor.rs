@@ -18,7 +18,7 @@ impl ProcessActorHandle {
     }
 
     /// Processes a valid redis command. Returns nothing.
-    pub async fn process_value(&self, command: RedisCommand) {
+    pub async fn load_config(&self, command: RedisCommand) {
         // Ignore send errors.
         let _ = self
             .sender
