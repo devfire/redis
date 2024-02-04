@@ -1,5 +1,5 @@
 // Import necessary modules and types
-use crate::messages::ConfigActorMessage;
+use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 
 use log::info;
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ pub struct ConfigCommandActor {
     receiver: mpsc::Receiver<ConfigActorMessage>,
 
     // The key-value hash map for storing data
-    kv_hash: HashMap<String, String>,
+    kv_hash: HashMap<ConfigCommandParameters, String>,
 }
 
 impl ConfigCommandActor {

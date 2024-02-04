@@ -11,7 +11,7 @@ use nom::{
 };
 
 use crate::protocol::{
-    RedisCommand, SetCommandExpireOption, SetCommandParameters, SetCommandSetOption,
+    ConfigCommandParameters, RedisCommand, SetCommandExpireOption, SetCommandParameters, SetCommandSetOption
 };
 
 fn length(input: &str) -> IResult<&str, usize> {
@@ -179,9 +179,24 @@ fn parse_config(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$6\r\nCONFIG\r\n$3\r\nGET\r\n")(input)?;
 
-    let (input, key) = (parse_resp_string)(input)?;
+    let (input, key) = (alt((
+        // value: The value combinator is used to map the result of a parser to a specific value.
+        // In this case, it's used to map the result of the tag_no_case combinator to SetCommandSetOption::NX or
+        // SetCommandSetOption::XX for the option.
+        //
+        value(ConfigCommandParameters::Dir, tag_no_case("$3\r\ndir\r\n")),
+        value(ConfigCommandParameters::DbFilename, tag_no_case("$10\r\ndbfilename\r\n")),
+    )))(input)?;
+    // alt((
+    //     // value: The value combinator is used to map the result of a parser to a specific value.
+    //     // In this case, it's used to map the result of the tag_no_case combinator to SetCommandSetOption::NX or
+    //     // SetCommandSetOption::XX for the option.
+    //     //
+    //     value(SetCommandSetOption::NX, tag_no_case("$2\r\nNX\r\n")),
+    //     value(SetCommandSetOption::XX, tag_no_case("$2\r\nXX\r\n")),
+    // ))
 
-    Ok((input, RedisCommand::Config(key.to_string())))
+    Ok((input, RedisCommand::Config(key)))
 }
 
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
