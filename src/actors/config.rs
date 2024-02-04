@@ -37,7 +37,10 @@ impl ConfigCommandActor {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
-            ConfigActorMessage::GetValue { config_key, respond_to } => {
+            ConfigActorMessage::GetValue {
+                config_key,
+                respond_to,
+            } => {
                 // If the key exists in the hash map, send the value back
                 if let Some(value) = self.kv_hash.get(&config_key) {
                     let _ = respond_to.send(Some(value.clone()));
@@ -48,7 +51,10 @@ impl ConfigCommandActor {
             }
 
             // Handle a SetValue message
-            ConfigActorMessage::SetValue { config_key, config_value } => {
+            ConfigActorMessage::SetValue {
+                config_key,
+                config_value,
+            } => {
                 // Insert the key-value pair into the hash map
                 self.kv_hash.insert(config_key, config_value);
 
@@ -56,12 +62,17 @@ impl ConfigCommandActor {
                 info!("Successfully inserted kv pair.");
             }
 
-            ConfigActorMessage::LoadConfig { config_key, config_value } => {
+            ConfigActorMessage::LoadConfig { dir, dbfilename } => {
                 // Insert the key-value pair into the hash map
                 // self.kv_hash.insert(config_key, config_value);
 
                 // Log a success message
-                info!("Successfully loaded config.");
+                info!(
+                    "Successfully loaded config dir: {} filename: {}.",
+                    dir, dbfilename
+                );
+
+                
             }
         }
     }
