@@ -17,10 +17,7 @@ use crate::errors::RedisError;
 
 // Handlers for all the actors defined
 use crate::{
-    handlers::{
-        config_command::ConfigCommandActorHandle,
-        set_command::SetCommandActorHandle,
-    },
+    handlers::{config_command::ConfigCommandActorHandle, set_command::SetCommandActorHandle},
     parsers::parse_command,
 };
 
@@ -45,14 +42,18 @@ async fn main() -> std::io::Result<()> {
 
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
+    let mut config_dbfilename: String = "".to_string();
+    let mut config_dir: String = "".to_string();
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
+    // NOTE: If nothing is passed, cli.rs has the default values for clap.
     if let Some(dir) = cli.dir.as_deref() {
         config_command_actor_handle
             .set_value(ConfigCommandParameters::Dir, dir)
             .await;
-        info!("Config directory: {dir}");
+        // info!("Config directory: {dir}");
+        config_dir = dir.to_string();
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
@@ -62,8 +63,18 @@ async fn main() -> std::io::Result<()> {
                 &dbfilename.to_string_lossy(),
             )
             .await;
-        println!("Config db filename: {}", dbfilename.display());
+        // info!("Config db filename: {}", dbfilename.display());
+        config_dbfilename = dbfilename.to_string_lossy().to_string();
     }
+
+    info!(
+        "Config db dir: {} filename: {}",
+        config_dir, config_dbfilename
+    );
+
+    config_command_actor_handle
+        .load_config(&config_dir, &config_dbfilename)
+        .await;
 
     let listener = TcpListener::bind("0.0.0.0:6379").await?;
 

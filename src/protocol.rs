@@ -1,6 +1,6 @@
 use core::fmt;
 
-use clap::builder::Str;
+// use clap::builder::Str;
 
 #[derive(Debug)]
 pub enum RedisCommand {

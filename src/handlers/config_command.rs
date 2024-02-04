@@ -56,11 +56,12 @@ impl ConfigCommandActorHandle {
     }
 
     /// Loads the config file on startup
-    pub async fn load_config(&self, config_key: ConfigCommandParameters, config_value: &str) {
+    pub async fn load_config(&self, dir: &str, dbfilename: &str) {
         let msg = ConfigActorMessage::LoadConfig {
-            config_key,
-            config_value: config_value.to_string(),
+            dir: dir.to_string(),
+            dbfilename: dbfilename.to_string(),
         };
+        
 
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
