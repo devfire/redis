@@ -336,13 +336,16 @@ async fn process(
                         // Encode the value to RESP binary buffer.
                         let _ = writer.write_all(&response).await?;
                     }
-                    Ok((_, RedisCommand::Config(config_keyy))) => {
+                    Ok((_, RedisCommand::Config(config_key))) => {
                         // we may or may not get a value for the supplied key.
                         // if we do, we return it. If not, we encode Null and send that back.
-                        if let Some(value) = config_command_actor_handle.get_value(config_key).await {
+                        if let Some(value) = config_command_actor_handle.get_value(config_key).await
+                        {
                             // let response = Value::String(value).encode();
                             let mut response: Vec<Value> = Vec::new();
-                            response.push(Value::String(key));
+
+                            // convert enum variant to String
+                            response.push(Value::String(config_key.to_string()));
 
                             response.push(Value::String(value));
 
