@@ -1,8 +1,10 @@
 // Import necessary modules and types
 use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
+// use futures_util::io::BufReader;
+use rdb;
 
 use log::info;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 use tokio::sync::mpsc;
 
 /// Handles CONFIG command. Receives message from the ConfigCommandActorHandle and processes them accordingly.
@@ -66,11 +68,26 @@ impl ConfigCommandActor {
                 // Insert the key-value pair into the hash map
                 // self.kv_hash.insert(config_key, config_value);
 
-                // Log a success message
+                let fullpath = format!("{}/{}", dir, dbfilename);
+                let db = std::fs::File::open(&Path::new(&fullpath)).unwrap();
+
+                let reader = std::io::BufReader::new(db);
+
+                // Log the attempt
                 info!(
-                    "Successfully loaded config dir: {} filename: {}.",
+                    "Loading config dir: {} filename: {}.",
                     dir, dbfilename
                 );
+
+                let stored_config = rdb::parse(
+                    reader,
+                    rdb::formatter::Protocol::new(),
+                    rdb::filter::Simple::new(),
+                )
+                .expect("Unable to parse config file.");
+
+                info!("Successfully parsed config file: {:?}.", stored_config);
+
 
                 
             }
