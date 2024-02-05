@@ -69,13 +69,14 @@ impl ConfigCommandActor {
                 // self.kv_hash.insert(config_key, config_value);
 
                 let fullpath = format!("{}/{}", dir, dbfilename);
+
+                // Log the attempt
+                info!("Loading config {}", fullpath);
+
                 let db = std::fs::File::open(&Path::new(&fullpath))
                     .expect("Failed to load config file.");
 
                 let reader = std::io::BufReader::new(db);
-
-                // Log the attempt
-                info!("Loading config dir: {} filename: {}.", dir, dbfilename);
 
                 let stored_config = rdb::parse(
                     reader,
