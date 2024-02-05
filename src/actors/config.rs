@@ -73,19 +73,19 @@ impl ConfigCommandActor {
                 // Log the attempt
                 info!("Loading config {}", fullpath);
 
-                let db = std::fs::File::open(&Path::new(&fullpath))
-                    .expect("Failed to load config file.");
+                // let db = std::fs::File::open(&Path::new(&fullpath))
+                //     .expect("Failed to load config file.");
 
-                let reader = std::io::BufReader::new(db);
+                // let reader = std::io::BufReader::new(db);
 
-                let stored_config = rdb::parse(
-                    reader,
-                    rdb::formatter::Protocol::new(),
-                    rdb::filter::Simple::new(),
-                )
-                .expect("Unable to parse config file.");
+                // let stored_config = rdb::parse(
+                //     reader,
+                //     rdb::formatter::Protocol::new(),
+                //     rdb::filter::Simple::new(),
+                // )
+                // .expect("Unable to parse config file.");
 
-                info!("Successfully parsed config file: {:?}.", stored_config);
+                // info!("Successfully parsed config file: {:?}.", stored_config);
             }
         }
     }
