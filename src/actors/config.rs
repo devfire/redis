@@ -68,28 +68,23 @@ impl ConfigCommandActor {
                 // Insert the key-value pair into the hash map
                 // self.kv_hash.insert(config_key, config_value);
 
-                // let fullpath = format!("{}/{}", dir, dbfilename);
-                // let db = std::fs::File::open(&Path::new(&fullpath)).unwrap();
+                let fullpath = format!("{}/{}", dir, dbfilename);
+                let db = std::fs::File::open(&Path::new(&fullpath))
+                    .expect("Failed to load config file.");
 
-                // let reader = std::io::BufReader::new(db);
+                let reader = std::io::BufReader::new(db);
 
-                // // Log the attempt
-                // info!(
-                //     "Loading config dir: {} filename: {}.",
-                //     dir, dbfilename
-                // );
+                // Log the attempt
+                info!("Loading config dir: {} filename: {}.", dir, dbfilename);
 
-                // let stored_config = rdb::parse(
-                //     reader,
-                //     rdb::formatter::Protocol::new(),
-                //     rdb::filter::Simple::new(),
-                // )
-                // .expect("Unable to parse config file.");
+                let stored_config = rdb::parse(
+                    reader,
+                    rdb::formatter::Protocol::new(),
+                    rdb::filter::Simple::new(),
+                )
+                .expect("Unable to parse config file.");
 
-                // info!("Successfully parsed config file: {:?}.", stored_config);
-
-                
-                
+                info!("Successfully parsed config file: {:?}.", stored_config);
             }
         }
     }
