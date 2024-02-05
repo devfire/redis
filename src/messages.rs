@@ -23,6 +23,11 @@ pub enum SetActorMessage {
         // Expires the value at a given interval
         expiry: String,
     },
+    // returns a vector of all the keys in the HashMap
+    GetKeys {
+        pattern: String,
+        respond_to: oneshot::Sender<Option<Vec<String>>>,
+    },
 }
 
 #[derive(Debug)]
@@ -61,4 +66,3 @@ pub enum ConfigActorMessage {
 //         config_value: String,
 //     },
 // }
-
