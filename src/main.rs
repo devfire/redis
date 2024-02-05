@@ -72,19 +72,16 @@ async fn main() -> std::io::Result<()> {
         config_dir, config_dbfilename
     );
 
-    
-    config_command_actor_handle
-        .load_config(&config_dir, &config_dbfilename)
-        .await;
-
     let listener = TcpListener::bind("0.0.0.0:6379").await?;
 
     // Get a handle to the set actor, one per redis. This starts the actor.
     let set_command_actor_handle = SetCommandActorHandle::new();
 
-    // let process_actor_handle = ProcessActorHandle::new();
-
     info!("Redis is running.");
+
+    config_command_actor_handle
+        .load_config(&config_dir, &config_dbfilename)
+        .await;
 
     loop {
         // Asynchronously wait for an inbound TcpStream.
