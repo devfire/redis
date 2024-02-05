@@ -70,6 +70,8 @@ impl SetCommandActor {
                 respond_to,
             } => {
                 // check to see if there are keys in the hashmap
+                info!("Getting all the keys that match the pattern: {}", pattern);
+
                 if !self.kv_hash.is_empty() {
                     // Send the keys back
                     let _ = respond_to
