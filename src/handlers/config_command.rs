@@ -49,7 +49,6 @@ impl ConfigCommandActorHandle {
     /// implements the redis CONFIG SET command, taking a key, value pair as input. Returns nothing.
     /// https://redis.io/commands/config-set/
     pub async fn set_value(&self, config_key: ConfigCommandParameters, config_value: &str) {
-        info!("Putting together the actor message.");
         let msg = ConfigActorMessage::SetValue {
             config_key,
             config_value: config_value.to_string(),

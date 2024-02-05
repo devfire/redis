@@ -5,7 +5,7 @@ use rdb;
 
 use log::info;
 use std::{collections::HashMap, path::Path};
-// use tokio::io::AsyncWriteExt;
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
@@ -97,18 +97,23 @@ impl ConfigCommandActor {
                     )
                     .expect("Unable to parse config file.");
 
-                    //convert stored_config to [u8]
+                    info!("Successfully parsed config file: {:?}.", stored_config);
+
+                    // use bincode crate to serialize stored_config into bytes
+                    let bytes = bincode::serialize(&stored_config).unwrap();
 
                     // establish a TCP connection to local host
-                    // Connect to a peer
-                    let mut stream = TcpStream::connect("127.0.0.1:6379")
+                    let stream = TcpStream::connect("127.0.0.1:6379")
                         .await
                         .expect("Unable to connect to localhost.");
 
-                    let (mut reader, mut writer) = stream.into_split();
+                    let (mut _reader, mut writer) = stream.into_split();
 
-                    // writer.write_all(stored_config);
-                    info!("Successfully parsed config file: {:?}.", stored_config);
+                    writer
+                        .write_all(&bytes)
+                        .await
+                        .expect("Failed to write to TCP writer.");
+                    
                 }
             }
         }
