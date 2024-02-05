@@ -4,7 +4,9 @@ use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 use rdb;
 
 use log::info;
+use tokio::io::AsyncWriteExt;
 use std::{collections::HashMap, path::Path};
+use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
 /// Handles CONFIG command. Receives message from the ConfigCommandActorHandle and processes them accordingly.
@@ -35,7 +37,7 @@ impl ConfigCommandActor {
     }
 
     // Handle a message
-    pub fn handle_message(&mut self, msg: ConfigActorMessage) {
+    pub async fn handle_message(&mut self, msg: ConfigActorMessage) {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
@@ -76,7 +78,8 @@ impl ConfigCommandActor {
                 // check to see if the file exists.
                 if !Path::new(&fullpath).exists() {
                     log::error!("Config file does not exist.");
-                } else { // file exists, let's proceed.
+                } else {
+                    // file exists, let's proceed.
                     let db = std::fs::File::open(&Path::new(&fullpath))
                         .expect("Failed to load config file.");
 
@@ -89,6 +92,18 @@ impl ConfigCommandActor {
                     )
                     .expect("Unable to parse config file.");
 
+                    //convert stored_config to [u8]
+
+
+                    // establish a TCP connection to local host
+                    // Connect to a peer
+                    let mut stream = TcpStream::connect("127.0.0.1:6379")
+                        .await
+                        .expect("Unable to connect to localhost.");
+
+                    let (mut reader, mut writer) = stream.into_split();
+
+                    // writer.write_all(stored_config);
                     info!("Successfully parsed config file: {:?}.", stored_config);
                 }
             }
