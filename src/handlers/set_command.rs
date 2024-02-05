@@ -1,7 +1,9 @@
 use tokio::sync::{mpsc, oneshot};
 // pub mod actors;
 
-use crate::{actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters};
+use crate::{
+    actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters,
+};
 
 #[derive(Clone)]
 pub struct SetCommandActorHandle {
@@ -41,6 +43,26 @@ impl SetCommandActorHandle {
         }
     }
 
+    /// implements the redis KEYS command, taking a pattern as input and returning a list of keys.
+    /// https://redis.io/commands/keys/
+    pub async fn get_keys(&self, pattern: &str) -> Option<Vec<String>> {
+        let (send, recv) = oneshot::channel();
+        let msg = SetActorMessage::GetKeys {
+            pattern: pattern.to_string(),
+            respond_to: send,
+        };
+
+        // Ignore send errors. If this send fails, so does the
+        // recv.await below. There's no reason to check the
+        // failure twice.
+        let _ = self.sender.send(msg).await;
+
+        if let Some(keys) = recv.await.expect("Actor task has been killed") {
+            Some(keys)
+        } else {
+            None
+        }
+    }
     /// implements the redis SET command, taking a key, value pair as input. Returns nothing.
     pub async fn set_value(&self, parameters: SetCommandParameters) {
         let msg = SetActorMessage::SetValue {
@@ -58,6 +80,10 @@ impl SetCommandActorHandle {
         };
 
         // Ignore send errors.
-        let _ = self.sender.send(msg).await.expect("Failed to expire value.");
+        let _ = self
+            .sender
+            .send(msg)
+            .await
+            .expect("Failed to expire value.");
     }
 }

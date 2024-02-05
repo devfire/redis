@@ -14,6 +14,7 @@ pub enum RedisCommand {
     Mget(Vec<String>),               // https://redis.io/commands/mget
     Append(String, String),          // https://redis.io/commands/append/
     Config(ConfigCommandParameters), // CONFIG GET
+    Keys(String),
 }
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
@@ -41,7 +42,7 @@ pub enum SetCommandExpireOption {
     KEEPTTL,
 }
 
-#[derive(Debug, Clone, PartialEq,Copy, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Copy, Eq, Hash)]
 pub enum ConfigCommandParameters {
     Dir,
     DbFilename,

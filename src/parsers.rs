@@ -195,6 +195,16 @@ fn parse_config(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Config(key)))
 }
 
+fn parse_keys(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$4\r\nKEYS\r\n")(input)?;
+    
+    let (input, pattern) = (parse_resp_string)(input)?;
+
+    Ok((input, RedisCommand::Keys(pattern.to_string())))
+}
+
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
@@ -209,5 +219,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_mget,
         parse_append,
         parse_config,
+        parse_keys,
     ))(input)
 }
