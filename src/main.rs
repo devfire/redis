@@ -52,7 +52,7 @@ async fn main() -> std::io::Result<()> {
         config_command_actor_handle
             .set_value(ConfigCommandParameters::Dir, dir)
             .await;
-        // info!("Config directory: {dir}");
+        info!("Config directory: {dir}");
         config_dir = dir.to_string();
     }
 
@@ -63,7 +63,7 @@ async fn main() -> std::io::Result<()> {
                 &dbfilename.to_string_lossy(),
             )
             .await;
-        // info!("Config db filename: {}", dbfilename.display());
+        info!("Config db filename: {}", dbfilename.display());
         config_dbfilename = dbfilename.to_string_lossy().to_string();
     }
 
@@ -72,6 +72,7 @@ async fn main() -> std::io::Result<()> {
         config_dir, config_dbfilename
     );
 
+    
     config_command_actor_handle
         .load_config(&config_dir, &config_dbfilename)
         .await;

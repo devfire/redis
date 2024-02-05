@@ -4,8 +4,8 @@ use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 use rdb;
 
 use log::info;
-use tokio::io::AsyncWriteExt;
 use std::{collections::HashMap, path::Path};
+// use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
@@ -32,11 +32,12 @@ impl ConfigCommandActor {
     pub async fn run(&mut self) {
         // Continuously receive messages and handle them
         while let Some(msg) = self.receiver.recv().await {
-            self.handle_message(msg);
+            self.handle_message(msg).await;
         }
     }
 
-    // Handle a message
+    // Handle a message.
+    // NOTE: This is an async function due to TCP connect. The others are not async.
     pub async fn handle_message(&mut self, msg: ConfigActorMessage) {
         // Match on the type of the message
         match msg {
@@ -60,10 +61,14 @@ impl ConfigCommandActor {
                 config_value,
             } => {
                 // Insert the key-value pair into the hash map
-                self.kv_hash.insert(config_key, config_value);
+                self.kv_hash
+                    .insert(config_key.clone(), config_value.clone());
 
                 // Log a success message
-                info!("Successfully inserted kv pair.");
+                info!(
+                    "Successfully inserted key {:?} value {}.",
+                    config_key, config_value
+                );
             }
 
             ConfigActorMessage::LoadConfig { dir, dbfilename } => {
@@ -93,7 +98,6 @@ impl ConfigCommandActor {
                     .expect("Unable to parse config file.");
 
                     //convert stored_config to [u8]
-
 
                     // establish a TCP connection to local host
                     // Connect to a peer
