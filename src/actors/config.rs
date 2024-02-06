@@ -92,7 +92,7 @@ impl ConfigCommandActor {
 
                     let stored_config = rdb::parse(
                         reader,
-                        rdb::formatter::Protocol::new(),
+                        rdb::formatter::JSON::new(),
                         rdb::filter::Simple::new(),
                     )
                     .expect("Unable to parse config file.");
