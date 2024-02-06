@@ -80,14 +80,14 @@ impl ConfigCommandActor {
 
                 let fullpath = format!("{}/{}", dir, dbfilename);
 
-                // Log the attempt
-                info!("Loading config {}", fullpath);
-
                 // check to see if the file exists.
                 if !Path::new(&fullpath).exists() {
                     log::error!("Config file does not exist.");
                 } else {
                     // file exists, let's proceed.
+                    // Log the attempt
+                    info!("Loading config {}", fullpath);
+
                     let db = std::fs::File::open(&Path::new(&fullpath))
                         .expect("Failed to load config file.");
 
