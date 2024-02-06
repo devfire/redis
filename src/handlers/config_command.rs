@@ -16,7 +16,7 @@ impl ConfigCommandActorHandle {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(8);
         let mut actor = ConfigCommandActor::new(receiver);
-        info!("Spawning a config actor thread.");
+        
         tokio::spawn(async move { actor.run().await });
 
         Self { sender }
