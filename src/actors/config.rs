@@ -3,10 +3,13 @@ use std::io::Write;
 
 // Import necessary modules and types
 use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
+use bytes::Buf;
 // use futures_util::io::BufReader;
 use rdb;
 
+
 use log::info;
+use std::fmt::Write;
 use std::{collections::HashMap, path::Path};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -75,8 +78,25 @@ impl ConfigCommandActor {
             }
 
             ConfigActorMessage::LoadConfig { dir, dbfilename } => {
-                // Insert the key-value pair into the hash map
-                // self.kv_hash.insert(config_key, config_value);
+                use std::io::{self, Write};
+                // use tokio::AsyncWriteExt;
+
+                struct CapturingWriter {
+                    output: String,
+                }
+
+                impl Write for CapturingWriter {
+                    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                        self.output
+                            .write_str(std::str::from_utf8(buf).expect("Conversion failed"))
+                            .expect("Failed to Write for CapturingWriter.");
+                        Ok(buf.len())
+                    }
+                    fn flush(&mut self) -> io::Result<()> {
+                        // No additional flushing needed for the internal String
+                        Ok(())
+                    }
+                }
 
                 let fullpath = format!("{}/{}", dir, dbfilename);
 
