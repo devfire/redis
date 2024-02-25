@@ -7,7 +7,6 @@ use bytes::Buf;
 // use futures_util::io::BufReader;
 use rdb;
 
-
 use log::info;
 use std::fmt::Write;
 use std::{collections::HashMap, path::Path};
@@ -78,26 +77,6 @@ impl ConfigCommandActor {
             }
 
             ConfigActorMessage::LoadConfig { dir, dbfilename } => {
-                use std::io::{self, Write};
-                // use tokio::AsyncWriteExt;
-
-                struct CapturingWriter {
-                    output: String,
-                }
-
-                impl Write for CapturingWriter {
-                    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-                        self.output
-                            .write_str(std::str::from_utf8(buf).expect("Conversion failed"))
-                            .expect("Failed to Write for CapturingWriter.");
-                        Ok(buf.len())
-                    }
-                    fn flush(&mut self) -> io::Result<()> {
-                        // No additional flushing needed for the internal String
-                        Ok(())
-                    }
-                }
-
                 let fullpath = format!("{}/{}", dir, dbfilename);
 
                 // check to see if the file exists.
@@ -113,7 +92,7 @@ impl ConfigCommandActor {
 
                     let reader = std::io::BufReader::new(db);
 
-                    let stored_config = rdb::parse(
+                    rdb::parse(
                         reader,
                         rdb::formatter::JSON::new(),
                         rdb::filter::Simple::new(),
@@ -121,9 +100,6 @@ impl ConfigCommandActor {
                     .expect("Unable to parse config file.");
 
                     info!("Successfully parsed config file: {:?}.", stored_config);
-
-                    // use bincode crate to serialize stored_config into bytes
-                    let bytes = bincode::serialize(&stored_config).unwrap();
 
                     // establish a TCP connection to local host
                     let stream = TcpStream::connect("127.0.0.1:6379")
