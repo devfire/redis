@@ -1,18 +1,20 @@
-
-use std::io::Write;
-
 // Import necessary modules and types
 use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
-use bytes::Buf;
+// use bytes::Buf;
 // use futures_util::io::BufReader;
-use rdb;
 
 use log::info;
-use std::fmt::Write;
+
 use std::{collections::HashMap, path::Path};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
+
+
+
+// include the format.rs file from rdb
+// use crate::rdb::format;
+
 
 /// Handles CONFIG command. Receives message from the ConfigCommandActorHandle and processes them accordingly.
 pub struct ConfigCommandActor {
@@ -87,31 +89,19 @@ impl ConfigCommandActor {
                     // Log the attempt
                     info!("Loading config {}", fullpath);
 
-                    let db = std::fs::File::open(&Path::new(&fullpath))
-                        .expect("Failed to load config file.");
+                    
 
-                    let reader = std::io::BufReader::new(db);
-
-                    rdb::parse(
-                        reader,
-                        rdb::formatter::JSON::new(),
-                        rdb::filter::Simple::new(),
-                    )
-                    .expect("Unable to parse config file.");
-
-                    info!("Successfully parsed config file: {:?}.", stored_config);
-
-                    // establish a TCP connection to local host
+                   // establish a TCP connection to local host
                     let stream = TcpStream::connect("127.0.0.1:6379")
                         .await
                         .expect("Unable to connect to localhost.");
 
                     let (mut _reader, mut writer) = stream.into_split();
 
-                    writer
-                        .write_all(&bytes)
-                        .await
-                        .expect("Failed to write to TCP writer.");
+                    // writer
+                    //     .write_all(&bytes)
+                    //     .await
+                    //     .expect("Failed to write to TCP writer.");
                 }
             }
         }

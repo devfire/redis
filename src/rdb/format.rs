@@ -1,3 +1,7 @@
+use std::path::Path;
+
+use bytes::Bytes;
+
 pub enum Rdb {
     MagicString,
     Version(String),
@@ -17,6 +21,24 @@ pub enum Rdb {
         value: String,
     },
     End,
+}
+
+impl Rdb {
+    pub fn load(fullpath: &str) -> Bytes {
+        // TODO: load from file
+
+        let db = std::fs::File::open(&Path::new(&fullpath)).expect("Failed to load config file.");
+
+        let reader = std::io::BufReader::new(db);
+
+        rdb::parse(
+            reader,
+            rdb::formatter::JSON::new(),
+            rdb::filter::Simple::new(),
+        )
+        .expect("Unable to parse config file.");
+        bytes::Bytes::from_static(b"REDIS0001")
+    }
 }
 
 pub enum OpCode {
