@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{fs, path::Path};
 
 use bytes::Bytes;
 
@@ -24,20 +24,24 @@ pub enum Rdb {
 }
 
 impl Rdb {
-    pub fn load(fullpath: &str) -> Bytes {
+    pub fn load(fullpath: &str) -> String {
         // TODO: load from file
+        let contents = fs::read_to_string(fullpath).expect("Unable to read the RDB file");
 
-        let db = std::fs::File::open(&Path::new(&fullpath)).expect("Failed to load config file.");
+        // let db = std::fs::File::open(&Path::new(&fullpath)).expect("Failed to load config file.");
 
-        let reader = std::io::BufReader::new(db);
+        // let reader = std::io::BufReader::new(db);
 
-        rdb::parse(
-            reader,
-            rdb::formatter::JSON::new(),
-            rdb::filter::Simple::new(),
-        )
-        .expect("Unable to parse config file.");
-        bytes::Bytes::from_static(b"REDIS0001")
+        // This is just a test parse to display the rdb contents.
+        // Otherwise, it is not doing anything else.
+        // rdb::parse(
+        //     reader,
+        //     rdb::formatter::JSON::new(),
+        //     rdb::filter::Simple::new(),
+        // )
+        // .expect("Unable to parse config file.");
+
+        contents
     }
 }
 
