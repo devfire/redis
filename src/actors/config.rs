@@ -1,3 +1,4 @@
+use crate::rdb::format::Rdb;
 // Import necessary modules and types
 use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 // use bytes::Buf;
@@ -5,16 +6,14 @@ use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 
 use log::info;
 
+use std::fs;
 use std::{collections::HashMap, path::Path};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
-
-
 // include the format.rs file from rdb
 // use crate::rdb::format;
-
 
 /// Handles CONFIG command. Receives message from the ConfigCommandActorHandle and processes them accordingly.
 pub struct ConfigCommandActor {
@@ -89,9 +88,10 @@ impl ConfigCommandActor {
                     // Log the attempt
                     info!("Loading config {}", fullpath);
 
-                    
+                    let contents =
+                        fs::read_to_string(fullpath).expect("Unable to read the RDB file");
 
-                   // establish a TCP connection to local host
+                    // establish a TCP connection to local host
                     let stream = TcpStream::connect("127.0.0.1:6379")
                         .await
                         .expect("Unable to connect to localhost.");

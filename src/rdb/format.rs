@@ -1,10 +1,12 @@
-use std::{fs, path::Path};
+// use std::{fs, path::Path};
 
-use bytes::Bytes;
+// use bytes::Bytes;
 
+use clap::builder::Str;
+
+#[derive(Debug)]
 pub enum Rdb {
-    MagicString,
-    Version(String),
+    RdbHeader {magic: String, version: String},
     OpCode(OpCode),
     Type(String),
     ExpiryTime(String),
@@ -23,28 +25,32 @@ pub enum Rdb {
     End,
 }
 
-impl Rdb {
-    pub fn load(fullpath: &str) -> String {
-        // TODO: load from file
-        let contents = fs::read_to_string(fullpath).expect("Unable to read the RDB file");
 
-        // let db = std::fs::File::open(&Path::new(&fullpath)).expect("Failed to load config file.");
+// impl Rdb {
+//     pub fn load(fullpath: &str) -> String {
+//         // TODO: load from file
+//         let contents = fs::read_to_string(fullpath).expect("Unable to read the RDB file");
 
-        // let reader = std::io::BufReader::new(db);
+//         // let db = std::fs::File::open(&Path::new(&fullpath)).expect("Failed to load config file.");
 
-        // This is just a test parse to display the rdb contents.
-        // Otherwise, it is not doing anything else.
-        // rdb::parse(
-        //     reader,
-        //     rdb::formatter::JSON::new(),
-        //     rdb::filter::Simple::new(),
-        // )
-        // .expect("Unable to parse config file.");
+//         // let reader = std::io::BufReader::new(db);
 
-        contents
-    }
-}
+//         // This is just a test parse to display the rdb contents.
+//         // Otherwise, it is not doing anything else.
+//         // rdb::parse(
+//         //     reader,
+//         //     rdb::formatter::JSON::new(),
+//         //     rdb::filter::Simple::new(),
+//         // )
+//         // .expect("Unable to parse config file.");
 
+//         contents
+//     }
+
+
+// }
+
+#[derive(Debug)]
 pub enum OpCode {
     Eof,
     Selectdb(u16),
