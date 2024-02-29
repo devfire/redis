@@ -7,7 +7,7 @@ use clap::builder::Str;
 #[derive(Debug)]
 pub enum Rdb {
     RdbHeader {magic: String, version: String},
-    OpCode(OpCode),
+    OpCode {opcode: RdbOpCode},
     Type(String),
     ExpiryTime(String),
     // Each key value pair has 4 parts:
@@ -51,11 +51,22 @@ pub enum Rdb {
 // }
 
 #[derive(Debug)]
-pub enum OpCode {
+pub enum RdbOpCode {
     Eof,
-    Selectdb(u16),
+    Selectdb,
     Expiretime(u32),
     ExpiretimeMs(u64),
     ResizeDb(u32),
     Aux,
+}
+
+impl RdbOpCode {
+    fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0xFF => Some(RdbOpCode::Eof),
+            0xFE => Some(RdbOpCode::Selectdb),
+            // Add other opcodes and their corresponding values here
+            _ => None,
+        }
+    }
 }
