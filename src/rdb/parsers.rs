@@ -90,18 +90,24 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
 /// Auxiliary field. May contain arbitrary metadata such as
 /// Redis version, creation time, used memory.
 /// first comes the key, then the value. Both are strings.
-// 
+//
 fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _aux_opcode) = tag([0xFA])(input)?;
-    
+
     // taking the key first
     let (input, key_length) = (parse_rdb_length)(input)?;
-    let (input, _key) = take(key_length)(input)?;
-    
+    let (input, key) = take(key_length)(input)?;
+
     // taking the value next
     let (input, value_length) = (parse_rdb_length)(input)?;
-    let (input, _value) = take(value_length)(input)?;
-    
+    let (input, value) = take(value_length)(input)?;
+
+    info!(
+        "AUX key: {:?} value {:?}",
+        std::str::from_utf8(key),
+        std::str::from_utf8(value)
+    );
+
     Ok((
         input,
         Rdb::OpCode {
