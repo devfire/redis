@@ -1,10 +1,14 @@
+use crate::rdb::codec::RdbCodec;
 use crate::rdb::format::Rdb;
 // Import necessary modules and types
 use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 // use bytes::Buf;
 // use futures_util::io::BufReader;
 
-use log::info;
+use futures::StreamExt;
+use log::{error, info};
+use tokio::fs::File;
+use tokio_util::codec::FramedRead;
 
 use std::fs;
 use std::{collections::HashMap, path::Path};
@@ -87,9 +91,20 @@ impl ConfigCommandActor {
                     // file exists, let's proceed.
                     // Log the attempt
                     info!("Loading config {}", fullpath);
+                    let rdb_file = File::open(fullpath)
+                        .await
+                        .expect("Failed to open RDB file.");
 
-                    let contents =
-                        fs::read_to_string(fullpath).expect("Unable to read the RDB file");
+                    let mut stream = FramedRead::new(rdb_file, RdbCodec::new());
+
+                    while let Some(result) = stream.next().await {
+                        match result {
+                            Ok(field) => info!("Read field: {:?}", field),
+                            Err(e) => error!("Error: {}", e),
+                        }
+                    }
+                    // let contents =
+                    //     fs::read_to_string(fullpath).expect("Unable to read the RDB file");
 
                     // establish a TCP connection to local host
                     let stream = TcpStream::connect("127.0.0.1:6379")
