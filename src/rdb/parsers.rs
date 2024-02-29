@@ -12,10 +12,6 @@ use crate::errors::RedisError;
 
 use super::format::{Rdb, RdbOpCode};
 
-// fn parse_rdb_magic(input: &str) -> IResult<&str, Rdb> {
-//     map(tag("REDIS"), |_| format::Rdb::MagicString)(input)
-// }
-
 fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _magic) = tag("REDIS")(input)?;
     let (input, version) = take(4usize)(input)?;
@@ -29,10 +25,6 @@ fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
         },
     ))
 }
-
-// fn parse_length(input: &[u8]) -> IResult<&[u8], usize> {
-//     le_u8(input).map(|(remaining, value)| (remaining, value as usize))
-// }
 
 // https://rdb.fnordig.de/file_format.html#op-codes
 fn parse_op_code_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
@@ -95,10 +87,28 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
     Ok((input, length))
 }
 
-// fn parse_rdb_eof(input: &[u8]) -> IResult<&[u8], RdbEof> {
-//     let (input, eof_marker) = tag([0xFF])(input)?;
-//     Ok((input, RdbEof { eof_marker: 0xFF }))
-// }
+/// Auxiliary field. May contain arbitrary metadata such as
+/// Redis version, creation time, used memory.
+/// first comes the key, then the value. Both are strings.
+// 
+fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
+    let (input, _aux_opcode) = tag([0xFA])(input)?;
+    
+    // taking the key first
+    let (input, key_length) = (parse_rdb_length)(input)?;
+    let (input, _key) = take(key_length)(input)?;
+    
+    // taking the value next
+    let (input, value_length) = (parse_rdb_length)(input)?;
+    let (input, _value) = take(value_length)(input)?;
+    
+    Ok((
+        input,
+        Rdb::OpCode {
+            opcode: RdbOpCode::Aux,
+        },
+    ))
+}
 
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
     alt((
@@ -106,5 +116,6 @@ pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
         parse_rdb_header,
         parse_op_code_eof,
         parse_op_code_selectdb,
+        parse_rdb_aux,
     ))(input)
 }
