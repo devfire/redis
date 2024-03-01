@@ -92,21 +92,6 @@ impl ConfigCommandActor {
                     // Log the attempt
                     info!("Loading config {}", fullpath);
 
-                    // ---- this is a debug dump of the file -----
-                    // let db = std::fs::File::open(&Path::new(&fullpath))
-                    //     .expect("Failed to load config file.");
-
-                    // let reader = std::io::BufReader::new(db);
-
-                    // rdb::parse(
-                    //     reader,
-                    //     rdb::formatter::JSON::new(),
-                    //     rdb::filter::Simple::new(),
-                    // )
-                    // .expect("Unable to parse config file.");
-                    // // ---- this is a debug dump of the file -----
-
-
                     let rdb_file = File::open(fullpath)
                         .await
                         .expect("Failed to open RDB file.");
