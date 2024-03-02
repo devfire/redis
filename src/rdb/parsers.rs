@@ -47,7 +47,7 @@ fn parse_op_code_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, db_number) = (take(length))(input)?;
 
     info!("Db number: {:?}", std::str::from_utf8(db_number));
-    
+
     info!("SELECTDB OpCode detected.");
     Ok((
         input,
@@ -202,6 +202,40 @@ fn parse_expiry_time_seconds(input: &[u8]) -> IResult<&[u8], Rdb> {
         },
     ))
 }
+
+fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
+    // 0xFB means resize db
+    // It encodes two values to speed up RDB loading by avoiding additional resizes and rehashing.
+    // The op code is followed by two length-encoded integers indicating:
+    //
+    // Database hash table size
+    // Expiry hash table size
+    let (input, _aux_opcode) = tag([0xFB])(input)?;
+
+    // length first
+    let (input, db_hash_table_size_length) = (parse_rdb_length)(input)?;
+    // value next
+    let (input, db_hash_table_size) = take(db_hash_table_size_length)(input)?;
+
+    // length first
+    let (input, expiry_hash_table_size_length) = (parse_rdb_length)(input)?;
+    // value next
+    let (input, expiry_hash_table_size) = take(expiry_hash_table_size_length)(input)?;
+
+    Ok((
+        input,
+        Rdb::OpCode {
+            opcode: RdbOpCode::ResizeDb {
+                db_hash_table_size: std::str::from_utf8(db_hash_table_size)
+                    .expect("Key [u8] to str conversion failed")
+                    .to_string(),
+                expiry_hash_table_size: std::str::from_utf8(expiry_hash_table_size)
+                    .expect("Key [u8] to str conversion failed")
+                    .to_string(),
+            },
+        },
+    ))
+}
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
     info!("Parsing: {:?}", input.to_ascii_lowercase());
     alt((
@@ -210,5 +244,7 @@ pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
         parse_op_code_eof,
         parse_op_code_selectdb,
         parse_rdb_aux,
+        parse_expiry_time_seconds,
+        parse_resize_db,
     ))(input)
 }
