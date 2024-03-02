@@ -6,8 +6,13 @@
 
 #[derive(Debug)]
 pub enum Rdb {
-    RdbHeader {magic: String, version: String},
-    OpCode {opcode: RdbOpCode},
+    RdbHeader {
+        magic: String,
+        version: String,
+    },
+    OpCode {
+        opcode: RdbOpCode,
+    },
     Type(String),
     ExpiryTime(String),
     // Each key value pair has 4 parts:
@@ -25,30 +30,25 @@ pub enum Rdb {
     End,
 }
 
-
-// impl Rdb {
-//     pub fn load(fullpath: &str) -> String {
-//         // TODO: load from file
-//         let contents = fs::read_to_string(fullpath).expect("Unable to read the RDB file");
-
-//         // let db = std::fs::File::open(&Path::new(&fullpath)).expect("Failed to load config file.");
-
-//         // let reader = std::io::BufReader::new(db);
-
-//         // This is just a test parse to display the rdb contents.
-//         // Otherwise, it is not doing anything else.
-//         // rdb::parse(
-//         //     reader,
-//         //     rdb::formatter::JSON::new(),
-//         //     rdb::filter::Simple::new(),
-//         // )
-//         // .expect("Unable to parse config file.");
-
-//         contents
-//     }
-
-
-// }
+// We need this because of rdb length encoding:
+// Length encoding is used to store the length of the next object in the stream. 
+// Length encoding is a variable byte encoding designed to use as few bytes as possible.
+// 
+// This is how length encoding works : Read one byte from the stream, compare the two most significant bits:
+//
+// Bits	How to parse
+// 00	The next 6 bits represent the length
+// 01	Read one additional byte. The combined 14 bits represent the length
+// 10	Discard the remaining 6 bits. The next 4 bytes from the stream represent the length
+// 11	The next object is encoded in a special format. The remaining 6 bits indicate the format.
+// So, in case of 0b11 the next 6 bits are NOT the length, it's the a special format.
+//
+#[derive(Debug)]
+pub enum LengthEncoding {
+    StringLength(u32),
+    // Format(u32),
+    Compressed
+}
 
 #[derive(Debug)]
 pub enum RdbOpCode {
