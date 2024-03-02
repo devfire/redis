@@ -9,7 +9,7 @@ pub enum Rdb {
     RdbHeader {magic: String, version: String},
     OpCode {opcode: RdbOpCode},
     Type(String),
-    ExpiryTime(String),
+    // ExpiryTime(String),
     // Each key value pair has 4 parts:
     //
     // Key Expiry Timestamp. This is optional.
@@ -17,14 +17,20 @@ pub enum Rdb {
     // The key, encoded as a Redis String. See String Encoding.
     // The value, encoded according to the value type. See Value Encoding.
     KeyValuePair {
-        key_expiry_time: Option<u16>,
-        value_type: u8,
+        key_expiry_time: Option<u32>,
+        value_type: ValueType,
         key: String,
         value: String,
     },
     End,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum ValueType {
+    StringEncoding,
+    ListEncoding,
+    SetEncoding,
+}
 
 // impl Rdb {
 //     pub fn load(fullpath: &str) -> String {

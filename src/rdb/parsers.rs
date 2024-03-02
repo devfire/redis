@@ -2,15 +2,14 @@ use log::{error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    combinator::map,
-    number::streaming::{be_u8, le_u8},
-    HexDisplay, IResult,
+    character::streaming::u8,
+    combinator::{map, value},
+    number::streaming::{le_u32, le_u8},
+    sequence::preceded,
+    IResult,
 };
-use rdb::types::RdbError;
 
-use crate::errors::RedisError;
-
-use super::format::{Rdb, RdbOpCode};
+use super::format::{Rdb, RdbOpCode, ValueType};
 
 fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _magic) = tag("REDIS")(input)?;
@@ -55,7 +54,7 @@ fn parse_op_code_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
 }
 
 fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
-    let (input, first_byte) = nom::number::streaming::be_u8(input)?;
+    let (input, first_byte) = nom::number::streaming::le_u8(input)?;
     let (input, length) = match first_byte & 0b1100_0000 {
         0b0000_0000 => {
             // 00: The next 6 bits represent the length
@@ -64,13 +63,13 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
         }
         0b0100_0000 => {
             // 01: Read one additional byte. The combined 14 bits represent the length
-            let (input, next_byte) = nom::number::streaming::be_u8(input)?;
+            let (input, next_byte) = le_u8(input)?;
             let length = ((first_byte as u32 & 0b0011_1111) << 8) | next_byte as u32;
             (input, length)
         }
         0b1000_0000 => {
             // 10: Discard the remaining 6 bits. The next 4 bytes from the stream represent the length
-            let (input, length) = nom::number::streaming::be_u32(input)?;
+            let (input, length) = le_u32(input)?;
             (input, length)
         }
         0b1100_0000 => {
@@ -78,15 +77,19 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
             // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
+            let mut length = 0;
             match format {
                 0b0000_0000 => {
                     info!("8 bit integer follows!");
+                    length = 1;
                 }
                 0b0100_0000 => {
                     info!("16 bit integer follows!");
+                    length = 2;
                 }
                 0b1000_0000 => {
                     info!("32 bit integer follows!");
+                    length = 4;
                 }
                 0b1100_0000 => {
                     info!("Compressed string follows!");
@@ -95,7 +98,7 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
                     error!("Unknown length encoding.");
                 }
             }
-            (input, format)
+            (input, length)
         }
         _ => {
             error!("No suitable length encoding bit match");
@@ -111,31 +114,6 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
     Ok((input, length))
 }
 
-// fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], usize> {
-//     be_u8(input).map(|(remaining, byte)| {
-//         let mut len = (byte & 0b00111111) as usize; // Extract lower 7 bits
-//         let mut shift = 0;
-
-//         if (byte & 0b11000000) == 0 {
-//             // One byte encoding (00)
-//             return (remaining, len);
-//         }
-//         if (byte & 0b10000000) == 0b10000000 {
-//             // Two byte encoding (01)
-//             shift = 7;
-//         } else if (byte & 0b11000000) == 0b11000000 {
-//             // Five byte encoding (10)
-//             shift = 14;
-//             len = 0; // Discard the first 6 bits
-//         }
-
-//         let mut next_byte = be_u8(remaining)?;
-//         len |= ((next_byte & 0b00111111) as usize) << shift;
-
-//         (next_byte.1, len)
-//     })
-// }
-
 /// Auxiliary field. May contain arbitrary metadata such as
 /// Redis version, creation time, used memory.
 /// first comes the key, then the value. Both are strings.
@@ -146,17 +124,18 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     // taking the key first
     let (input, key_length) = (parse_rdb_length)(input)?;
     let (input, key) = take(key_length)(input)?;
-
     info!("Key: {:?}", std::str::from_utf8(key));
+
     // taking the value next
     let (input, value_length) = (parse_rdb_length)(input)?;
     let (input, value) = take(value_length)(input)?;
+    info!("Value: {:?}", std::str::from_utf8(value));
 
-    info!(
-        "AUX key: {:?} value {:?}",
-        std::str::from_utf8(key),
-        std::str::from_utf8(value)
-    );
+    // info!(
+    //     "AUX key: {:?} value {:?}",
+    //     std::str::from_utf8(key),
+    //     std::str::from_utf8(value)
+    // );
 
     Ok((
         input,
@@ -166,6 +145,58 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     ))
 }
 
+// fn parse_value_type(input: &[u8]) -> IResult<&[u8], u8> {
+//     // let's grab 1 byte
+//     let (input, value_type) = nom::number::streaming::le_u8(input)?;
+
+//     Ok((input, value_type))
+// }
+
+fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
+    preceded(
+        u8, // This consumes the first byte, which is the flag indicating the encoding type
+        alt((
+            map(tag(&[0u8]), |_| ValueType::StringEncoding),
+            map(tag(&[1u8]), |_| ValueType::ListEncoding),
+            map(tag(&[2u8]), |_| ValueType::SetEncoding),
+        )),
+    )(input)
+}
+
+fn parse_expiry_time_seconds(input: &[u8]) -> IResult<&[u8], Rdb> {
+    // 0xFD means expiry time in seconds follows in the next 4 bytes unsigned integer
+    let (input, _aux_opcode) = tag([0xFD])(input)?;
+
+    // let's grab 4 bytes
+    let (input, key_expiry_time) = le_u32(input)?;
+
+    // next comes the value type
+    let (input, value_type) = (parse_value_type)(input)?;
+
+    // taking the key first
+    let (input, key_length) = (parse_rdb_length)(input)?;
+    let (input, key) = take(key_length)(input)?;
+    info!("Key: {:?}", std::str::from_utf8(key));
+
+    // taking the value next
+    let (input, value_length) = (parse_rdb_length)(input)?;
+    let (input, value) = take(value_length)(input)?;
+    info!("Value: {:?}", std::str::from_utf8(value));
+
+    Ok((
+        input,
+        Rdb::KeyValuePair {
+            key_expiry_time: Some(key_expiry_time),
+            value_type,
+            key: std::str::from_utf8(key)
+                .expect("Key [u8] to str conversion failed")
+                .to_string(),
+            value: std::str::from_utf8(value)
+                .expect("Key [u8] to str conversion failed")
+                .to_string(),
+        },
+    ))
+}
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
     info!("Parsing: {:?}", input.to_ascii_lowercase());
     alt((
