@@ -42,8 +42,12 @@ fn parse_op_code_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
 // After this byte, a variable length field indicates the database number.
 fn parse_op_code_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _dbselector) = tag([0xFE])(input)?;
-    let (input, _length) = (parse_rdb_length)(input)?;
+    let (input, length) = (parse_rdb_length)(input)?;
 
+    let (input, db_number) = (take(length))(input)?;
+
+    info!("Db number: {:?}", std::str::from_utf8(db_number));
+    
     info!("SELECTDB OpCode detected.");
     Ok((
         input,
@@ -77,21 +81,22 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
             // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
+            info!("Format: {:b}", format);
             let mut length = 0;
             match format {
-                0b0000_0000 => {
+                0 => {
                     info!("8 bit integer follows!");
                     length = 1;
                 }
-                0b0100_0000 => {
+                0b01 => {
                     info!("16 bit integer follows!");
                     length = 2;
                 }
-                0b1000_0000 => {
+                0b10 => {
                     info!("32 bit integer follows!");
                     length = 4;
                 }
-                0b1100_0000 => {
+                0b11 => {
                     info!("Compressed string follows!");
                 }
                 _ => {
