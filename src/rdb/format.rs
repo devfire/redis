@@ -44,8 +44,8 @@ pub enum RdbOpCode {
     // Expiretime(u32),
     // ExpiretimeMs(u64),
     ResizeDb {
-        db_hash_table_size: String,
-        expiry_hash_table_size: String,
+        db_hash_table_length: u32,
+        expiry_hash_table_length: u32,
     },
     Aux,
 }

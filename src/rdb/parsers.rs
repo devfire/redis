@@ -9,6 +9,8 @@ use nom::{
     IResult,
 };
 
+use std::fmt::Binary;
+
 use super::format::{Rdb, RdbOpCode, ValueType};
 
 fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
@@ -58,7 +60,9 @@ fn parse_op_code_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
 }
 
 fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
-    let (input, first_byte) = nom::number::streaming::le_u8(input)?;
+    let (input, first_byte) = le_u8(input)?;
+    info!("First byte: {:08b}", first_byte);
+
     let (input, length) = match first_byte & 0b1100_0000 {
         0b0000_0000 => {
             // 00: The next 6 bits represent the length
@@ -84,15 +88,15 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
             info!("Format: {:b}", format);
             let mut length = 0;
             match format {
-                0 => {
+                0b0000_0000 => {
                     info!("8 bit integer follows!");
                     length = 1;
                 }
-                0b01 => {
+                0b0100_0000 => {
                     info!("16 bit integer follows!");
                     length = 2;
                 }
-                0b10 => {
+                2 => {
                     info!("32 bit integer follows!");
                     length = 4;
                 }
@@ -210,28 +214,25 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
     //
     // Database hash table size
     // Expiry hash table size
+    // length first
     let (input, _aux_opcode) = tag([0xFB])(input)?;
+    let (input, db_hash_table_length) = (parse_rdb_length)(input)?;
 
-    // length first
-    let (input, db_hash_table_size_length) = (parse_rdb_length)(input)?;
     // value next
-    let (input, db_hash_table_size) = take(db_hash_table_size_length)(input)?;
+    let (input, _db_hash_table_size) = take(db_hash_table_length)(input)?;
 
-    // length first
-    let (input, expiry_hash_table_size_length) = (parse_rdb_length)(input)?;
+
+    let (input, expiry_hash_table_length) = (parse_rdb_length)(input)?;
+
     // value next
-    let (input, expiry_hash_table_size) = take(expiry_hash_table_size_length)(input)?;
+    let (input, _expiry_hash_table_size) = take(expiry_hash_table_length)(input)?;
 
     Ok((
         input,
         Rdb::OpCode {
             opcode: RdbOpCode::ResizeDb {
-                db_hash_table_size: std::str::from_utf8(db_hash_table_size)
-                    .expect("Key [u8] to str conversion failed")
-                    .to_string(),
-                expiry_hash_table_size: std::str::from_utf8(expiry_hash_table_size)
-                    .expect("Key [u8] to str conversion failed")
-                    .to_string(),
+                db_hash_table_length,
+                expiry_hash_table_length,
             },
         },
     ))

@@ -43,6 +43,7 @@ impl Decoder for RdbCodec {
                 Ok(Some(parsed_message))
             }
             Err(Err::Incomplete(Needed::Size(_))) => Ok(None),
+
             Err(_) => Err(RedisError::ParseFailure),
         }
     }
