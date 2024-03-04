@@ -43,10 +43,10 @@ pub enum Rdb {
 // 11	The next object is encoded in a special format. The remaining 6 bits indicate the format.
 // So, in case of 0b11 the next 6 bits are NOT the length, it's the a special format.
 //
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum LengthEncoding {
     StringLength(u32),
-    // Format(u32),
+    IntegerBits(u8),
     Compressed
 }
 

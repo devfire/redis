@@ -1,10 +1,8 @@
-use clap::error;
 use log::{error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    //    combinator::map,
-    //  number::streaming::{be_u8, le_u8},
+    number::streaming::{le_u16, le_u32, le_u8},
     IResult,
 };
 
@@ -40,10 +38,26 @@ fn parse_op_code_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
 // A single byte 0xFE flags the start of the database selector.
 // After this byte, a variable length field indicates the database number.
 fn parse_op_code_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
-    let (input, _dbselector) = tag([0xFE])(input)?;
-    let (input, _length) = (parse_rdb_length)(input)?;
-
     info!("SELECTDB OpCode detected.");
+    let (input, _dbselector) = tag([0xFE])(input)?;
+    let (input, length_type) = (parse_rdb_length)(input)?;
+
+    let length: u32 = 0;
+    match length_type {
+        LengthEncoding::StringLength(length) => {
+            info!("SELECTDB length: {}", length);
+        }
+        _ => todo!(),
+    }
+
+    let (input, db_number) = (take(length))(input)?;
+
+    info!(
+        "SELECTDB number: {:?} length: {}",
+        std::str::from_utf8(db_number),
+        length
+    );
+
     Ok((
         input,
         Rdb::OpCode {
@@ -53,28 +67,34 @@ fn parse_op_code_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
 }
 
 fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], LengthEncoding> {
-    let (input, first_byte) = nom::number::streaming::be_u8(input)?;
+    let (input, first_byte) = le_u8(input)?;
+    let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
+
+    info!(
+        "First byte: {:08b} two most significant bits: {:08b}",
+        first_byte, two_most_significant_bits
+    );
 
     // This is either length, or format number of bits or compressed type
     // ::Compressed is purely for initialization purposes.
     let mut length_encoding = (input, LengthEncoding::Compressed);
     match first_byte & 0b1100_0000 {
-        0b0000_0000 => {
+        0 => {
             // 00: The next 6 bits represent the length
             let length = (first_byte & 0b0011_1111) as u32;
             // Ok((input, LengthEncoding::StringLength(length)))
             length_encoding = (input, LengthEncoding::StringLength(length));
         }
-        0b0100_0000 => {
+        1 => {
             // 01: Read one additional byte. The combined 14 bits represent the length
-            let (input, next_byte) = nom::number::streaming::be_u8(input)?;
+            let (input, next_byte) = le_u8(input)?;
             let length = ((first_byte as u32 & 0b0011_1111) << 8) | next_byte as u32;
             length_encoding = (input, LengthEncoding::StringLength(length));
             // Ok((input, LengthEncoding::StringLength(length)))
         }
-        0b1000_0000 => {
+        2 => {
             // 10: Discard the remaining 6 bits. The next 4 bytes from the stream represent the length
-            let (input, length) = nom::number::streaming::be_u32(input)?;
+            let (input, length) = le_u32(input)?;
             length_encoding = (input, LengthEncoding::StringLength(length));
             // Ok((input, LengthEncoding::StringLength(length)))
         }
@@ -84,20 +104,17 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], LengthEncoding> {
             // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
             match format {
-                0b0000_0000 => {
+                0 => {
                     info!("8 bit integer follows!");
-                    // (input, LengthEncoding::Format(8))
-                    length_encoding = (input, LengthEncoding::StringLength(8));
+                    length_encoding = (input, LengthEncoding::IntegerBits(8));
                 }
-                0b0100_0000 => {
+                1 => {
                     info!("16 bit integer follows!");
-                    length_encoding = (input, LengthEncoding::StringLength(16));
-                    // Ok((input, LengthEncoding::Format(16)))
+                    length_encoding = (input, LengthEncoding::IntegerBits(16));
                 }
-                0b1000_0000 => {
+                2 => {
                     info!("32 bit integer follows!");
-                    // Ok((input, LengthEncoding::Format(32)))
-                    length_encoding = (input, LengthEncoding::StringLength(32));
+                    length_encoding = (input, LengthEncoding::IntegerBits(32));
                 }
                 0b1100_0000 => {
                     info!("Compressed string follows!");
@@ -123,8 +140,9 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], LengthEncoding> {
             // )));
         }
     };
+    info!("Calculated length: {:?}", length_encoding.1);
     Ok(length_encoding)
-    // info!("Calculated length: {}", length);
+
     // Ok((input, length))
 }
 
@@ -139,41 +157,62 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, key_length_encoding) = (parse_rdb_length)(input)?;
 
     let mut key_length: u32 = 0;
-    let mut value_length: u32 = 0;
+    // let mut value_length: u32 = 0;
+    // let mut integer_type: u8 = 0;
 
     match key_length_encoding {
         // the key is always a valid string, so we can ignore non strings
-        LengthEncoding::StringLength(len) => {
-            key_length = len;
-            info!("Key length: {}", len);
+        LengthEncoding::StringLength(kl) => {
+            key_length = kl;
         }
         _ => {
-            error!("Something terrible has happened.")
+            error!("In parse_rdb_aux something terrible has happened.")
         }
     }
-    let (input, key) = take(key_length)(input)?;
 
-    // let (input, key_length) = (parse_rdb_length)(input)?;
+    info!("Key length: {}", key_length);
+    let (input, key) = take(key_length)(input)?;
 
     // taking the value next
     // Now, this value length can be length, or format, or compressed.
     let (input, value_length_encoding) = (parse_rdb_length)(input)?;
-    match value_length_encoding {
-        LengthEncoding::StringLength(len) => {
-            value_length = len;
-            info!("Value length: {}", len);
+
+    let (input, value) = match value_length_encoding {
+        LengthEncoding::StringLength(value_length) => {
+            info!("Value length: {}", value_length);
+            take(value_length)(input)?
         }
-        LengthEncoding::Compressed => todo!(),
-    }
+        LengthEncoding::IntegerBits(integer_bits) => match integer_bits {
+            8 => {
+                let (i, integer) = le_u8(input)?;
+                (i, integer.to_le_bytes())
+            }
+            16 => {
+                let (i, integer) = le_u16(input)?;
+                (i, integer.to_be_bytes())
+            }
+            32 => {
+                let (i, integer) = le_u32(input)?;
+                (i, integer as u32)
+            }
+            _ => {
+                error!("Unknown integer bit sizes");
+                return Err(nom::Err::Failure(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Fail,
+                )));
+            }
+        },
+        _ => todo!(),
+    };
 
     // let (input, value_length) = (parse_rdb_length)(input)?;
-    let (input, value) = take(value_length)(input)?;
 
-    info!(
-        "AUX key: {:?} value {:?}",
-        std::str::from_utf8(key),
-        std::str::from_utf8(value)
-    );
+    // info!(
+    //     "AUX key: {:?} value {:?}",
+    //     std::str::from_utf8(key),
+    //     std::str::from_utf8(value)
+    // );
 
     Ok((
         input,
