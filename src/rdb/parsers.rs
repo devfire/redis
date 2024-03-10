@@ -98,11 +98,11 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
                 }
                 1 => {
                     info!("16 bit integer follows!");
-                    length = 0b0001_0000;
+                    length = 2 // 16;
                 }
                 2 => {
                     info!("32 bit integer follows!");
-                    length = 0b0010_0000;
+                    length = 4;
                 }
                 0b11 => {
                     info!("Compressed string follows!");
@@ -223,12 +223,12 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, db_hash_table_length) = (parse_rdb_length)(input)?;
 
     // value next
-    let (input, _db_hash_table_size) = take(db_hash_table_length)(input)?;
+    // let (input, _db_hash_table_size) = take(db_hash_table_length)(input)?;
 
     let (input, expiry_hash_table_length) = (parse_rdb_length)(input)?;
 
     // value next
-    let (input, _expiry_hash_table_size) = take(expiry_hash_table_length)(input)?;
+    // let (input, _expiry_hash_table_size) = take(expiry_hash_table_length)(input)?;
 
     Ok((
         input,
