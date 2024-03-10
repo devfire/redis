@@ -199,7 +199,7 @@ fn parse_keys(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$4\r\nKEYS\r\n")(input)?;
-    
+
     let (input, pattern) = (parse_resp_string)(input)?;
 
     Ok((input, RedisCommand::Keys(pattern.to_string())))

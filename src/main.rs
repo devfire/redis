@@ -11,6 +11,7 @@ pub mod handlers;
 pub mod messages;
 pub mod parsers;
 pub mod protocol;
+pub mod rdb;
 
 use crate::cli::Cli;
 use crate::errors::RedisError;
