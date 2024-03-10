@@ -1,0 +1,2 @@
+database,key,type,size,size_readable,element_count,encoding,expiration
+0,foo,string,56,56B,0,string,

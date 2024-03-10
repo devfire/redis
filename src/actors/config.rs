@@ -1,13 +1,23 @@
+use crate::rdb::codec::RdbCodec;
+use crate::rdb::format::Rdb;
 // Import necessary modules and types
 use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
+// use bytes::Buf;
 // use futures_util::io::BufReader;
-use rdb;
 
-use log::info;
+use futures::StreamExt;
+use log::{error, info};
+use tokio::fs::File;
+use tokio_util::codec::FramedRead;
+
+use std::fs;
 use std::{collections::HashMap, path::Path};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
+
+// include the format.rs file from rdb
+// use crate::rdb::format;
 
 /// Handles CONFIG command. Receives message from the ConfigCommandActorHandle and processes them accordingly.
 pub struct ConfigCommandActor {
@@ -72,9 +82,6 @@ impl ConfigCommandActor {
             }
 
             ConfigActorMessage::LoadConfig { dir, dbfilename } => {
-                // Insert the key-value pair into the hash map
-                // self.kv_hash.insert(config_key, config_value);
-
                 let fullpath = format!("{}/{}", dir, dbfilename);
 
                 // check to see if the file exists.
@@ -85,22 +92,20 @@ impl ConfigCommandActor {
                     // Log the attempt
                     info!("Loading config {}", fullpath);
 
-                    let db = std::fs::File::open(&Path::new(&fullpath))
-                        .expect("Failed to load config file.");
+                    let rdb_file = File::open(fullpath)
+                        .await
+                        .expect("Failed to open RDB file.");
 
-                    let reader = std::io::BufReader::new(db);
+                    let mut stream = FramedRead::new(rdb_file, RdbCodec::new());
 
-                    let stored_config = rdb::parse(
-                        reader,
-                        rdb::formatter::JSON::new(),
-                        rdb::filter::Simple::new(),
-                    )
-                    .expect("Unable to parse config file.");
-
-                    info!("Successfully parsed config file: {:?}.", stored_config);
-
-                    // use bincode crate to serialize stored_config into bytes
-                    let bytes = bincode::serialize(&stored_config).unwrap();
+                    while let Some(result) = stream.next().await {
+                        match result {
+                            Ok(field) => info!("Read field: {:?}", field),
+                            Err(e) => error!("Error: {}", e),
+                        }
+                    }
+                    // let contents =
+                    //     fs::read_to_string(fullpath).expect("Unable to read the RDB file");
 
                     // establish a TCP connection to local host
                     let stream = TcpStream::connect("127.0.0.1:6379")
@@ -109,10 +114,11 @@ impl ConfigCommandActor {
 
                     let (mut _reader, mut writer) = stream.into_split();
 
-                    writer
-                        .write_all(&bytes)
-                        .await
-                        .expect("Failed to write to TCP writer.");
+                    // writer
+                    //     .write_all(&bytes)
+                    //     .await
+                    //     .expect("Failed to write to TCP writer.");
+
                 }
             }
         }
