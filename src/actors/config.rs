@@ -1,5 +1,5 @@
 use crate::rdb::codec::RdbCodec;
-use crate::rdb::format::Rdb;
+
 // Import necessary modules and types
 use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 // use bytes::Buf;
@@ -10,9 +10,9 @@ use log::{error, info};
 use tokio::fs::File;
 use tokio_util::codec::FramedRead;
 
-use std::fs;
+
 use std::{collections::HashMap, path::Path};
-use tokio::io::AsyncWriteExt;
+
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
@@ -112,7 +112,7 @@ impl ConfigCommandActor {
                         .await
                         .expect("Unable to connect to localhost.");
 
-                    let (mut _reader, mut writer) = stream.into_split();
+                    let (mut _reader, _writer) = stream.into_split();
 
                     // writer
                     //     .write_all(&bytes)

@@ -3,13 +3,13 @@ use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
     character::streaming::u8,
-    combinator::{map, value},
+    combinator::{map},
     number::streaming::{le_u32, le_u8},
     sequence::preceded,
     IResult,
 };
 
-use std::fmt::Binary;
+
 
 use super::format::{Rdb, RdbOpCode, ValueType};
 

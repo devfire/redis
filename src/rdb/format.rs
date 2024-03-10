@@ -13,7 +13,7 @@ pub enum Rdb {
     OpCode {
         opcode: RdbOpCode,
     },
-    Type(String),
+ //   Type(String),
     // ExpiryTime(String),
     // Each key value pair has 4 parts:
     //
@@ -27,7 +27,7 @@ pub enum Rdb {
         key: String,
         value: String,
     },
-    End,
+//    End,
 }
 
 #[derive(Debug, PartialEq)]
