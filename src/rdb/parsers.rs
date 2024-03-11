@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
     character::streaming::u8,
-    combinator::{map, opt, value},
+    combinator::{map, map_opt, opt, value},
     number::streaming::{le_u32, le_u8},
     sequence::{preceded, tuple},
     IResult,
@@ -28,11 +28,18 @@ fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
 // https://rdb.fnordig.de/file_format.html#op-codes
 fn parse_op_code_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _eof_marker) = tag([0xFF])(input)?;
+    let (input, checksum) = take(8usize)(input)?;
+    // let (input, checksum) = map_opt(take(8usize), |bytes: &[u8]| {
+    //     bytes.try_into().ok().map(u32::from_le_bytes)
+    // })(input)?;
+    let checksum = String::from_utf8_lossy(checksum).to_string();
+
     info!("EOF detected.");
+
     Ok((
         input,
         Rdb::OpCode {
-            opcode: RdbOpCode::Eof,
+            opcode: RdbOpCode::Eof(checksum),
         },
     ))
 }
@@ -142,12 +149,6 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, value) = take(value_length)(input)?;
     info!("Value: {:?}", std::str::from_utf8(value));
 
-    // info!(
-    //     "AUX key: {:?} value {:?}",
-    //     std::str::from_utf8(key),
-    //     std::str::from_utf8(value)
-    // );
-
     Ok((
         input,
         Rdb::OpCode {
@@ -156,22 +157,12 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     ))
 }
 
-// fn parse_value_type(input: &[u8]) -> IResult<&[u8], u8> {
-//     // let's grab 1 byte
-//     let (input, value_type) = nom::number::streaming::le_u8(input)?;
-
-//     Ok((input, value_type))
-// }
-
 fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
-    preceded(
-        u8, // This consumes the first byte, which is the flag indicating the encoding type
-        alt((
-            map(tag(&[0u8]), |_| ValueType::StringEncoding),
-            map(tag(&[1u8]), |_| ValueType::ListEncoding),
-            map(tag(&[2u8]), |_| ValueType::SetEncoding),
-        )),
-    )(input)
+    alt((
+        // value: The value combinator is used to map the result of a parser to a specific value.
+        value(ValueType::StringEncoding, tag([0x0])),
+        value(ValueType::ListEncoding, tag([0x1])),
+    ))(input)
 }
 
 fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
@@ -183,6 +174,21 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
         std::str::from_utf8(key)
             .expect("Key [u8] to str conversion failed")
             .to_string(),
+    ))
+}
+
+fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
+    let (input, (value_type, key, value)) =
+        tuple((parse_value_type, parse_string, parse_string))(input)?;
+
+    Ok((
+        input,
+        Rdb::KeyValuePair {
+            key_expiry_time: None,
+            value_type,
+            key,
+            value,
+        },
     ))
 }
 
@@ -243,6 +249,7 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
         },
     ))
 }
+
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
     info!("Parsing: {:?}", input.to_ascii_lowercase());
     alt((
@@ -251,6 +258,7 @@ pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
         parse_op_code_eof,
         parse_op_code_selectdb,
         parse_rdb_aux,
+        parse_rdb_key_value_without_expiry,
         parse_rdb_value_with_expiry,
         parse_resize_db,
     ))(input)
