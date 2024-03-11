@@ -30,16 +30,16 @@ pub enum Rdb {
 //    End,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ValueType {
     StringEncoding,
     ListEncoding,
-    SetEncoding,
+    // SetEncoding,
 }
 
 #[derive(Debug)]
 pub enum RdbOpCode {
-    Eof,
+    Eof(String), //checksum
     Selectdb,
     // Expiretime(u32),
     // ExpiretimeMs(u64),
