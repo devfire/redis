@@ -3,13 +3,11 @@ use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
     character::streaming::u8,
-    combinator::{map},
+    combinator::{map, opt, value},
     number::streaming::{le_u32, le_u8},
-    sequence::preceded,
+    sequence::{preceded, tuple},
     IResult,
 };
-
-
 
 use super::format::{Rdb, RdbOpCode, ValueType};
 
@@ -176,37 +174,42 @@ fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
     )(input)
 }
 
-fn parse_expiry_time_seconds(input: &[u8]) -> IResult<&[u8], Rdb> {
-    // 0xFD means expiry time in seconds follows in the next 4 bytes unsigned integer
-    let (input, _aux_opcode) = tag([0xFD])(input)?;
-
-    // let's grab 4 bytes
-    let (input, key_expiry_time) = le_u32(input)?;
-
-    // next comes the value type
-    let (input, value_type) = (parse_value_type)(input)?;
-
-    // taking the key first
+fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
     let (input, key_length) = (parse_rdb_length)(input)?;
     let (input, key) = take(key_length)(input)?;
-    info!("Key: {:?}", std::str::from_utf8(key));
+    info!("Value: {:?}", std::str::from_utf8(key));
+    Ok((
+        input,
+        std::str::from_utf8(key)
+            .expect("Key [u8] to str conversion failed")
+            .to_string(),
+    ))
+}
 
-    // taking the value next
-    let (input, value_length) = (parse_rdb_length)(input)?;
-    let (input, value) = take(value_length)(input)?;
-    info!("Value: {:?}", std::str::from_utf8(value));
+fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
+    let (input, (expiry_time, value_type, key, value)) = tuple((
+        // opt: The opt combinator is used to make the parsing of the optional.
+        // If these options are not present in the input string, opt will return None.
+        // alt: The alt combinator is used to try multiple parsers in order until one succeeds.
+        //
+        opt(alt((
+            // value: The value combinator is used to map the result of a parser to a specific value.
+            //
+            value(4usize, tag([0xFD])),
+            value(8usize, tag([0xFC])),
+        ))),
+        parse_value_type,
+        parse_string,
+        parse_string,
+    ))(input)?;
 
     Ok((
         input,
         Rdb::KeyValuePair {
-            key_expiry_time: Some(key_expiry_time),
+            key_expiry_time: expiry_time,
             value_type,
-            key: std::str::from_utf8(key)
-                .expect("Key [u8] to str conversion failed")
-                .to_string(),
-            value: std::str::from_utf8(value)
-                .expect("Key [u8] to str conversion failed")
-                .to_string(),
+            key,
+            value,
         },
     ))
 }
@@ -248,7 +251,7 @@ pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
         parse_op_code_eof,
         parse_op_code_selectdb,
         parse_rdb_aux,
-        parse_expiry_time_seconds,
+        parse_rdb_value_with_expiry,
         parse_resize_db,
     ))(input)
 }
