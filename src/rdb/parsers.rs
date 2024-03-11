@@ -2,10 +2,9 @@ use log::{error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    character::streaming::u8,
-    combinator::{map, map_opt, opt, value},
+    combinator::{opt, value},
     number::streaming::{le_u32, le_u8},
-    sequence::{preceded, tuple},
+    sequence::tuple,
     IResult,
 };
 
@@ -26,7 +25,7 @@ fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
 }
 
 // https://rdb.fnordig.de/file_format.html#op-codes
-fn parse_op_code_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
+fn parse_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _eof_marker) = tag([0xFF])(input)?;
     let (input, checksum) = take(8usize)(input)?;
     // let (input, checksum) = map_opt(take(8usize), |bytes: &[u8]| {
@@ -47,7 +46,7 @@ fn parse_op_code_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
 // A Redis instance can have multiple databases.
 // A single byte 0xFE flags the start of the database selector.
 // After this byte, a variable length field indicates the database number.
-fn parse_op_code_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
+fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _dbselector) = tag([0xFE])(input)?;
     let (input, length) = (parse_rdb_length)(input)?;
 
@@ -255,8 +254,8 @@ pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
     alt((
         // map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         parse_rdb_header,
-        parse_op_code_eof,
-        parse_op_code_selectdb,
+        parse_eof,
+        parse_selectdb,
         parse_rdb_aux,
         parse_rdb_key_value_without_expiry,
         parse_rdb_value_with_expiry,
