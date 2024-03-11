@@ -22,7 +22,7 @@ pub enum Rdb {
     // The key, encoded as a Redis String. See String Encoding.
     // The value, encoded according to the value type. See Value Encoding.
     KeyValuePair {
-        key_expiry_time: Option<u32>,
+        key_expiry_time: Option<usize>,
         value_type: ValueType,
         key: String,
         value: String,
