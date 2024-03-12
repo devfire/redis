@@ -39,7 +39,7 @@ pub enum ValueType {
 
 #[derive(Debug)]
 pub enum RdbOpCode {
-    Eof(String), //checksum
+    Eof(u64), //checksum
     Selectdb,
     // Expiretime(u32),
     // ExpiretimeMs(u64),
