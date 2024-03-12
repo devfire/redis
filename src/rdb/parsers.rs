@@ -2,7 +2,7 @@ use log::{error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    combinator::{opt, value},
+    combinator::value,
     number::streaming::{le_u32, le_u64, le_u8},
     sequence::tuple,
     IResult,
@@ -50,11 +50,11 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _dbselector) = tag([0xFE])(input)?;
     let (input, length) = (parse_rdb_length)(input)?;
 
-    let (input, db_number) = (take(length))(input)?;
+    let (input, _db_number) = (take(length))(input)?;
 
-    info!("Db number: {:?}", std::str::from_utf8(db_number));
+    // info!("Db number: {:?}", std::str::from_utf8(db_number));
 
-    info!("SELECTDB OpCode detected.");
+    // info!("SELECTDB OpCode detected.");
     Ok((
         input,
         Rdb::OpCode {
@@ -66,10 +66,10 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
 fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
     let (input, first_byte) = le_u8(input)?;
     let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
-    info!(
-        "First byte: {:08b} two most significant bits: {:08b}",
-        first_byte, two_most_significant_bits
-    );
+    // info!(
+    //     "First byte: {:08b} two most significant bits: {:08b}",
+    //     first_byte, two_most_significant_bits
+    // );
 
     let (input, length) = match two_most_significant_bits {
         0 => {
@@ -89,27 +89,27 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
             (input, length)
         }
         3 => {
-            info!("11: special format detected!");
+            // info!("11: special format detected!");
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
             // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
-            info!("Format: {:b}", format);
+            // info!("Format: {:b}", format);
             let mut length = 0;
             match format {
                 0 => {
-                    info!("8 bit integer follows!");
+                    // info!("8 bit integer follows!");
                     length = 1 // 8;
                 }
                 1 => {
-                    info!("16 bit integer follows!");
+                    // info!("16 bit integer follows!");
                     length = 2 // 16;
                 }
                 2 => {
-                    info!("32 bit integer follows!");
+                    // info!("32 bit integer follows!");
                     length = 4;
                 }
                 0b11 => {
-                    info!("Compressed string follows!");
+                    // info!("Compressed string follows!");
                 }
                 _ => {
                     error!("Unknown length encoding.");
@@ -127,7 +127,7 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
         }
     };
 
-    info!("Calculated length: {}", length);
+    // info!("Calculated length: {}", length);
     Ok((input, length))
 }
 
@@ -139,14 +139,14 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _aux_opcode) = tag([0xFA])(input)?;
 
     // taking the key first
-    let (input, key) = (parse_string)(input)?;
+    let (input, _key) = (parse_string)(input)?;
     // let (input, key) = take(key_length)(input)?;
-    info!("Key: {:?}", key);
+    // info!("Key: {:?}", key);
 
     // taking the value next
     let (input, value_length) = (parse_rdb_length)(input)?;
-    let (input, value) = take(value_length)(input)?;
-    info!("Value: {:?}", std::str::from_utf8(value));
+    let (input, _value) = take(value_length)(input)?;
+    // info!("Value: {:?}", std::str::from_utf8(value));
 
     Ok((
         input,
@@ -167,7 +167,7 @@ fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
 fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
     let (input, key_length) = (parse_rdb_length)(input)?;
     let (input, key) = take(key_length)(input)?;
-    info!("Value: {:?}", std::str::from_utf8(key));
+    // info!("Value: {:?}", std::str::from_utf8(key));
     Ok((
         input,
         std::str::from_utf8(key)
@@ -250,7 +250,7 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
 }
 
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
-    info!("Parsing: {:?}", input.to_ascii_lowercase());
+    // info!("Parsing: {:?}", input.to_ascii_lowercase());
     alt((
         // map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         parse_rdb_header,
