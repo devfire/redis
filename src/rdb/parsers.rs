@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
     combinator::{opt, value},
-    number::streaming::{le_u32, le_u8},
+    number::streaming::{le_u32, le_u64, le_u8},
     sequence::tuple,
     IResult,
 };
@@ -27,11 +27,11 @@ fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
 // https://rdb.fnordig.de/file_format.html#op-codes
 fn parse_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _eof_marker) = tag([0xFF])(input)?;
-    let (input, checksum) = take(8usize)(input)?;
+    let (input, checksum) = le_u64(input)?;
     // let (input, checksum) = map_opt(take(8usize), |bytes: &[u8]| {
     //     bytes.try_into().ok().map(u32::from_le_bytes)
     // })(input)?;
-    let checksum = String::from_utf8_lossy(checksum).to_string();
+    // let checksum = String::from_utf8_lossy(checksum).to_string();
 
     info!("EOF detected.");
 
@@ -139,9 +139,9 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _aux_opcode) = tag([0xFA])(input)?;
 
     // taking the key first
-    let (input, key_length) = (parse_rdb_length)(input)?;
-    let (input, key) = take(key_length)(input)?;
-    info!("Key: {:?}", std::str::from_utf8(key));
+    let (input, key) = (parse_string)(input)?;
+    // let (input, key) = take(key_length)(input)?;
+    info!("Key: {:?}", key);
 
     // taking the value next
     let (input, value_length) = (parse_rdb_length)(input)?;
@@ -197,13 +197,13 @@ fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
         // If these options are not present in the input string, opt will return None.
         // alt: The alt combinator is used to try multiple parsers in order until one succeeds.
         //
-        opt(alt((
+        alt((
             // value: The value combinator is used to map the result of a parser to a specific value.
             //
             value(4usize, tag([0xFD])),
             value(8usize, tag([0xFC])),
-        ))),
-        parse_value_type,
+        )),
+        parse_value_type, //NOTE: for now, the string value type is hard-coded.
         parse_string,
         parse_string,
     ))(input)?;
@@ -211,7 +211,7 @@ fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
     Ok((
         input,
         Rdb::KeyValuePair {
-            key_expiry_time: expiry_time,
+            key_expiry_time: Some(expiry_time),
             value_type,
             key,
             value,
