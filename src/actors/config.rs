@@ -1,5 +1,6 @@
 use crate::rdb::codec::RdbCodec;
 
+use crate::rdb::format::Rdb::KeyValuePair;
 // Import necessary modules and types
 use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 // use bytes::Buf;
@@ -9,7 +10,6 @@ use futures::StreamExt;
 use log::{error, info};
 use tokio::fs::File;
 use tokio_util::codec::FramedRead;
-
 
 use std::{collections::HashMap, path::Path};
 
@@ -100,7 +100,18 @@ impl ConfigCommandActor {
 
                     while let Some(result) = stream.next().await {
                         match result {
-                            Ok(field) => info!("Read field: {:?}", field),
+                            Ok(field) => {
+                                info!("Read field: {:?}", field);
+                                match field {
+                                    KeyValuePair {
+                                        key_expiry_time,
+                                        value_type,
+                                        key,
+                                        value,
+                                    } => {},
+                                    _ => {}
+                                }
+                            }
                             Err(e) => error!("Error: {}", e),
                         }
                     }
@@ -118,7 +129,6 @@ impl ConfigCommandActor {
                     //     .write_all(&bytes)
                     //     .await
                     //     .expect("Failed to write to TCP writer.");
-
                 }
             }
         }
