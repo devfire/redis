@@ -9,7 +9,7 @@ use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 use futures::StreamExt;
 use log::{error, info};
 use tokio::fs::File;
-use tokio_util::codec::FramedRead;
+use tokio_util::codec::{FramedRead, FramedWrite};
 
 use std::{collections::HashMap, path::Path};
 
@@ -96,34 +96,21 @@ impl ConfigCommandActor {
                         .await
                         .expect("Failed to open RDB file.");
 
-                    let mut stream = FramedRead::new(rdb_file, RdbCodec::new());
-
-                    while let Some(result) = stream.next().await {
-                        match result {
-                            Ok(field) => {
-                                info!("Read field: {:?}", field);
-                                match field {
-                                    KeyValuePair {
-                                        key_expiry_time,
-                                        value_type,
-                                        key,
-                                        value,
-                                    } => {},
-                                    _ => {}
-                                }
-                            }
-                            Err(e) => error!("Error: {}", e),
-                        }
-                    }
-                    // let contents =
-                    //     fs::read_to_string(fullpath).expect("Unable to read the RDB file");
-
-                    // establish a TCP connection to local host
+                    // establish a TCP connection to local host to send the rdb entries to.
                     let stream = TcpStream::connect("127.0.0.1:6379")
                         .await
                         .expect("Unable to connect to localhost.");
 
-                    let (mut _reader, _writer) = stream.into_split();
+                    let (mut _reader, writer) = stream.into_split();
+
+                    // stream the rdb file, decoding and parsing the saved entries.
+                    let mut rdb_file_stream_reader = FramedRead::new(rdb_file, RdbCodec::new());
+                    
+                    // the reader is a file but the writer is a TCP stream.
+                    let mut redis_stream_writer = FramedWrite::new(writer, RdbCodec::new());
+                    while let Some(result) = rdb_file_stream_reader.next().await {
+                        
+                    }
 
                     // writer
                     //     .write_all(&bytes)

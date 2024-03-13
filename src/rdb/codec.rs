@@ -49,12 +49,21 @@ impl Decoder for RdbCodec {
     }
 }
 
-impl Encoder<Rdb> for RdbCodec {
-    type Error = RedisError;
+// impl Encoder<Rdb> for RdbCodec {
+//     type Error = RedisError;
 
-    // type Item = Rdb;
+//     fn encode(&mut self, item: Rdb, dst: &mut BytesMut) -> Result<(), Self::Error> {
+//         match item {
+//             Rdb::KeyValuePair {
+//                 key_expiry_time,
+//                 value_type,
+//                 key,
+//                 value,
+//             } => {
 
-    fn encode(&mut self, item: Rdb, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        Ok(())
-    }
-}
+//             },
+//             _ => {}
+//         }
+//         Ok(())
+//     }
+// }
