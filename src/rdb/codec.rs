@@ -1,5 +1,5 @@
 use nom::{Err, Needed};
-use tokio_util::codec::Decoder;
+use tokio_util::codec::{Decoder, Encoder};
 
 use bytes::{Buf, BytesMut};
 
@@ -46,5 +46,15 @@ impl Decoder for RdbCodec {
 
             Err(_) => Err(RedisError::ParseFailure),
         }
+    }
+}
+
+impl Encoder<Rdb> for RdbCodec {
+    type Error = RedisError;
+
+    // type Item = Rdb;
+
+    fn encode(&mut self, item: Rdb, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
