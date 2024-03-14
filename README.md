@@ -1,5 +1,5 @@
 # Redis in Rust
-This started as a toy project for ["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis) it is now an attempt to do a complete re-write of Redis in Rust.
+This is a mini project for ["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis) to do a complete re-write of Redis in Rust.
 
 # Commands
 The following Redis commands have been implemented:
