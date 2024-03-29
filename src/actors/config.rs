@@ -97,20 +97,18 @@ impl ConfigCommandActor {
                         .expect("Failed to open RDB file.");
 
                     // establish a TCP connection to local host to send the rdb entries to.
-                    let stream = TcpStream::connect("127.0.0.1:6379")
-                        .await
-                        .expect("Unable to connect to localhost.");
+                    // let stream = TcpStream::connect("127.0.0.1:6379")
+                    //     .await
+                    //     .expect("Unable to connect to localhost.");
 
-                    let (mut _reader, writer) = stream.into_split();
+                    // let (mut _reader, writer) = stream.into_split();
 
                     // stream the rdb file, decoding and parsing the saved entries.
                     let mut rdb_file_stream_reader = FramedRead::new(rdb_file, RdbCodec::new());
-                    
+
                     // the reader is a file but the writer is a TCP stream.
-                    let mut redis_stream_writer = FramedWrite::new(writer, RdbCodec::new());
-                    while let Some(result) = rdb_file_stream_reader.next().await {
-                        
-                    }
+                    // let mut redis_stream_writer = FramedWrite::new(writer, RdbCodec::new());
+                    while let Some(result) = rdb_file_stream_reader.next().await {}
 
                     // writer
                     //     .write_all(&bytes)
