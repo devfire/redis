@@ -108,7 +108,12 @@ impl ConfigCommandActor {
 
                     // the reader is a file but the writer is a TCP stream.
                     // let mut redis_stream_writer = FramedWrite::new(writer, RdbCodec::new());
-                    while let Some(result) = rdb_file_stream_reader.next().await {}
+                    while let Some(result) = rdb_file_stream_reader.next().await {
+                        info!(
+                            "Loading {:?} into redis.",
+                            result.expect("Error during rdb load.")
+                        )
+                    }
 
                     // writer
                     //     .write_all(&bytes)

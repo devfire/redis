@@ -56,12 +56,12 @@ impl SetCommandActor {
             }
 
             // Handle an ExpireValue message
-            SetActorMessage::ExpireValue { expiry } => {
+            SetActorMessage::DeleteValue { expiry: value } => {
                 // Log the expiry
-                info!("Expiring {:?}", expiry);
+                info!("Expiring {:?}", value);
 
                 // Remove the key-value pair from the hash map. Triggered by expire_value handler call from tokio::spawn sleep thread in main.rs.
-                self.kv_hash.remove(&expiry);
+                self.kv_hash.remove(&value);
             }
 
             // Handle a GetKeys message

@@ -138,18 +138,18 @@ async fn process(
                             info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
-                            expire_command_handler_clone.expire_value(&msg.key).await;
+                            expire_command_handler_clone.delete_value(&msg.key).await;
                         });
                     }
                     protocol::SetCommandExpireOption::PX(milliseconds) => {
                         // Must clone again because we're about to move this into a dedicated sleep thread.
-                        let expire_command_handler_clone = expire_command_handler_clone.clone();
+                        let command_handler_expire_clone = expire_command_handler_clone.clone();
                         let _expiry_handle = tokio::spawn(async move {
                             sleep(Duration::from_millis(milliseconds as u64)).await;
                             info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
-                            expire_command_handler_clone.expire_value(&msg.key).await;
+                            command_handler_expire_clone.delete_value(&msg.key).await;
                         });
                     }
                     protocol::SetCommandExpireOption::EXAT(_) => todo!(),
@@ -269,7 +269,7 @@ async fn process(
                         // https://redis.io/commands/del/
 
                         for key in &keys {
-                            set_command_actor_handle.expire_value(key).await;
+                            set_command_actor_handle.delete_value(key).await;
                         }
 
                         let response = Value::Integer(keys.len() as i64).encode();

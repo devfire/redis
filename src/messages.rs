@@ -19,8 +19,8 @@ pub enum SetActorMessage {
         // SetCommandParameters is defined in protocol.rs
         input: SetCommandParameters,
     },
-    ExpireValue {
-        // Expires the value at a given interval
+    DeleteValue {
+        // Deletes the value at a given interval
         expiry: String,
     },
     // returns a vector of all the keys in the HashMap
@@ -50,19 +50,3 @@ pub enum ConfigActorMessage {
         dbfilename: String,
     },
 }
-
-// #[derive(Debug)]
-// pub enum ProcessActorMessage {
-//     // the idea here is that values are stored in a HashMap.
-//     // So, to get a CONFIG Value back the client must supply a String key.
-//     // NOTE: Only dir and dbfilename keys are supported.
-//     LoadConfig {
-//         config_key: String,
-//         respond_to: oneshot::Sender<Option<String>>,
-//     },
-//     SetValue {
-//         // should be either dir or dbfilename
-//         config_key: String,
-//         config_value: String,
-//     },
-// }
