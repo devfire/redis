@@ -16,11 +16,12 @@ impl ConfigCommandActorHandle {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(8);
         let mut actor = ConfigCommandActor::new(receiver);
-        
+
         tokio::spawn(async move { actor.run().await });
 
         Self { sender }
     }
+
 
     /// implements the redis CONFIG GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
@@ -54,7 +55,10 @@ impl ConfigCommandActorHandle {
             config_value: config_value.to_string(),
         };
 
-        info!("Setting value for key: {:?}, value: {}", config_key, config_value);
+        info!(
+            "Setting value for key: {:?}, value: {}",
+            config_key, config_value
+        );
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
@@ -65,7 +69,6 @@ impl ConfigCommandActorHandle {
             dir: dir.to_string(),
             dbfilename: dbfilename.to_string(),
         };
-        
 
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
