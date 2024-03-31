@@ -4,6 +4,8 @@
 
 // use clap::builder::Str;
 
+use crate::protocol::SetCommandExpireOption;
+
 #[derive(Debug)]
 pub enum Rdb {
     RdbHeader {
@@ -22,7 +24,7 @@ pub enum Rdb {
     // The key, encoded as a Redis String. See String Encoding.
     // The value, encoded according to the value type. See Value Encoding.
     KeyValuePair {
-        key_expiry_time: Option<usize>,
+        key_expiry_time: Option<SetCommandExpireOption>,
         value_type: ValueType,
         key: String,
         value: String,

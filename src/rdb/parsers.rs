@@ -2,11 +2,13 @@ use log::{error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    combinator::value,
+    combinator::{map, value},
     number::streaming::{le_u32, le_u64, le_u8},
     sequence::tuple,
-    IResult,
+    IResult, Parser,
 };
+
+use crate::protocol::SetCommandExpireOption;
 
 use super::format::{Rdb, RdbOpCode, ValueType};
 
@@ -200,8 +202,10 @@ fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
         alt((
             // value: The value combinator is used to map the result of a parser to a specific value.
             //
-            value(4usize, tag([0xFD])),
-            value(8usize, tag([0xFC])),
+            // value(4usize, tag([0xFD])),
+            // value(8usize, tag([0xFC])),
+            value(SetCommandExpireOption::EX(4usize), tag([0xFD])),
+            value(SetCommandExpireOption::PX(8usize), tag([0xFD])),
         )),
         parse_value_type, //NOTE: for now, the string value type is hard-coded.
         parse_string,
