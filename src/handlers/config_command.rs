@@ -28,7 +28,7 @@ impl ConfigCommandActorHandle {
     pub async fn get_value(&self, config_key: ConfigCommandParameters) -> Option<String> {
         log::info!("Getting value for key: {:?}", config_key);
         let (send, recv) = oneshot::channel();
-        let msg = ConfigActorMessage::GetValue {
+        let msg = ConfigActorMessage::GetConfigValue {
             config_key,
             respond_to: send,
         };
@@ -50,7 +50,7 @@ impl ConfigCommandActorHandle {
     /// implements the redis CONFIG SET command, taking a key, value pair as input. Returns nothing.
     /// https://redis.io/commands/config-set/
     pub async fn set_value(&self, config_key: ConfigCommandParameters, config_value: &str) {
-        let msg = ConfigActorMessage::SetValue {
+        let msg = ConfigActorMessage::SetConfigValue {
             config_key,
             config_value: config_value.to_string(),
         };

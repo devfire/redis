@@ -35,11 +35,11 @@ pub enum ConfigActorMessage {
     // the idea here is that values are stored in a HashMap.
     // So, to get a CONFIG Value back the client must supply a String key.
     // NOTE: Only dir and dbfilename keys are supported.
-    GetValue {
+    GetConfigValue {
         config_key: ConfigCommandParameters,
         respond_to: oneshot::Sender<Option<String>>,
     },
-    SetValue {
+    SetConfigValue {
         // should be either dir or dbfilename
         config_key: ConfigCommandParameters,
         config_value: String,
