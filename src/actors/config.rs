@@ -126,20 +126,20 @@ impl ConfigCommandActor {
                                 // assemble the SET command
                                 // https://redis.io/commands/set/
                                 let mut keys_collection: Vec<Value> = Vec::new();
-                                keys_collection.push(Value::String("SET".to_string()));
+                                keys_collection.push(Value::Bulk("SET".into()));
 
-                                keys_collection.push(Value::String(key));
-                                keys_collection.push(Value::String(value));
+                                keys_collection.push(Value::Bulk(key));
+                                keys_collection.push(Value::Bulk(value));
 
                                 // Check to see if expiry was attached to this RDB entry
                                 if let Some(expiration) = key_expiry_time {
                                     match expiration {
                                         crate::protocol::SetCommandExpireOption::EX(s) => {
-                                            keys_collection.push(Value::String("EX".to_string()));
+                                            keys_collection.push(Value::Bulk("EX".to_string()));
                                             keys_collection.push(Value::Integer(s as i64));
                                         }
                                         crate::protocol::SetCommandExpireOption::PX(ms) => {
-                                            keys_collection.push(Value::String("PX".to_string()));
+                                            keys_collection.push(Value::Bulk("PX".to_string()));
                                             keys_collection.push(Value::Integer(ms as i64));
                                         }
                                         crate::protocol::SetCommandExpireOption::EXAT(_) => todo!(),
