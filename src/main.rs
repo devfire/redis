@@ -376,7 +376,7 @@ async fn process(
                         // see if there were any keys in the hashmap that match the pattern.
                         if let Some(keys) = set_command_actor_handle.get_keys(&pattern).await {
                             for key in keys {
-                                let response = Value::String(key);
+                                let response = Value::Bulk(key);
                                 keys_collection.push(response);
                             }
                         } else {
@@ -385,6 +385,7 @@ async fn process(
                             // let _ = writer.write_all(&response).await?;
                         }
 
+                        info!("Returning keys: {:?}", keys_collection);
                         let response = Value::Array(keys_collection).encode();
 
                         let _ = writer.write_all(&response).await?;
