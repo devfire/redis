@@ -1,10 +1,9 @@
 // Import necessary modules and types
-use crate::{messages::SetActorMessage, protocol};
+use crate::{messages::SetActorMessage};
 use log::info;
 use std::collections::HashMap;
 use tokio::{
     sync::mpsc,
-    time::{sleep, Duration},
 };
 
 /// Handles redis SET command. Receives message from the SetCommandActorHandle and processes them accordingly.

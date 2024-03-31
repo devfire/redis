@@ -1,5 +1,5 @@
 use nom::{Err, Needed};
-use tokio_util::codec::{Decoder, Encoder};
+use tokio_util::codec::{Decoder};
 
 use bytes::{Buf, BytesMut};
 
