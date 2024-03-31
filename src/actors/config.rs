@@ -10,6 +10,7 @@ use futures::StreamExt;
 use log::{error, info};
 use resp::Value;
 use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use tokio_util::codec::{FramedRead, FramedWrite};
 
 use std::{collections::HashMap, path::Path};
@@ -104,7 +105,7 @@ impl ConfigCommandActor {
                         .expect("Unable to connect to localhost.");
 
                     // ignore the reader here since we read from file, not TCP
-                    let (mut _reader, writer) = stream.into_split();
+                    let (mut _reader, mut writer) = stream.into_split();
 
                     // stream the rdb file, decoding and parsing the saved entries.
                     let mut rdb_file_stream_reader = FramedRead::new(rdb_file, RdbCodec::new());
@@ -112,18 +113,16 @@ impl ConfigCommandActor {
                     // the reader is a file but the writer is a TCP stream.
                     // let mut redis_stream_writer = FramedWrite::new(writer, RdbCodec::new());
                     while let Some(result) = rdb_file_stream_reader.next().await {
-                        // info!(
-                        //     "Loading {:?} into redis.",
-                        //     result.expect("Error during rdb load.")
-                        // );
+                        // info!("Loading {:?}", result);
 
                         match result {
                             Ok(KeyValuePair {
                                 key_expiry_time,
-                                value_type,
+                                value_type: _,
                                 key,
                                 value,
                             }) => {
+                                info!("Loading {} {} {:?}", key, value, key_expiry_time);
                                 // assemble the SET command
                                 // https://redis.io/commands/set/
                                 let mut keys_collection: Vec<Value> = Vec::new();
@@ -131,14 +130,32 @@ impl ConfigCommandActor {
 
                                 keys_collection.push(Value::String(key));
                                 keys_collection.push(Value::String(value));
-                                
 
                                 // Check to see if expiry was attached to this RDB entry
                                 if let Some(expiration) = key_expiry_time {
-                                    
+                                    match expiration {
+                                        crate::protocol::SetCommandExpireOption::EX(s) => {
+                                            keys_collection.push(Value::String("EX".to_string()));
+                                            keys_collection.push(Value::Integer(s as i64));
+                                        }
+                                        crate::protocol::SetCommandExpireOption::PX(ms) => {
+                                            keys_collection.push(Value::String("PX".to_string()));
+                                            keys_collection.push(Value::Integer(ms as i64));
+                                        }
+                                        crate::protocol::SetCommandExpireOption::EXAT(_) => todo!(),
+                                        crate::protocol::SetCommandExpireOption::PXAT(_) => todo!(),
+                                        crate::protocol::SetCommandExpireOption::KEEPTTL => todo!(),
+                                    }
                                 };
+                                let response = Value::Array(keys_collection).encode();
+
+                                info!("Assembled {:?} to write.", response);
+
+                                let _ = writer.write_all(&response).await;
                             }
-                            Ok(_) => todo!(),
+                            Ok(_) => {
+                                info!("Ignoring other things.")
+                            }
                             Err(_) => error!("Something bad happened."),
                             // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
                             // Ok(_) => info!("Skipping over OpCodes"),
