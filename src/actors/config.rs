@@ -8,6 +8,7 @@ use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 
 use futures::StreamExt;
 use log::{error, info};
+use resp::Value;
 use tokio::fs::File;
 use tokio_util::codec::{FramedRead, FramedWrite};
 
@@ -96,11 +97,14 @@ impl ConfigCommandActor {
                         .expect("Failed to open RDB file.");
 
                     // establish a TCP connection to local host to send the rdb entries to.
-                    // let stream = TcpStream::connect("127.0.0.1:6379")
-                    //     .await
-                    //     .expect("Unable to connect to localhost.");
+                    // A bit of a hack here but we need to send the RESP entries through the front door,
+                    // i.e. the main.rs TCP tokio loop.
+                    let stream = TcpStream::connect("127.0.0.1:6379")
+                        .await
+                        .expect("Unable to connect to localhost.");
 
-                    // let (mut _reader, writer) = stream.into_split();
+                    // ignore the reader here since we read from file, not TCP
+                    let (mut _reader, writer) = stream.into_split();
 
                     // stream the rdb file, decoding and parsing the saved entries.
                     let mut rdb_file_stream_reader = FramedRead::new(rdb_file, RdbCodec::new());
@@ -120,8 +124,19 @@ impl ConfigCommandActor {
                                 key,
                                 value,
                             }) => {
-                                // self.kv_hash.insert(key, value);
-                                todo!();
+                                // assemble the SET command
+                                // https://redis.io/commands/set/
+                                let mut keys_collection: Vec<Value> = Vec::new();
+                                keys_collection.push(Value::String("SET".to_string()));
+
+                                keys_collection.push(Value::String(key));
+                                keys_collection.push(Value::String(value));
+                                
+
+                                // Check to see if expiry was attached to this RDB entry
+                                if let Some(expiration) = key_expiry_time {
+                                    
+                                };
                             }
                             Ok(_) => todo!(),
                             Err(_) => error!("Something bad happened."),
