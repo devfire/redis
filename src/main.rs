@@ -41,6 +41,9 @@ async fn main() -> std::io::Result<()> {
 
     let cli = Cli::parse();
 
+    // Get a handle to the set actor, one per redis. This starts the actor.
+    let set_command_actor_handle = SetCommandActorHandle::new();
+
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
     let mut config_dbfilename: String = "".to_string();
@@ -75,9 +78,6 @@ async fn main() -> std::io::Result<()> {
 
     let listener = TcpListener::bind("0.0.0.0:6379").await?;
 
-    // Get a handle to the set actor, one per redis. This starts the actor.
-    let set_command_actor_handle = SetCommandActorHandle::new();
-
     info!("Redis is running.");
 
     config_command_actor_handle
@@ -91,7 +91,6 @@ async fn main() -> std::io::Result<()> {
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
-        // let process_handler_clone = process_actor_handle.clone();
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.

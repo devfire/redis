@@ -52,7 +52,7 @@ impl ConfigCommandActor {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
-            ConfigActorMessage::GetValue {
+            ConfigActorMessage::GetConfigValue {
                 config_key,
                 respond_to,
             } => {
@@ -66,7 +66,7 @@ impl ConfigCommandActor {
             }
 
             // Handle a SetValue message
-            ConfigActorMessage::SetValue {
+            ConfigActorMessage::SetConfigValue {
                 config_key,
                 config_value,
             } => {
