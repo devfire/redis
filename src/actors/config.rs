@@ -11,7 +11,7 @@ use log::{error, info};
 use resp::Value;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio_util::codec::{FramedRead, FramedWrite};
+use tokio_util::codec::{FramedRead};
 
 use std::{collections::HashMap, path::Path};
 

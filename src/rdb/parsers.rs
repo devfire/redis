@@ -2,10 +2,10 @@ use log::{error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    combinator::{map, value},
+    combinator::{value},
     number::streaming::{le_u32, le_u64, le_u8},
     sequence::tuple,
-    IResult, Parser,
+    IResult,
 };
 
 use crate::protocol::SetCommandExpireOption;
