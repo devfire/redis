@@ -21,7 +21,7 @@ pub enum SetActorMessage {
     },
     DeleteValue {
         // Deletes the value at a given interval
-        expiry: String,
+        value: String,
     },
     // returns a vector of all the keys in the HashMap
     GetKeys {

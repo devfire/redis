@@ -65,9 +65,7 @@ impl SetCommandActorHandle {
     }
     /// implements the redis SET command, taking a key, value pair as input. Returns nothing.
     pub async fn set_value(&self, parameters: SetCommandParameters) {
-        let msg = SetActorMessage::SetValue {
-            input: parameters.clone(),
-        };
+        let msg = SetActorMessage::SetValue { input: parameters };
 
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
@@ -76,7 +74,7 @@ impl SetCommandActorHandle {
     /// implements immediate removal of keys. This is triggered by a tokio::spawn sleep thread in main.rs
     pub async fn delete_value(&self, key: &String) {
         let msg = SetActorMessage::DeleteValue {
-            expiry: key.clone(),
+            value: key.to_string(),
         };
 
         // Ignore send errors.

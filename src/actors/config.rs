@@ -71,14 +71,13 @@ impl ConfigCommandActor {
                 config_value,
             } => {
                 // Insert the key-value pair into the hash map
-                self.kv_hash
-                    .insert(config_key.clone(), config_value.clone());
+                self.kv_hash.insert(config_key, config_value);
 
                 // Log a success message
-                info!(
-                    "Successfully inserted key {:?} value {}.",
-                    config_key, config_value
-                );
+                // info!(
+                //     "Successfully inserted key {} value {}.",
+                //     config_key, config_value
+                // );
             }
 
             ConfigActorMessage::LoadConfig { dir, dbfilename } => {
@@ -109,10 +108,27 @@ impl ConfigCommandActor {
                     // the reader is a file but the writer is a TCP stream.
                     // let mut redis_stream_writer = FramedWrite::new(writer, RdbCodec::new());
                     while let Some(result) = rdb_file_stream_reader.next().await {
-                        info!(
-                            "Loading {:?} into redis.",
-                            result.expect("Error during rdb load.")
-                        )
+                        // info!(
+                        //     "Loading {:?} into redis.",
+                        //     result.expect("Error during rdb load.")
+                        // );
+
+                        match result {
+                            Ok(KeyValuePair {
+                                key_expiry_time,
+                                value_type,
+                                key,
+                                value,
+                            }) => {
+                                // self.kv_hash.insert(key, value);
+                                todo!();
+                            }
+                            Ok(_) => todo!(),
+                            Err(_) => error!("Something bad happened."),
+                            // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
+                            // Ok(_) => info!("Skipping over OpCodes"),
+                            // Err(_) => error!("{}",e),
+                        }
                     }
 
                     // writer

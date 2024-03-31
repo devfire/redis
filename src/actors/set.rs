@@ -1,13 +1,19 @@
 // Import necessary modules and types
-use crate::messages::SetActorMessage;
+use crate::{messages::SetActorMessage, protocol};
 use log::info;
 use std::collections::HashMap;
-use tokio::sync::mpsc;
+use tokio::{
+    sync::mpsc,
+    time::{sleep, Duration},
+};
 
 /// Handles redis SET command. Receives message from the SetCommandActorHandle and processes them accordingly.
 pub struct SetCommandActor {
     // The receiver for incoming messages
     receiver: mpsc::Receiver<SetActorMessage>,
+
+    // // channel for key expiration
+    // expiry_channel: mpsc::Receiver<String>,
 
     // The key-value hash map for storing data
     kv_hash: HashMap<String, String>,
@@ -20,7 +26,11 @@ impl SetCommandActor {
         let kv_hash = HashMap::new();
 
         // Return a new actor with the given receiver and an empty key-value hash map
-        Self { receiver, kv_hash }
+        Self {
+            receiver,
+            // expiry_channel,
+            kv_hash,
+        }
     }
 
     // Run the actor
@@ -29,6 +39,17 @@ impl SetCommandActor {
         while let Some(msg) = self.receiver.recv().await {
             self.handle_message(msg);
         }
+
+        //  // Create a channel to communicate key expiration
+        //  let (expire_tx, mut expire_rx) = mpsc::channel::<String>(9600);
+
+        //  // Spawn a task that waits for a message on the channel
+        //  tokio::spawn(async move {
+        //      while let Some(key) = expire_rx.recv().await {
+        //          // Here you would have access to `self.kv_hash` and could remove the key
+        //          self.kv_hash.remove(&key);
+        //      }
+        //  });
     }
 
     // Handle a message
@@ -51,16 +72,54 @@ impl SetCommandActor {
                 // Insert the key-value pair into the hash map
                 self.kv_hash.insert(input.key, input.value);
 
+                // let key_value_pair_to_remove = input.clone();
+
+                // if let Some(expire_setting) = input.expire {
+                //     match expire_setting {
+                //         protocol::SetCommandExpireOption::EX(seconds) => {
+                //             // Must clone again because we're about to move this into a dedicated sleep thread.
+                //             // let expire_command_handler_clone = expire_command_handler_clone.clone();
+
+                //             let _expiry_handle = tokio::spawn(async move {
+                //                 sleep(Duration::from_secs(seconds as u64)).await;
+                //                 // info!("Expiring {:?}", msg);
+
+                //                 // Remove the value immediately.
+                //                 // self.kv_hash.remove(&input.key);
+
+                //                 // let value = input.key.clone();
+                //                 let removal_msg: SetActorMessage = SetActorMessage::DeleteValue {
+                //                     value: "FOO".to_string(),
+                //                 };
+                //                 self.handle_message(removal_msg);
+                //             });
+                //         }
+                //         protocol::SetCommandExpireOption::PX(milliseconds) => {
+                //             let _expiry_handle = tokio::spawn(async move {
+                //                 sleep(Duration::from_millis(milliseconds as u64)).await;
+                //                 // info!("Expiring {:?}", msg);
+
+                //                 // Remove the value immediately.
+                //                 // self.kv_hash.remove(&input.key);
+                //             });
+                //         }
+                //         protocol::SetCommandExpireOption::EXAT(_) => todo!(),
+                //         protocol::SetCommandExpireOption::PXAT(_) => todo!(),
+                //         protocol::SetCommandExpireOption::KEEPTTL => todo!(),
+                //     }
+                // }
+
                 // Log a success message
                 info!("Successfully inserted kv pair.");
             }
 
             // Handle an ExpireValue message
-            SetActorMessage::DeleteValue { expiry: value } => {
+            SetActorMessage::DeleteValue { value } => {
                 // Log the expiry
                 info!("Expiring {:?}", value);
 
-                // Remove the key-value pair from the hash map. Triggered by expire_value handler call from tokio::spawn sleep thread in main.rs.
+                // Remove the key-value pair from the hash map.
+                //
                 self.kv_hash.remove(&value);
             }
 
