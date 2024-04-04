@@ -197,7 +197,7 @@ async fn process(
                 // we can avoid recreating the original RESP array and just encode the request.
                 let request_as_encoded_string = request.to_encoded_string()?;
 
-                info!("Encoded: {:?}", request_as_encoded_string);
+                info!("RESP request: {:?}", request_as_encoded_string);
 
                 // let return_value =
                 //     processor_handle.process_value(parse_command(&request_as_encoded_string));

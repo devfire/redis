@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
     combinator::value,
-    number::streaming::{le_u32, le_u64, le_u8},
+    number::streaming::{le_u16, le_u32, le_u64, le_u8},
     sequence::tuple,
     IResult,
 };
@@ -50,9 +50,9 @@ fn parse_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
 // After this byte, a variable length field indicates the database number.
 fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _dbselector) = tag([0xFE])(input)?;
-    let (input, length) = (parse_rdb_length)(input)?;
+    let (input, value_type) = (parse_rdb_length)(input)?;
 
-    let (input, _db_number) = (take(length))(input)?;
+    let (input, _db_number) = (take(value_type.get_length()))(input)?;
 
     // info!("Db number: {:?}", std::str::from_utf8(db_number));
 
@@ -65,7 +65,7 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     ))
 }
 
-fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
+fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
     let (input, first_byte) = le_u8(input)?;
     let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
     // info!(
@@ -77,18 +77,36 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
         0 => {
             // 00: The next 6 bits represent the length
             let length = (first_byte & 0b0011_1111) as u32;
-            (input, length)
+            (
+                input,
+                ValueType::LengthEncoding {
+                    length,
+                    special: false,
+                },
+            )
         }
         1 => {
             // 01: Read one additional byte. The combined 14 bits represent the length
             let (input, next_byte) = le_u8(input)?;
             let length = (((first_byte & 0b0011_1111) as u32) << 8) | next_byte as u32;
-            (input, length)
+            (
+                input,
+                ValueType::LengthEncoding {
+                    length,
+                    special: false,
+                },
+            )
         }
         2 => {
             // 10: Discard the remaining 6 bits. The next 4 bytes from the stream represent the length
             let (input, length) = le_u32(input)?;
-            (input, length)
+            (
+                input,
+                ValueType::LengthEncoding {
+                    length,
+                    special: false,
+                },
+            )
         }
         3 => {
             debug!("11: special format detected!");
@@ -117,7 +135,13 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
                     error!("Unknown length encoding.");
                 }
             }
-            (input, length)
+            (
+                input,
+                ValueType::LengthEncoding {
+                    length,
+                    special: true,
+                },
+            )
         }
         _ => {
             error!("No suitable length encoding bit match");
@@ -146,8 +170,11 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     // info!("Key: {:?}", key);
 
     // taking the value next
-    let (input, value_length) = (parse_rdb_length)(input)?;
-    let (input, _value) = take(value_length)(input)?;
+    let (input, value_type) = (parse_rdb_length)(input)?;
+
+    // assuming a proper string. If not, get_length returns a 0 and everything blows up anyway.
+    let (input, _value) = take(value_type.get_length())(input)?;
+
     // info!("Value: {:?}", std::str::from_utf8(value));
 
     Ok((
@@ -167,19 +194,68 @@ fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
 }
 
 fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
-    let (input, string_length) = (parse_rdb_length)(input)?;
-    let (input, parsed_string) = take(string_length)(input)?;
-    debug!(
-        "Parsed string length: {:?} string: {:?}",
-        std::str::from_utf8(parsed_string),
-        parsed_string
-    );
-    Ok((
-        input,
-        std::str::from_utf8(parsed_string)
-            .expect("Key [u8] to str conversion failed")
-            .to_string(),
-    ))
+    let (input, string_type) = (parse_rdb_length)(input)?;
+    // let (input, parsed_string) = take(string_length)(input)?;
+
+    if !string_type.is_special() {
+        //not special
+
+        let (input, parsed_string) = take(string_type.get_length())(input)?;
+        debug!(
+            "Parsed string length: {:?} parsed bytes: {:?} string: {}",
+            string_type,
+            parsed_string,
+            std::str::from_utf8(parsed_string)
+                .expect("Key [u8] to str conversion failed")
+                .to_string(),
+        );
+        Ok((
+            input,
+            std::str::from_utf8(parsed_string)
+                .expect("Key [u8] to str conversion failed")
+                .to_string(),
+        ))
+    } else {
+        // special format, most likely integers as strings
+        // https://rdb.fnordig.de/file_format.html#string-encoding
+        match string_type.get_length() {
+            0 => {
+                // 8 bit integer
+                let (input, parsed_string) = (le_u8)(input)?;
+                debug!(
+                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
+                    string_type,
+                    parsed_string,
+                    format!("{}", parsed_string),
+                );
+                Ok((input, format!("{}", parsed_string)))
+            }
+            1 => {
+                let (input, parsed_string) = (le_u16)(input)?;
+                debug!(
+                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
+                    string_type,
+                    parsed_string,
+                    format!("{}", parsed_string),
+                );
+                Ok((input, format!("{}", parsed_string)))
+            }
+            2 => {
+                let (input, parsed_string) = (le_u32)(input)?;
+                debug!(
+                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
+                    string_type,
+                    parsed_string,
+                    format!("{}", parsed_string),
+                );
+                Ok((input, format!("{}", parsed_string)))
+            }
+            _ => Err(nom::Err::Failure(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::LengthValue,
+            ))),
+        }
+    }
 }
 
 fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
@@ -190,7 +266,7 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
         "Parsed kv pair type: {:?} key: {} value: {}",
         value_type, key, value
     );
-    
+
     Ok((
         input,
         Rdb::KeyValuePair {
@@ -241,12 +317,14 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
     // Expiry hash table size
     // length first
     let (input, _aux_opcode) = tag([0xFB])(input)?;
-    let (input, db_hash_table_length) = (parse_rdb_length)(input)?;
+    let (input, db_hash_table_value_type) = (parse_rdb_length)(input)?;
+    let db_hash_table_length = db_hash_table_value_type.get_length();
 
     // value next
     // let (input, _db_hash_table_size) = take(db_hash_table_length)(input)?;
 
-    let (input, expiry_hash_table_length) = (parse_rdb_length)(input)?;
+    let (input, expiry_hash_table_value_type) = (parse_rdb_length)(input)?;
+    let expiry_hash_table_length = expiry_hash_table_value_type.get_length();
 
     // value next
     // let (input, _expiry_hash_table_size) = take(expiry_hash_table_length)(input)?;

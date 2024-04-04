@@ -7,11 +7,11 @@ use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 // use futures_util::io::BufReader;
 
 use futures::StreamExt;
-use log::{error, info};
+use log::{debug, error, info};
 use resp::Value;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio_util::codec::{FramedRead};
+use tokio_util::codec::FramedRead;
 
 use std::{collections::HashMap, path::Path};
 
@@ -149,13 +149,20 @@ impl ConfigCommandActor {
                                 };
                                 let response = Value::Array(keys_collection).encode();
 
-                                info!("Assembled {:?} to write.", response);
+                                writer.write_all(&response).await.expect("Write_all failed");
+                                writer
+                                    .flush()
+                                    .await
+                                    .expect("ConfigCommandActor writer flush failed");
 
-                                let _ = writer.write_all(&response).await;
-                                writer.flush().await.expect("ConfigCommandActor writer flush failed");
+                                debug!(
+                                    "Sent {:?} to redis via tcp.",
+                                    String::from_utf8(response)
+                                        .expect("Our bytes should be valid utf8")
+                                );
                             }
                             Ok(_) => {
-                                info!("Ignoring other things.")
+                                debug!("Ignoring other things.")
                             }
                             Err(_) => error!("Something bad happened."),
                             // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
