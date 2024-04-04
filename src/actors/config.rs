@@ -164,7 +164,7 @@ impl ConfigCommandActor {
                             Ok(_) => {
                                 debug!("Ignoring other things.")
                             }
-                            Err(_) => error!("Something bad happened."),
+                            Err(e) => error!("Something bad happened: {}.", e),
                             // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
                             // Ok(_) => info!("Skipping over OpCodes"),
                             // Err(_) => error!("{}",e),
