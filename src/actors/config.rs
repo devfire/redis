@@ -113,7 +113,7 @@ impl ConfigCommandActor {
                     // the reader is a file but the writer is a TCP stream.
                     // let mut redis_stream_writer = FramedWrite::new(writer, RdbCodec::new());
                     while let Some(result) = rdb_file_stream_reader.next().await {
-                        // info!("Loading {:?}", result);
+                        debug!("RDB decoder returned: {:?}", result);
 
                         match result {
                             Ok(KeyValuePair {
@@ -170,11 +170,6 @@ impl ConfigCommandActor {
                             // Err(_) => error!("{}",e),
                         }
                     }
-
-                    // writer
-                    //     .write_all(&bytes)
-                    //     .await
-                    //     .expect("Failed to write to TCP writer.");
                 }
             }
         }
