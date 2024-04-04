@@ -155,7 +155,7 @@ impl ConfigCommandActor {
                                     .await
                                     .expect("ConfigCommandActor writer flush failed");
 
-                                debug!(
+                                info!(
                                     "Sent {:?} to redis via tcp.",
                                     String::from_utf8(response)
                                         .expect("Our bytes should be valid utf8")
