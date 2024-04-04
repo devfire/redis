@@ -152,6 +152,7 @@ impl ConfigCommandActor {
                                 info!("Assembled {:?} to write.", response);
 
                                 let _ = writer.write_all(&response).await;
+                                writer.flush().await.expect("ConfigCommandActor writer flush failed");
                             }
                             Ok(_) => {
                                 info!("Ignoring other things.")

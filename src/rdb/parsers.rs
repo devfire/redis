@@ -1,8 +1,8 @@
-use log::{error, info};
+use log::{debug, error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    combinator::{value},
+    combinator::value,
     number::streaming::{le_u32, le_u64, le_u8},
     sequence::tuple,
     IResult,
@@ -91,7 +91,7 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
             (input, length)
         }
         3 => {
-            // info!("11: special format detected!");
+            debug!("11: special format detected!");
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
             // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
@@ -99,19 +99,19 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], u32> {
             let mut length = 0;
             match format {
                 0 => {
-                    // info!("8 bit integer follows!");
+                    debug!("8 bit integer follows!");
                     length = 1 // 8;
                 }
                 1 => {
-                    // info!("16 bit integer follows!");
+                    debug!("16 bit integer follows!");
                     length = 2 // 16;
                 }
                 2 => {
-                    // info!("32 bit integer follows!");
+                    debug!("32 bit integer follows!");
                     length = 4;
                 }
                 0b11 => {
-                    // info!("Compressed string follows!");
+                    debug!("Compressed string follows!");
                 }
                 _ => {
                     error!("Unknown length encoding.");
@@ -167,12 +167,16 @@ fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
 }
 
 fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
-    let (input, key_length) = (parse_rdb_length)(input)?;
-    let (input, key) = take(key_length)(input)?;
-    // info!("Value: {:?}", std::str::from_utf8(key));
+    let (input, string_length) = (parse_rdb_length)(input)?;
+    let (input, parsed_string) = take(string_length)(input)?;
+    debug!(
+        "Parsed string length: {:?} string: {:?}",
+        std::str::from_utf8(parsed_string),
+        parsed_string
+    );
     Ok((
         input,
-        std::str::from_utf8(key)
+        std::str::from_utf8(parsed_string)
             .expect("Key [u8] to str conversion failed")
             .to_string(),
     ))
@@ -182,6 +186,11 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, (value_type, key, value)) =
         tuple((parse_value_type, parse_string, parse_string))(input)?;
 
+    debug!(
+        "Parsed kv pair type: {:?} key: {} value: {}",
+        value_type, key, value
+    );
+    
     Ok((
         input,
         Rdb::KeyValuePair {
