@@ -1,10 +1,8 @@
 // Import necessary modules and types
-use crate::{messages::SetActorMessage};
+use crate::messages::SetActorMessage;
 use log::info;
 use std::collections::HashMap;
-use tokio::{
-    sync::mpsc,
-};
+use tokio::sync::mpsc;
 
 /// Handles redis SET command. Receives message from the SetCommandActorHandle and processes them accordingly.
 pub struct SetCommandActor {
@@ -68,48 +66,11 @@ impl SetCommandActor {
 
             // Handle a SetValue message
             SetActorMessage::SetValue { input } => {
+                info!("Inserting key: {} value: {}.", input.key, input.value);
                 // Insert the key-value pair into the hash map
                 self.kv_hash.insert(input.key, input.value);
 
-                // let key_value_pair_to_remove = input.clone();
-
-                // if let Some(expire_setting) = input.expire {
-                //     match expire_setting {
-                //         protocol::SetCommandExpireOption::EX(seconds) => {
-                //             // Must clone again because we're about to move this into a dedicated sleep thread.
-                //             // let expire_command_handler_clone = expire_command_handler_clone.clone();
-
-                //             let _expiry_handle = tokio::spawn(async move {
-                //                 sleep(Duration::from_secs(seconds as u64)).await;
-                //                 // info!("Expiring {:?}", msg);
-
-                //                 // Remove the value immediately.
-                //                 // self.kv_hash.remove(&input.key);
-
-                //                 // let value = input.key.clone();
-                //                 let removal_msg: SetActorMessage = SetActorMessage::DeleteValue {
-                //                     value: "FOO".to_string(),
-                //                 };
-                //                 self.handle_message(removal_msg);
-                //             });
-                //         }
-                //         protocol::SetCommandExpireOption::PX(milliseconds) => {
-                //             let _expiry_handle = tokio::spawn(async move {
-                //                 sleep(Duration::from_millis(milliseconds as u64)).await;
-                //                 // info!("Expiring {:?}", msg);
-
-                //                 // Remove the value immediately.
-                //                 // self.kv_hash.remove(&input.key);
-                //             });
-                //         }
-                //         protocol::SetCommandExpireOption::EXAT(_) => todo!(),
-                //         protocol::SetCommandExpireOption::PXAT(_) => todo!(),
-                //         protocol::SetCommandExpireOption::KEEPTTL => todo!(),
-                //     }
-                // }
-
                 // Log a success message
-                info!("Successfully inserted kv pair.");
             }
 
             // Handle an ExpireValue message

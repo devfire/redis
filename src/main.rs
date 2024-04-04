@@ -197,7 +197,7 @@ async fn process(
                 // we can avoid recreating the original RESP array and just encode the request.
                 let request_as_encoded_string = request.to_encoded_string()?;
 
-                info!("Encoded: {:?}", request_as_encoded_string);
+                info!("RESP request: {:?}", request_as_encoded_string);
 
                 // let return_value =
                 //     processor_handle.process_value(parse_command(&request_as_encoded_string));
@@ -212,6 +212,7 @@ async fn process(
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("PONG".to_string()).encode();
                         let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
                     }
                     // return Err(RedisError::ParseFailure.into()) closes the connection so let's not do that
                     Err(_) => {
@@ -219,17 +220,20 @@ async fn process(
                             Value::Error(RedisError::ParseFailure.to_string()).encode();
 
                         let _ = writer.write_all(&err_response).await?;
+                        writer.flush().await?;
                     }
                     Ok((_, RedisCommand::Echo(message))) => {
                         // Encode the value to RESP binary buffer.
                         let response = Value::String(message).encode();
 
                         let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
                     }
                     Ok((_, RedisCommand::Command)) => {
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("+OK".to_string()).encode();
                         let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
                     }
                     Ok((_, RedisCommand::Set(set_parameters))) => {
                         info!("Set command parameters: {:?}", set_parameters);
@@ -250,6 +254,7 @@ async fn process(
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("OK".to_string()).encode();
                         let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
                     }
                     Ok((_, RedisCommand::Get(key))) => {
                         // we may or may not get a value for the supplied key.
@@ -273,6 +278,7 @@ async fn process(
 
                         let response = Value::Integer(keys.len() as i64).encode();
                         let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
                     }
                     Ok((_, RedisCommand::Mget(keys))) => {
                         // Returns the values of all specified keys.
@@ -295,6 +301,7 @@ async fn process(
                         let response = Value::Array(key_collection).encode();
 
                         let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
                     }
                     Ok((_, RedisCommand::Strlen(key))) => {
                         // we may or may not get a value for the supplied key.
@@ -304,9 +311,11 @@ async fn process(
                             let response = Value::Integer(value.len() as i64).encode();
                             // Encode the value to RESP binary buffer.
                             let _ = writer.write_all(&response).await?;
+                            writer.flush().await?;
                         } else {
                             let response = Value::Integer(0 as i64).encode();
                             let _ = writer.write_all(&response).await?;
+                            writer.flush().await?;
                         }
                     }
 
@@ -342,6 +351,7 @@ async fn process(
                         let response = Value::Integer(new_value.len() as i64).encode();
                         // Encode the value to RESP binary buffer.
                         let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
                     }
                     Ok((_, RedisCommand::Config(config_key))) => {
                         // we may or may not get a value for the supplied key.
@@ -360,9 +370,11 @@ async fn process(
 
                             // Encode the value to RESP binary buffer.
                             let _ = writer.write_all(&response_encoded).await?;
+                            writer.flush().await?;
                         } else {
                             let response = Value::Null.encode();
                             let _ = writer.write_all(&response).await?;
+                            writer.flush().await?;
                         }
                     }
 
@@ -389,6 +401,7 @@ async fn process(
                         let response = Value::Array(keys_collection).encode();
 
                         let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
                     }
                 }
             }
