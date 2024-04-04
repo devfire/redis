@@ -15,7 +15,7 @@ pub enum Rdb {
     OpCode {
         opcode: RdbOpCode,
     },
- //   Type(String),
+    //   Type(String),
     // ExpiryTime(String),
     // Each key value pair has 4 parts:
     //
@@ -29,14 +29,34 @@ pub enum Rdb {
         key: String,
         value: String,
     },
-//    End,
+    //    End,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ValueType {
+    LengthEncoding { length: u32, special: bool },
     StringEncoding,
     ListEncoding,
     // SetEncoding,
+}
+
+impl ValueType {
+    // this only applies to LengthEncodings.
+    // if this gets called on some other enum variant simply return 0,
+    // this makes it easier to deal with, without if let Some()
+    pub fn get_length(&self) -> u32 {
+        match self {
+            ValueType::LengthEncoding { length, .. } => *length,
+            _ => 0,
+        }
+    }
+
+    pub fn is_special(&self) -> bool {
+        match self {
+            ValueType::LengthEncoding { special, .. } => *special,
+            _ => false, // Default value
+        }
+    }
 }
 
 #[derive(Debug)]
