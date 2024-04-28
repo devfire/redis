@@ -241,16 +241,16 @@ async fn process(
                         // Sets the value for the key in the set parameters in the set command actor handle.
                         // Awaits the result.
                         set_command_actor_handle
-                            .set_value(set_parameters.clone())
+                            .set_value(expire_tx.clone(), set_parameters.clone())
                             .await;
 
                         // don't even bother checking whether there is an expiry field or not.
                         // Reason is, this will always send to the channel and the while loop will figure out if there's an expiry field or not.
                         // if not, this is a noop.
-                        expire_tx
-                            .send(set_parameters.clone())
-                            .await
-                            .expect("Unable to start the expiry thread.");
+                        // expire_tx
+                        //     .send(set_parameters.clone())
+                        //     .await
+                        //     .expect("Unable to start the expiry thread.");
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("OK".to_string()).encode();
                         let _ = writer.write_all(&response).await?;
@@ -346,7 +346,9 @@ async fn process(
                             option: None,
                         };
 
-                        set_command_actor_handle.set_value(set_parameters).await;
+                        set_command_actor_handle
+                            .set_value(expire_tx.clone(), set_parameters)
+                            .await;
 
                         let response = Value::Integer(new_value.len() as i64).encode();
                         // Encode the value to RESP binary buffer.
