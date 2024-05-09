@@ -81,7 +81,11 @@ async fn main() -> std::io::Result<()> {
     info!("Redis is running.");
 
     config_command_actor_handle
-        .load_config(&config_dir, &config_dbfilename)
+        .load_config(
+            &config_dir,
+            &config_dbfilename,
+            set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
+        )
         .await;
 
     loop {
