@@ -52,11 +52,11 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _dbselector) = tag([0xFE])(input)?;
     let (input, value_type) = (parse_rdb_length)(input)?;
 
-    let (input, _db_number) = (take(value_type.get_length()))(input)?;
+    let (input, db_number) = (take(value_type.get_length()))(input)?;
 
-    // info!("Db number: {:?}", std::str::from_utf8(db_number));
+    info!("Db number: {:?}", std::str::from_utf8(db_number));
 
-    // info!("SELECTDB OpCode detected.");
+    info!("SELECTDB OpCode detected.");
     Ok((
         input,
         Rdb::OpCode {
@@ -262,7 +262,7 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, (value_type, key, value)) =
         tuple((parse_value_type, parse_string, parse_string))(input)?;
 
-    debug!(
+    info!(
         "Parsed kv pair type: {:?} key: {} value: {}",
         value_type, key, value
     );
@@ -341,7 +341,7 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
 }
 
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
-    // info!("Parsing: {:?}", input.to_ascii_lowercase());
+    info!("Parsing: {:?}", input.to_ascii_lowercase());
     alt((
         // map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         parse_rdb_header,
