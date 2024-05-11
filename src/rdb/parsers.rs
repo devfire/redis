@@ -17,6 +17,7 @@ fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, version) = take(4usize)(input)?;
     let version = String::from_utf8_lossy(version).to_string();
 
+    info!("RDB header version {} detected.", version);
     Ok((
         input,
         Rdb::RdbHeader {
@@ -165,17 +166,17 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _aux_opcode) = tag([0xFA])(input)?;
 
     // taking the key first
-    let (input, _key) = (parse_string)(input)?;
+    let (input, key) = (parse_string)(input)?;
     // let (input, key) = take(key_length)(input)?;
-    // info!("Key: {:?}", key);
+    // info!("Aux key detected: {:?}", key);
 
     // taking the value next
     let (input, value_type) = (parse_rdb_length)(input)?;
 
     // assuming a proper string. If not, get_length returns a 0 and everything blows up anyway.
-    let (input, _value) = take(value_type.get_length())(input)?;
+    let (input, value) = take(value_type.get_length())(input)?;
 
-    // info!("Value: {:?}", std::str::from_utf8(value));
+    info!("Aux key: {} value: {:?}", key, std::str::from_utf8(value));
 
     Ok((
         input,
@@ -290,7 +291,7 @@ fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
             // value(4usize, tag([0xFD])),
             // value(8usize, tag([0xFC])),
             value(SetCommandExpireOption::EX(4usize), tag([0xFD])),
-            value(SetCommandExpireOption::PX(8usize), tag([0xFD])),
+            value(SetCommandExpireOption::PX(8usize), tag([0xFC])),
         )),
         parse_value_type, //NOTE: for now, the string value type is hard-coded.
         parse_string,
