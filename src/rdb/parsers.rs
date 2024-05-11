@@ -198,6 +198,7 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
         //not special
 
         let (input, parsed_string) = take(string_type.get_length())(input)?;
+        info!("Attempting to parse bytes as string: {:?}", parsed_string.to_ascii_lowercase());
         info!(
             "Parsed string length: {:?} parsed bytes: {:?} string: {}",
             string_type,
