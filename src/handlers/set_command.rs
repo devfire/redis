@@ -5,7 +5,7 @@ use crate::{
     actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SetCommandActorHandle {
     sender: mpsc::Sender<SetActorMessage>,
 }
@@ -64,11 +64,42 @@ impl SetCommandActorHandle {
         }
     }
     /// implements the redis SET command, taking a key, value pair as input. Returns nothing.
-    pub async fn set_value(&self, parameters: SetCommandParameters) {
-        let msg = SetActorMessage::SetValue { input: parameters };
+    pub async fn set_value(
+        &self,
+        expire_tx: mpsc::Sender<SetCommandParameters>,
+        set_parameters: SetCommandParameters,
+    ) {
+        let msg = SetActorMessage::SetValue {
+            input: set_parameters.clone(),
+        };
 
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
+
+        // let parameters = set_parameters.clone();
+
+        expire_tx
+            .send(set_parameters)
+            .await
+            .expect("Unable to start the expiry thread.");
+
+        // let parameters_clone = parameters.clone();
+        // let _expiry_handle = tokio::spawn(async move {
+        //     tokio::time::sleep(std::time::Duration::from_secs(2 as u64)).await;
+        //     // log::info!("Expiring {:?}", msg);
+
+        //     // Fire off a command to the handler to remove the value immediately.
+        //     let msg = SetActorMessage::DeleteValue {
+        //         value: parameters_clone.key.to_string(),
+        //     };
+
+        //     // Ignore send errors.
+        //     let _ = self
+        //         .sender
+        //         .send(msg)
+        //         .await
+        //         .expect("Failed to expire value.");
+        // });
     }
 
     /// implements immediate removal of keys. This is triggered by a tokio::spawn sleep thread in main.rs
