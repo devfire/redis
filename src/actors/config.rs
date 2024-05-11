@@ -1,4 +1,4 @@
-use crate::protocol::{SetCommandExpireOption, SetCommandParameters};
+use crate::protocol::SetCommandParameters;
 use crate::rdb::codec::RdbCodec;
 
 use crate::rdb::format::Rdb::KeyValuePair;
@@ -9,14 +9,14 @@ use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
 
 use futures::StreamExt;
 use log::{debug, error, info};
-use resp::Value;
+// use resp::Value;
 use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
+// use tokio::io::AsyncWriteExt;
 use tokio_util::codec::FramedRead;
 
 use std::{collections::HashMap, path::Path};
 
-use tokio::net::TcpStream;
+// use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
 // include the format.rs file from rdb
@@ -106,12 +106,12 @@ impl ConfigCommandActor {
                     // establish a TCP connection to local host to send the rdb entries to.
                     // A bit of a hack here but we need to send the RESP entries through the front door,
                     // i.e. the main.rs TCP tokio loop.
-                    let stream = TcpStream::connect("127.0.0.1:6379")
-                        .await
-                        .expect("Unable to connect to localhost.");
+                    // let stream = TcpStream::connect("127.0.0.1:6379")
+                    //     .await
+                    //     .expect("Unable to connect to localhost.");
 
                     // ignore the reader here since we read from file, not TCP
-                    let (mut _reader, mut writer) = stream.into_split();
+                    // let (mut _reader, mut writer) = stream.into_split();
 
                     // stream the rdb file, decoding and parsing the saved entries.
                     let mut rdb_file_stream_reader = FramedRead::new(rdb_file, RdbCodec::new());
