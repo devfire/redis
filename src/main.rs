@@ -25,7 +25,7 @@ use crate::{
 use crate::protocol::{ConfigCommandParameters, RedisCommand};
 
 use env_logger::Env;
-use log::info;
+use log::{debug, info};
 use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -76,14 +76,16 @@ async fn main() -> std::io::Result<()> {
         config_dir, config_dbfilename
     );
 
-    // this will listen for messages on the expire_tx channel.
-    // Once a msg comes, it'll see if it's an expiry message and if it is,
-    // will move everything and spawn off a thread to expire in the future.
+    // Create a multi-producer, single-consumer channel to send expiration messages.
+    // The channel capacity is set to 9600.
     let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let set_command_handle_clone = set_command_actor_handle.clone();
 
+    // This will listen for messages on the expire_tx channel.
+    // Once a msg comes, it'll see if it's an expiry message and if it is,
+    // will move everything and spawn off a thread to expire in the future.
     let _expiry_handle_loop = tokio::spawn(async move {
         // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
         // This method blocks until a message is received.
@@ -164,8 +166,6 @@ async fn process(
     expire_tx: mpsc::Sender<SetCommandParameters>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
-    // Create a multi-producer, single-consumer channel to send expiration messages.
-    // The channel capacity is set to 9600.
     let (mut reader, mut writer) = stream.into_split();
 
     loop {
@@ -190,7 +190,6 @@ async fn process(
         let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
         let request: resp::Value = decoder.decode().expect("Unable to decode request");
-        // info!("Received {:?}", request);
 
         match request {
             Value::Null => todo!(),
@@ -202,15 +201,13 @@ async fn process(
             Value::BufBulk(_) => todo!(),
             Value::Array(_) => {
                 // it's a bit clunky here but we need the original request, not what's inside Value::Array().
-                // reason is, nom parser operates on str not Vec<Value>. so sending request as an encoded string,
+                // Reason is, nom parser operates on str not Vec<Value>, so sending request as an encoded string,
                 // we can avoid recreating the original RESP array and just encode the request.
+                //
+                // NOTE: array of arrays is not supported at this time.
                 let request_as_encoded_string = request.to_encoded_string()?;
 
-                info!("RESP request: {:?}", request_as_encoded_string);
-
-                // let return_value =
-                //     processor_handle.process_value(parse_command(&request_as_encoded_string));
-                // let _ = writer.write_all(&return_value).await?;
+                debug!("RESP request: {:?}", request_as_encoded_string);
 
                 // OK, what we get back from the parser is a command with all of its parameters.
                 // Now we get to do stuff with the command.
@@ -224,13 +221,13 @@ async fn process(
                         let _ = writer.write_all(&response).await?;
                         writer.flush().await?;
                     }
-                    // return Err(RedisError::ParseFailure.into()) closes the connection so let's not do that
                     Err(_) => {
                         let err_response =
                             Value::Error(RedisError::ParseFailure.to_string()).encode();
 
                         let _ = writer.write_all(&err_response).await?;
                         writer.flush().await?;
+                        // return Err(RedisError::ParseFailure.into()) closes the connection so let's not do that
                     }
                     Ok((_, RedisCommand::Echo(message))) => {
                         // Encode the value to RESP binary buffer.
@@ -254,13 +251,6 @@ async fn process(
                             .set_value(expire_tx.clone(), set_parameters.clone())
                             .await;
 
-                        // don't even bother checking whether there is an expiry field or not.
-                        // Reason is, this will always send to the channel and the while loop will figure out if there's an expiry field or not.
-                        // if not, this is a noop.
-                        // expire_tx
-                        //     .send(set_parameters.clone())
-                        //     .await
-                        //     .expect("Unable to start the expiry thread.");
                         // Encode the value to RESP binary buffer.
                         let response = Value::String("OK".to_string()).encode();
                         let _ = writer.write_all(&response).await?;
@@ -292,7 +282,8 @@ async fn process(
                     }
                     Ok((_, RedisCommand::Mget(keys))) => {
                         // Returns the values of all specified keys.
-                        // For every key that does not hold a string value or does not exist, the special value nil is returned.
+                        // For every key that does not hold a string value or does not exist,
+                        // the special value nil is returned.
                         // Because of this, the operation never fails.
                         // https://redis.io/commands/mget/
 
@@ -305,7 +296,6 @@ async fn process(
                             } else {
                                 let response = Value::Null; // key does not exist, return nil
                                 key_collection.push(response);
-                                // let _ = writer.write_all(&response).await?;
                             }
                         }
                         let response = Value::Array(key_collection).encode();
@@ -406,7 +396,6 @@ async fn process(
                         } else {
                             let response = Value::Null; // key does not exist, return nil
                             keys_collection.push(response);
-                            // let _ = writer.write_all(&response).await?;
                         }
 
                         info!("Returning keys: {:?}", keys_collection);
