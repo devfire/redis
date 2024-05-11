@@ -5,7 +5,7 @@ use crate::{
     actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SetCommandActorHandle {
     sender: mpsc::Sender<SetActorMessage>,
 }

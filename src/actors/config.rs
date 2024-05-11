@@ -1,3 +1,4 @@
+use crate::protocol::{SetCommandExpireOption, SetCommandParameters};
 use crate::rdb::codec::RdbCodec;
 
 use crate::rdb::format::Rdb::KeyValuePair;
@@ -82,7 +83,12 @@ impl ConfigCommandActor {
                 // );
             }
 
-            ConfigActorMessage::LoadConfig { dir, dbfilename } => {
+            ConfigActorMessage::LoadConfig {
+                dir,
+                dbfilename,
+                set_command_actor_handle,
+                expire_tx,
+            } => {
                 let fullpath = format!("{}/{}", dir, dbfilename);
 
                 // check to see if the file exists.
@@ -122,44 +128,68 @@ impl ConfigCommandActor {
                                 key,
                                 value,
                             }) => {
-                                info!("Loading {} {} {:?}", key, value, key_expiry_time);
+                                info!(
+                                    "Loading {} {} {:?} from local db.",
+                                    key, value, key_expiry_time
+                                );
                                 // assemble the SET command
                                 // https://redis.io/commands/set/
-                                let mut keys_collection: Vec<Value> = Vec::new();
-                                keys_collection.push(Value::Bulk("SET".into()));
+                                // let mut keys_collection: Vec<Value> = Vec::new();
+                                // keys_collection.push(Value::Bulk("SET".into()));
 
-                                keys_collection.push(Value::Bulk(key));
-                                keys_collection.push(Value::Bulk(value));
+                                // keys_collection.push(Value::Bulk(key));
+                                // keys_collection.push(Value::Bulk(value));
+
+                                // let expire: SetCommandExpireOption;
+
+                                let mut set_params = SetCommandParameters {
+                                    key: key.clone(),
+                                    value: value.clone(),
+                                    option: None,
+                                    get: None,
+                                    expire: None,
+                                };
 
                                 // Check to see if expiry was attached to this RDB entry
-                                if let Some(expiration) = key_expiry_time {
-                                    match expiration {
-                                        crate::protocol::SetCommandExpireOption::EX(s) => {
-                                            keys_collection.push(Value::Bulk("EX".to_string()));
-                                            keys_collection.push(Value::Integer(s as i64));
-                                        }
-                                        crate::protocol::SetCommandExpireOption::PX(ms) => {
-                                            keys_collection.push(Value::Bulk("PX".to_string()));
-                                            keys_collection.push(Value::Integer(ms as i64));
-                                        }
-                                        crate::protocol::SetCommandExpireOption::EXAT(_) => todo!(),
-                                        crate::protocol::SetCommandExpireOption::PXAT(_) => todo!(),
-                                        crate::protocol::SetCommandExpireOption::KEEPTTL => todo!(),
-                                    }
+                                if let Some(expiry) = key_expiry_time {
+                                    set_params.expire = Some(expiry);
+                                    debug!("Set parameters: {:?}", set_params);
+                                    // match expiry {
+                                    //     crate::protocol::SetCommandExpireOption::EX(_seconds) => {
+                                    //         set_params.expire = Some(expiry);
+                                    //         debug!("Set parameters: {:?}", set_params)
+                                    //         // keys_collection.push(Value::Bulk("EX".to_string()));
+                                    //         // keys_collection.push(Value::Integer(s as i64));
+                                    //     }
+                                    //     crate::protocol::SetCommandExpireOption::PX(_ms) => {
+                                    //         // keys_collection.push(Value::Bulk("PX".to_string()));
+                                    //         // keys_collection.push(Value::Integer(ms as i64));
+                                    //         set_params.expire = Some(expiry);
+                                    //         debug!("Set parameters: {:?}", set_params)
+                                    //     }
+                                    //     crate::protocol::SetCommandExpireOption::EXAT(_) => todo!(),
+                                    //     crate::protocol::SetCommandExpireOption::PXAT(_) => todo!(),
+                                    //     crate::protocol::SetCommandExpireOption::KEEPTTL => todo!(),
+                                    // }
                                 };
-                                let response = Value::Array(keys_collection).encode();
 
-                                writer.write_all(&response).await.expect("Write_all failed");
-                                writer
-                                    .flush()
-                                    .await
-                                    .expect("ConfigCommandActor writer flush failed");
+                                set_command_actor_handle
+                                    .set_value(expire_tx.clone(), set_params.clone())
+                                    .await;
 
-                                info!(
-                                    "Sent {:?} to redis via tcp.",
-                                    String::from_utf8(response)
-                                        .expect("Our bytes should be valid utf8")
-                                );
+                                // let response = Value::Array(keys_collection).encode();
+
+                                // writer.write_all(&response).await.expect("Write_all failed");
+                                // writer
+                                //     .flush()
+                                //     .await
+                                //     .expect("ConfigCommandActor writer flush failed");
+
+                                // info!(
+                                //     "Sent {:?} to redis via tcp.",
+                                //     String::from_utf8(response)
+                                //         .expect("Our bytes should be valid utf8")
+                                // );
                             }
                             Ok(_) => {
                                 debug!("Ignoring other things.")

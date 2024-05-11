@@ -76,56 +76,14 @@ async fn main() -> std::io::Result<()> {
         config_dir, config_dbfilename
     );
 
-    let listener = TcpListener::bind("0.0.0.0:6379").await?;
-
-    info!("Redis is running.");
-
-    config_command_actor_handle
-        .load_config(
-            &config_dir,
-            &config_dbfilename,
-            set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
-        )
-        .await;
-
-    loop {
-        // Asynchronously wait for an inbound TcpStream.
-        let (stream, _) = listener.accept().await?;
-
-        // Must clone the actors handlers because tokio::spawn move will grab everything.
-        let set_command_handler_clone = set_command_actor_handle.clone();
-        let config_command_handler_clone = config_command_actor_handle.clone();
-
-        // Spawn our handler to be run asynchronously.
-        // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
-        tokio::spawn(async {
-            process(
-                stream,
-                set_command_handler_clone,
-                config_command_handler_clone,
-            )
-            .await
-        });
-    }
-}
-
-async fn process(
-    stream: TcpStream,
-    set_command_actor_handle: SetCommandActorHandle,
-    config_command_actor_handle: ConfigCommandActorHandle,
-) -> Result<()> {
-    // Split the TCP stream into a reader and writer.
-    // Create a multi-producer, single-consumer channel to send expiration messages.
-    // The channel capacity is set to 9600.
-    let (mut reader, mut writer) = stream.into_split();
-
+    // this will listen for messages on the expire_tx channel.
+    // Once a msg comes, it'll see if it's an expiry message and if it is,
+    // will move everything and spawn off a thread to expire in the future.
     let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
-    let expire_command_handler_clone = set_command_actor_handle.clone();
+    let set_command_handle_clone = set_command_actor_handle.clone();
 
-    // this will listen for messages on the expire_tx channel.
-    // Once a msg comes, it'll see if it's an expiry message and if it is, will move everything and spawn off a thread to expire in the future.
     let _expiry_handle_loop = tokio::spawn(async move {
         // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
         // This method blocks until a message is received.
@@ -135,7 +93,7 @@ async fn process(
                 match duration {
                     protocol::SetCommandExpireOption::EX(seconds) => {
                         // Must clone again because we're about to move this into a dedicated sleep thread.
-                        let expire_command_handler_clone = expire_command_handler_clone.clone();
+                        let expire_command_handler_clone = set_command_handle_clone.clone();
                         let _expiry_handle = tokio::spawn(async move {
                             sleep(Duration::from_secs(seconds as u64)).await;
                             info!("Expiring {:?}", msg);
@@ -146,7 +104,7 @@ async fn process(
                     }
                     protocol::SetCommandExpireOption::PX(milliseconds) => {
                         // Must clone again because we're about to move this into a dedicated sleep thread.
-                        let command_handler_expire_clone = expire_command_handler_clone.clone();
+                        let command_handler_expire_clone = set_command_handle_clone.clone();
                         let _expiry_handle = tokio::spawn(async move {
                             sleep(Duration::from_millis(milliseconds as u64)).await;
                             info!("Expiring {:?}", msg);
@@ -162,6 +120,53 @@ async fn process(
             }
         }
     });
+
+    let listener = TcpListener::bind("0.0.0.0:6379").await?;
+
+    info!("Redis is running.");
+
+    config_command_actor_handle
+        .load_config(
+            &config_dir,
+            &config_dbfilename,
+            set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
+            expire_tx.clone(), // need to pass this to unlock expirations on config file load
+        )
+        .await;
+
+    loop {
+        // Asynchronously wait for an inbound TcpStream.
+        let (stream, _) = listener.accept().await?;
+
+        // Must clone the actors handlers because tokio::spawn move will grab everything.
+        let set_command_handler_clone = set_command_actor_handle.clone();
+        let config_command_handler_clone = config_command_actor_handle.clone();
+        let expire_tx_clone = expire_tx.clone();
+
+        // Spawn our handler to be run asynchronously.
+        // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
+        tokio::spawn(async move {
+            process(
+                stream,
+                set_command_handler_clone,
+                config_command_handler_clone,
+                expire_tx_clone,
+            )
+            .await
+        });
+    }
+}
+
+async fn process(
+    stream: TcpStream,
+    set_command_actor_handle: SetCommandActorHandle,
+    config_command_actor_handle: ConfigCommandActorHandle,
+    expire_tx: mpsc::Sender<SetCommandParameters>,
+) -> Result<()> {
+    // Split the TCP stream into a reader and writer.
+    // Create a multi-producer, single-consumer channel to send expiration messages.
+    // The channel capacity is set to 9600.
+    let (mut reader, mut writer) = stream.into_split();
 
     loop {
         // Buffer to store the data
@@ -209,6 +214,7 @@ async fn process(
 
                 // OK, what we get back from the parser is a command with all of its parameters.
                 // Now we get to do stuff with the command.
+                //
                 // If it's something simple like PING, we handle it immediately and return.
                 // If not, we get an actor handle and send it to the actor to process.
                 match parse_command(&request_as_encoded_string) {
