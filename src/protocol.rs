@@ -23,7 +23,9 @@ pub struct SetCommandParameters {
     pub key: String,
     pub value: String,
     pub option: Option<SetCommandSetOption>,
-    pub get: Option<bool>,
+    // GET: Return the old string stored at key, or nil if key did not exist. 
+    // An error is returned and SET aborted if the value stored at key is not a string.
+    pub get: Option<bool>, 
     pub expire: Option<SetCommandExpireOption>,
 }
 

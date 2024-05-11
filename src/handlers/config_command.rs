@@ -22,7 +22,6 @@ impl ConfigCommandActorHandle {
         Self { sender }
     }
 
-
     /// implements the redis CONFIG GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
     pub async fn get_value(&self, config_key: ConfigCommandParameters) -> Option<String> {
@@ -64,10 +63,18 @@ impl ConfigCommandActorHandle {
     }
 
     /// Loads the config file on startup
-    pub async fn load_config(&self, dir: &str, dbfilename: &str) {
+    pub async fn load_config(
+        &self,
+        dir: &str,
+        dbfilename: &str,
+        set_command_actor_handle: super::set_command::SetCommandActorHandle,
+        expire_tx: mpsc::Sender<crate::protocol::SetCommandParameters>,
+    ) {
         let msg = ConfigActorMessage::LoadConfig {
             dir: dir.to_string(),
             dbfilename: dbfilename.to_string(),
+            set_command_actor_handle,
+            expire_tx, // this is a channel back to main.rs expiry loop
         };
 
         // Ignore send errors.
