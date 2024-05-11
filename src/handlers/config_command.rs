@@ -67,11 +67,14 @@ impl ConfigCommandActorHandle {
         &self,
         dir: &str,
         dbfilename: &str,
-        set_command_actor_handler: super::set_command::SetCommandActorHandle,
+        set_command_actor_handle: super::set_command::SetCommandActorHandle,
+        expire_tx: mpsc::Sender<crate::protocol::SetCommandParameters>,
     ) {
         let msg = ConfigActorMessage::LoadConfig {
             dir: dir.to_string(),
             dbfilename: dbfilename.to_string(),
+            set_command_actor_handle,
+            expire_tx, // this is a channel back to main.rs expiry loop
         };
 
         // Ignore send errors.
