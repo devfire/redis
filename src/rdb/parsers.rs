@@ -69,52 +69,49 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
 fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
     let (input, first_byte) = le_u8(input)?;
     let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
-    // info!(
-    //     "First byte: {:08b} two most significant bits: {:08b}",
-    //     first_byte, two_most_significant_bits
-    // );
+    info!(
+        "First byte: {:08b} two most significant bits: {:08b}",
+        first_byte, two_most_significant_bits
+    );
 
     let (input, length) = match two_most_significant_bits {
         0 => {
             // 00: The next 6 bits represent the length
             let length = (first_byte & 0b0011_1111) as u32;
-            (
-                input,
-                ValueType::LengthEncoding {
-                    length,
-                    special: false,
-                },
-            )
+            let value_type = ValueType::LengthEncoding {
+                length,
+                special: false,
+            };
+            info!("Value type: {:?}", value_type);
+            (input, value_type)
         }
         1 => {
             // 01: Read one additional byte. The combined 14 bits represent the length
             let (input, next_byte) = le_u8(input)?;
             let length = (((first_byte & 0b0011_1111) as u32) << 8) | next_byte as u32;
-            (
-                input,
-                ValueType::LengthEncoding {
-                    length,
-                    special: false,
-                },
-            )
+            let value_type = ValueType::LengthEncoding {
+                length,
+                special: false,
+            };
+            info!("Value type: {:?}", value_type);
+            (input, value_type)
         }
         2 => {
             // 10: Discard the remaining 6 bits. The next 4 bytes from the stream represent the length
             let (input, length) = le_u32(input)?;
-            (
-                input,
-                ValueType::LengthEncoding {
-                    length,
-                    special: false,
-                },
-            )
+            let value_type = ValueType::LengthEncoding {
+                length,
+                special: false,
+            };
+            info!("Value type: {:?}", value_type);
+            (input, value_type)
         }
         3 => {
-            debug!("11: special format detected!");
+            info!("11: special format detected!");
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
             // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
-            // info!("Format: {:b}", format);
+            info!("Format: {:b}", format);
             let mut length = 0;
             match format {
                 0 => {
@@ -136,13 +133,12 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
                     error!("Unknown length encoding.");
                 }
             }
-            (
-                input,
-                ValueType::LengthEncoding {
-                    length,
-                    special: true,
-                },
-            )
+            let value_type = ValueType::LengthEncoding {
+                length,
+                special: true,
+            };
+            info!("Value type: {:?}", value_type);
+            (input, value_type)
         }
         _ => {
             error!("No suitable length encoding bit match");
