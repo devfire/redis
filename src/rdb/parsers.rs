@@ -202,7 +202,7 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
         //not special
 
         let (input, parsed_string) = take(string_type.get_length())(input)?;
-        debug!(
+        info!(
             "Parsed string length: {:?} parsed bytes: {:?} string: {}",
             string_type,
             parsed_string,
@@ -223,7 +223,7 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
             0 => {
                 // 8 bit integer
                 let (input, parsed_string) = (le_u8)(input)?;
-                debug!(
+                info!(
                     "Parsed string length: {:?} parsed bytes: {:?} string: {}",
                     string_type,
                     parsed_string,
@@ -329,6 +329,8 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
 
     // value next
     // let (input, _expiry_hash_table_size) = take(expiry_hash_table_length)(input)?;
+
+    info!("Resize db 0xFB detected.");
 
     Ok((
         input,
