@@ -282,13 +282,13 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
 fn parse_expire_option_px(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
     let (input, _) = tag([0xFC])(input)?;
     let (input, value) = le_u64(input)?;
-    Ok((input, SetCommandExpireOption::PX(value)))
+    Ok((input, SetCommandExpireOption::PX(value as u64)))
 }
 
 fn parse_expire_option_ex(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
     let (input, _) = tag([0xFD])(input)?;
     let (input, value) = le_u32(input)?;
-    Ok((input, SetCommandExpireOption::EX(value)))
+    Ok((input, SetCommandExpireOption::EX(value as u32)))
 }
 
 fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
@@ -343,7 +343,7 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
     // value next
     // let (input, _expiry_hash_table_size) = take(expiry_hash_table_length)(input)?;
 
-    info!("Resize db 0xFB detected.");
+    debug!("Resize db 0xFB detected.");
 
     Ok((
         input,
@@ -357,7 +357,7 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
 }
 
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
-    info!("Parsing: {:?}", input.to_ascii_lowercase());
+    debug!("Parsing: {:?}", input.to_ascii_lowercase());
     alt((
         // map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         parse_rdb_header,
