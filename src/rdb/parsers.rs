@@ -66,6 +66,7 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     ))
 }
 
+
 fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
     let (input, first_byte) = le_u8(input)?;
     let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
@@ -100,7 +101,7 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
             // 10: Discard the remaining 6 bits. The next 4 bytes from the stream represent the length
             let (input, length) = le_u32(input)?;
             let value_type = ValueType::LengthEncoding {
-                length,
+                length: length as u32,
                 special: false,
             };
             info!("Value type: {:?}", value_type);
@@ -111,7 +112,7 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
             // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
-            info!("Format: {:b}", format);
+            info!("Special format detected: {:b}", format);
             let mut length = 0;
             match format {
                 0 => {
@@ -198,7 +199,10 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
         //not special
 
         let (input, parsed_string) = take(string_type.get_length())(input)?;
-        info!("Attempting to parse bytes as string: {:?}", parsed_string.to_ascii_lowercase());
+        info!(
+            "Attempting to parse bytes as string: {:?}",
+            parsed_string.to_ascii_lowercase()
+        );
         info!(
             "Parsed string length: {:?} parsed bytes: {:?} string: {}",
             string_type,
