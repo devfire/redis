@@ -53,9 +53,9 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _dbselector) = tag([0xFE])(input)?;
     let (input, value_type) = (parse_rdb_length)(input)?;
 
-    let (input, db_number) = (take(value_type.get_length()))(input)?;
+    let (input, _db_number) = (take(value_type.get_length()))(input)?;
 
-    info!("Db number: {:?}", std::str::from_utf8(db_number));
+    // info!("Db number: {:?}", std::str::from_utf8(db_number));
 
     info!("SELECTDB OpCode detected.");
     Ok((
@@ -69,10 +69,10 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
 fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
     let (input, first_byte) = le_u8(input)?;
     let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
-    info!(
-        "First byte: {:08b} two most significant bits: {:08b}",
-        first_byte, two_most_significant_bits
-    );
+    // info!(
+    //     "First byte: {:08b} two most significant bits: {:08b}",
+    //     first_byte, two_most_significant_bits
+    // );
 
     let (input, length) = match two_most_significant_bits {
         0 => {
@@ -82,7 +82,7 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
                 length,
                 special: false,
             };
-            info!("Value type: {:?}", value_type);
+            // info!("Value type: {:?}", value_type);
             (input, value_type)
         }
         1 => {
@@ -93,7 +93,7 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
                 length,
                 special: false,
             };
-            info!("Value type: {:?}", value_type);
+            // info!("Value type: {:?}", value_type);
             (input, value_type)
         }
         2 => {
@@ -104,7 +104,7 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
                 length,
                 special: false,
             };
-            info!("Value type: {:?}", value_type);
+            // info!("Value type: {:?}", value_type);
             (input, value_type)
         }
         3 => {
@@ -306,20 +306,20 @@ fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
         //     value(SetCommandExpireOption::PX(8usize), tag([0xFC])),
         // )),
         alt((parse_expire_option_px, parse_expire_option_ex)),
-        parse_value_type, //NOTE: for now, the string value type is hard-coded.
+        parse_value_type,
         parse_string,
         parse_string,
     ))(input)?;
 
-    Ok((
-        input,
-        Rdb::KeyValuePair {
-            key_expiry_time: Some(expiry_time),
-            value_type,
-            key,
-            value,
-        },
-    ))
+    let rdb_value_with_expiry = Rdb::KeyValuePair {
+        key_expiry_time: Some(expiry_time),
+        value_type,
+        key,
+        value,
+    };
+
+    info!("Rdb value with expiry: {:?}", rdb_value_with_expiry);
+    Ok((input, rdb_value_with_expiry))
 }
 
 fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
