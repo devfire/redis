@@ -199,14 +199,13 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
         //not special
 
         let (input, parsed_string) = take(string_type.get_length())(input)?;
+        // info!(
+        //     "Attempting to parse bytes as string: {:?}",
+        //     parsed_string.to_ascii_lowercase()
+        // );
         info!(
-            "Attempting to parse bytes as string: {:?}",
-            parsed_string.to_ascii_lowercase()
-        );
-        info!(
-            "Parsed string length: {:?} parsed bytes: {:?} string: {}",
+            "Parsed string length: {:?} string: {}",
             string_type,
-            parsed_string,
             std::str::from_utf8(parsed_string)
                 .expect("Key [u8] to str conversion failed")
                 .to_string(),
@@ -282,13 +281,15 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
 fn parse_expire_option_px(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
     let (input, _) = tag([0xFC])(input)?;
     let (input, value) = le_u64(input)?;
-    Ok((input, SetCommandExpireOption::PX(value as u64)))
+    info!("Expiry time {} ms.", value);
+    Ok((input, SetCommandExpireOption::PX(value)))
 }
 
 fn parse_expire_option_ex(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
     let (input, _) = tag([0xFD])(input)?;
     let (input, value) = le_u32(input)?;
-    Ok((input, SetCommandExpireOption::EX(value as u32)))
+    info!("Expiry time {} secs.", value);
+    Ok((input, SetCommandExpireOption::EX(value)))
 }
 
 fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
