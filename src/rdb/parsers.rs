@@ -2,7 +2,7 @@ use log::{debug, error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    combinator::value,
+    combinator::{map, value},
     number::streaming::{le_u16, le_u32, le_u64, le_u8},
     sequence::tuple,
     IResult,
@@ -66,7 +66,6 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     ))
 }
 
-
 fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
     let (input, first_byte) = le_u8(input)?;
     let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
@@ -100,8 +99,9 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
         2 => {
             // 10: Discard the remaining 6 bits. The next 4 bytes from the stream represent the length
             let (input, length) = le_u32(input)?;
+            let length = length as u32;
             let value_type = ValueType::LengthEncoding {
-                length: length as u32,
+                length,
                 special: false,
             };
             info!("Value type: {:?}", value_type);
@@ -279,6 +279,17 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
         },
     ))
 }
+fn parse_expire_option_px(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
+    let (input, _) = tag([0xFC])(input)?;
+    let (input, value) = le_u64(input)?;
+    Ok((input, SetCommandExpireOption::PX(value)))
+}
+
+fn parse_expire_option_ex(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
+    let (input, _) = tag([0xFD])(input)?;
+    let (input, value) = le_u32(input)?;
+    Ok((input, SetCommandExpireOption::EX(value)))
+}
 
 fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, (expiry_time, value_type, key, value)) = tuple((
@@ -286,14 +297,15 @@ fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
         // If these options are not present in the input string, opt will return None.
         // alt: The alt combinator is used to try multiple parsers in order until one succeeds.
         //
-        alt((
-            // value: The value combinator is used to map the result of a parser to a specific value.
-            //
-            // value(4usize, tag([0xFD])),
-            // value(8usize, tag([0xFC])),
-            value(SetCommandExpireOption::EX(4usize), tag([0xFD])),
-            value(SetCommandExpireOption::PX(8usize), tag([0xFC])),
-        )),
+        // alt((
+        //     // value: The value combinator is used to map the result of a parser to a specific value.
+        //     //
+        //     // value(4usize, tag([0xFD])),
+        //     // value(8usize, tag([0xFC])),
+        //     value(SetCommandExpireOption::EX(4usize), tag([0xFD])),
+        //     value(SetCommandExpireOption::PX(8usize), tag([0xFC])),
+        // )),
+        alt((parse_expire_option_px, parse_expire_option_ex)),
         parse_value_type, //NOTE: for now, the string value type is hard-coded.
         parse_string,
         parse_string,

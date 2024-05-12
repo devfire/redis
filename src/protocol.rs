@@ -37,8 +37,8 @@ pub enum SetCommandSetOption {
 
 #[derive(Debug, Clone, Copy)]
 pub enum SetCommandExpireOption {
-    EX(usize),
-    PX(usize),
+    EX(u32),
+    PX(u64),
     EXAT(usize),
     PXAT(usize),
     KEEPTTL,
