@@ -75,12 +75,6 @@ impl ConfigCommandActor {
             } => {
                 // Insert the key-value pair into the hash map
                 self.kv_hash.insert(config_key, config_value);
-
-                // Log a success message
-                // info!(
-                //     "Successfully inserted key {} value {}.",
-                //     config_key, config_value
-                // );
             }
 
             ConfigActorMessage::LoadConfig {
@@ -103,16 +97,6 @@ impl ConfigCommandActor {
                         .await
                         .expect("Failed to open RDB file.");
 
-                    // establish a TCP connection to local host to send the rdb entries to.
-                    // A bit of a hack here but we need to send the RESP entries through the front door,
-                    // i.e. the main.rs TCP tokio loop.
-                    // let stream = TcpStream::connect("127.0.0.1:6379")
-                    //     .await
-                    //     .expect("Unable to connect to localhost.");
-
-                    // ignore the reader here since we read from file, not TCP
-                    // let (mut _reader, mut writer) = stream.into_split();
-
                     // stream the rdb file, decoding and parsing the saved entries.
                     let mut rdb_file_stream_reader = FramedRead::new(rdb_file, RdbCodec::new());
 
@@ -132,15 +116,6 @@ impl ConfigCommandActor {
                                     "Loading {} {} {:?} from local db.",
                                     key, value, key_expiry_time
                                 );
-                                // assemble the SET command
-                                // https://redis.io/commands/set/
-                                // let mut keys_collection: Vec<Value> = Vec::new();
-                                // keys_collection.push(Value::Bulk("SET".into()));
-
-                                // keys_collection.push(Value::Bulk(key));
-                                // keys_collection.push(Value::Bulk(value));
-
-                                // let expire: SetCommandExpireOption;
 
                                 let mut set_params = SetCommandParameters {
                                     key: key.clone(),
@@ -154,42 +129,11 @@ impl ConfigCommandActor {
                                 if let Some(expiry) = key_expiry_time {
                                     set_params.expire = Some(expiry);
                                     debug!("Set parameters: {:?}", set_params);
-                                    // match expiry {
-                                    //     crate::protocol::SetCommandExpireOption::EX(_seconds) => {
-                                    //         set_params.expire = Some(expiry);
-                                    //         debug!("Set parameters: {:?}", set_params)
-                                    //         // keys_collection.push(Value::Bulk("EX".to_string()));
-                                    //         // keys_collection.push(Value::Integer(s as i64));
-                                    //     }
-                                    //     crate::protocol::SetCommandExpireOption::PX(_ms) => {
-                                    //         // keys_collection.push(Value::Bulk("PX".to_string()));
-                                    //         // keys_collection.push(Value::Integer(ms as i64));
-                                    //         set_params.expire = Some(expiry);
-                                    //         debug!("Set parameters: {:?}", set_params)
-                                    //     }
-                                    //     crate::protocol::SetCommandExpireOption::EXAT(_) => todo!(),
-                                    //     crate::protocol::SetCommandExpireOption::PXAT(_) => todo!(),
-                                    //     crate::protocol::SetCommandExpireOption::KEEPTTL => todo!(),
-                                    // }
                                 };
 
                                 set_command_actor_handle
                                     .set_value(expire_tx.clone(), set_params.clone())
                                     .await;
-
-                                // let response = Value::Array(keys_collection).encode();
-
-                                // writer.write_all(&response).await.expect("Write_all failed");
-                                // writer
-                                //     .flush()
-                                //     .await
-                                //     .expect("ConfigCommandActor writer flush failed");
-
-                                // info!(
-                                //     "Sent {:?} to redis via tcp.",
-                                //     String::from_utf8(response)
-                                //         .expect("Our bytes should be valid utf8")
-                                // );
                             }
                             Ok(_) => {
                                 debug!("Ignoring other things.")
