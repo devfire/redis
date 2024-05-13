@@ -204,7 +204,7 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
         //     parsed_string.to_ascii_lowercase()
         // );
         info!(
-            "Parsed string length: {:?} string: {}",
+            "Parsed string type: {:?} string: {}",
             string_type,
             std::str::from_utf8(parsed_string)
                 .expect("Key [u8] to str conversion failed")
@@ -223,7 +223,7 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
             0 => {
                 // 8 bit integer
                 let (input, parsed_string) = (le_u8)(input)?;
-                info!(
+                debug!(
                     "Parsed string length: {:?} parsed bytes: {:?} string: {}",
                     string_type,
                     parsed_string,
@@ -279,9 +279,13 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
     ))
 }
 fn parse_expire_option_px(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
-    let (input, _) = tag([0xFC])(input)?;
-    let (input, value) = le_u64(input)?;
-    info!("Expiry time {} ms.", value);
+    // let (input, _) = tag([0xFC])(input)?;
+    // let (input, value) = le_u64(input)?;
+    // info!("Expiry time {} ms.", value);
+
+    let (input, value) = nom::sequence::Tuple::parse(&mut (tag([0xFC]), le_u64), input)
+        .map(|(input, (_, val))| (input, val))?;
+
     Ok((input, SetCommandExpireOption::PX(value)))
 }
 
