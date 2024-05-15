@@ -51,7 +51,7 @@ fn parse_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
 // After this byte, a variable length field indicates the database number.
 fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _dbselector) = tag([0xFE])(input)?;
-    let (input, value_type) = (parse_rdb_length)(input)?;
+    let (input, value_type) = (parse_string_length)(input)?;
 
     let (input, _db_number) = (take(value_type.get_length()))(input)?;
 
@@ -66,7 +66,7 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
     ))
 }
 
-fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
+fn parse_string_length(input: &[u8]) -> IResult<&[u8], ValueType> {
     let (input, first_byte) = le_u8(input)?;
     let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
     // info!(
@@ -108,11 +108,11 @@ fn parse_rdb_length(input: &[u8]) -> IResult<&[u8], ValueType> {
             (input, value_type)
         }
         3 => {
-            info!("11: special format detected!");
+            debug!("11: special format detected!");
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
             // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
-            info!("Special format detected: {:b}", format);
+            debug!("Special format type: {:b}", format);
             let mut length = 0;
             match format {
                 0 => {
@@ -168,19 +168,79 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     // info!("Aux key detected: {:?}", key);
 
     // taking the value next
-    let (input, value_type) = (parse_rdb_length)(input)?;
+    let (input, string_type) = (parse_string_length)(input)?;
 
-    // assuming a proper string. If not, get_length returns a 0 and everything blows up anyway.
-    let (input, value) = take(value_type.get_length())(input)?;
-
-    info!("Aux key: {} value: {:?}", key, std::str::from_utf8(value));
-
-    Ok((
-        input,
-        Rdb::OpCode {
-            opcode: RdbOpCode::Aux,
-        },
-    ))
+    if !string_type.is_special() {
+        debug!("For key {} value is not special.", key);
+        // nothing special, a proper string.
+        let (input, value) = take(string_type.get_length())(input)?;
+        info!("Aux key: {} value: {:?}", key, std::str::from_utf8(value));
+        Ok((
+            input,
+            Rdb::OpCode {
+                opcode: RdbOpCode::Aux,
+            },
+        ))
+    } else {
+        // we got a special format!
+        // special format, most likely integers as strings
+        // https://rdb.fnordig.de/file_format.html#string-encoding
+        //
+        // NOTE: all matches return the same thing, oops.
+        // Mainly because we don't care what the Aux OpCode is.
+        match string_type.get_length() {
+            0 => {
+                // 8 bit integer
+                let (input, parsed_string) = (le_u8)(input)?;
+                debug!(
+                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
+                    string_type,
+                    parsed_string,
+                    format!("{}", parsed_string),
+                );
+                Ok((
+                    input,
+                    Rdb::OpCode {
+                        opcode: RdbOpCode::Aux,
+                    },
+                ))
+            }
+            1 => {
+                let (input, parsed_string) = (le_u16)(input)?;
+                debug!(
+                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
+                    string_type,
+                    parsed_string,
+                    format!("{}", parsed_string),
+                );
+                Ok((
+                    input,
+                    Rdb::OpCode {
+                        opcode: RdbOpCode::Aux,
+                    },
+                ))
+            }
+            2 => {
+                let (input, parsed_string) = (le_u32)(input)?;
+                debug!(
+                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
+                    string_type,
+                    parsed_string,
+                    format!("{}", parsed_string),
+                );
+                Ok((
+                    input,
+                    Rdb::OpCode {
+                        opcode: RdbOpCode::Aux,
+                    },
+                ))
+            }
+            _ => Err(nom::Err::Failure(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::LengthValue,
+            ))),
+        }
+    }
 }
 
 fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
@@ -192,7 +252,7 @@ fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
 }
 
 fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
-    let (input, string_type) = (parse_rdb_length)(input)?;
+    let (input, string_type) = (parse_string_length)(input)?;
     // let (input, parsed_string) = take(string_length)(input)?;
 
     if !string_type.is_special() {
@@ -336,13 +396,13 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
     // Expiry hash table size
     // length first
     let (input, _aux_opcode) = tag([0xFB])(input)?;
-    let (input, db_hash_table_value_type) = (parse_rdb_length)(input)?;
+    let (input, db_hash_table_value_type) = (parse_string_length)(input)?;
     let db_hash_table_length = db_hash_table_value_type.get_length();
 
     // value next
     // let (input, _db_hash_table_size) = take(db_hash_table_length)(input)?;
 
-    let (input, expiry_hash_table_value_type) = (parse_rdb_length)(input)?;
+    let (input, expiry_hash_table_value_type) = (parse_string_length)(input)?;
     let expiry_hash_table_length = expiry_hash_table_value_type.get_length();
 
     // value next
