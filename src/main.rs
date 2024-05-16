@@ -112,8 +112,8 @@ async fn main() -> std::io::Result<()> {
                             let expiry_time =
                                 std::cmp::max(0, seconds as u64 - duration_since_epoch.as_secs());
 
+                            info!("Sleeping for {} seconds.", expiry_time);
                             sleep(Duration::from_secs(expiry_time)).await;
-                            info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
                             expire_command_handler_clone.delete_value(&msg.key).await;
@@ -135,6 +135,7 @@ async fn main() -> std::io::Result<()> {
                             let expiry_time =
                                 std::cmp::max(0, milliseconds - duration_since_epoch.as_secs());
 
+                            info!("Sleeping for {} milliseconds.", expiry_time);
                             sleep(Duration::from_millis(expiry_time)).await;
                             info!("Expiring {:?}", msg);
 
