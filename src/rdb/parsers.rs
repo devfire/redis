@@ -111,32 +111,12 @@ fn parse_string_length(input: &[u8]) -> IResult<&[u8], ValueType> {
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
             let format = (first_byte & 0b0011_1111) as u32;
             debug!("Special format detected, type: {:b}", format);
-            // let mut length = 0;
-            // match format {
-            //     0 => {
-            //         debug!("8 bit integer follows!");
-            //         length = 0 // 8;
-            //     }
-            //     1 => {
-            //         debug!("16 bit integer follows!");
-            //         length = 1 // 16;
-            //     }
-            //     2 => {
-            //         debug!("32 bit integer follows!");
-            //         length = 2;
-            //     }
-            //     0b11 => {
-            //         debug!("Compressed string follows!");
-            //     }
-            //     _ => {
-            //         error!("Unknown length encoding.");
-            //     }
-            // }
+
             let value_type = ValueType::LengthEncoding {
                 length: format,
                 special: true,
             };
-            info!("Value type: {:?}", value_type);
+            debug!("Value type: {:?}", value_type);
             (input, value_type)
         }
         _ => {
@@ -163,7 +143,7 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     // taking the key first
     let (input, key) = (parse_string)(input)?;
     // let (input, key) = take(key_length)(input)?;
-    info!("Aux key detected: {}, parsing value next.", key);
+    debug!("Aux key detected: {}, parsing value next.", key);
 
     // taking the value next
     let (input, value) = (parse_string)(input)?;
