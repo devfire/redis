@@ -2,7 +2,7 @@ use log::{debug, error, info};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
-    combinator::{map, value},
+    combinator::value,
     number::streaming::{le_u16, le_u32, le_u64, le_u8},
     sequence::tuple,
     IResult,
@@ -68,24 +68,24 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
 
 fn parse_string_length(input: &[u8]) -> IResult<&[u8], ValueType> {
     let (input, first_byte) = le_u8(input)?;
-    let two_most_significant_bits = (first_byte & 0b11000000) >> 6;
-    // info!(
-    //     "First byte: {:08b} two most significant bits: {:08b}",
-    //     first_byte, two_most_significant_bits
-    // );
+    let two_most_significant_bits = first_byte >> 6;
+    debug!(
+        "First byte: {:08b} two most significant bits: {:02b}",
+        first_byte, two_most_significant_bits
+    );
 
     let (input, length) = match two_most_significant_bits {
-        0 => {
+        0b00 => {
             // 00: The next 6 bits represent the length
             let length = (first_byte & 0b0011_1111) as u32;
             let value_type = ValueType::LengthEncoding {
                 length,
                 special: false,
             };
-            // info!("Value type: {:?}", value_type);
+            debug!("Value type: {:?}", value_type);
             (input, value_type)
         }
-        1 => {
+        0b01 => {
             // 01: Read one additional byte. The combined 14 bits represent the length
             let (input, next_byte) = le_u8(input)?;
             let length = (((first_byte & 0b0011_1111) as u32) << 8) | next_byte as u32;
@@ -93,10 +93,10 @@ fn parse_string_length(input: &[u8]) -> IResult<&[u8], ValueType> {
                 length,
                 special: false,
             };
-            // info!("Value type: {:?}", value_type);
+            debug!("Value type: {:?}", value_type);
             (input, value_type)
         }
-        2 => {
+        0b10 => {
             // 10: Discard the remaining 6 bits. The next 4 bytes from the stream represent the length
             let (input, length) = le_u32(input)?;
             let length = length as u32;
@@ -104,38 +104,36 @@ fn parse_string_length(input: &[u8]) -> IResult<&[u8], ValueType> {
                 length,
                 special: false,
             };
-            // info!("Value type: {:?}", value_type);
+            debug!("Value type: {:?}", value_type);
             (input, value_type)
         }
-        3 => {
-            debug!("11: special format detected!");
+        0b11 => {
             // 11: The next object is encoded in a special format. The remaining 6 bits indicate the format.
-            // let (input, length) = nom::number::streaming::be_u32(input)?;
             let format = (first_byte & 0b0011_1111) as u32;
-            debug!("Special format type: {:b}", format);
-            let mut length = 0;
-            match format {
-                0 => {
-                    debug!("8 bit integer follows!");
-                    length = 1 // 8;
-                }
-                1 => {
-                    debug!("16 bit integer follows!");
-                    length = 2 // 16;
-                }
-                2 => {
-                    debug!("32 bit integer follows!");
-                    length = 4;
-                }
-                0b11 => {
-                    debug!("Compressed string follows!");
-                }
-                _ => {
-                    error!("Unknown length encoding.");
-                }
-            }
+            debug!("Special format detected, type: {:b}", format);
+            // let mut length = 0;
+            // match format {
+            //     0 => {
+            //         debug!("8 bit integer follows!");
+            //         length = 0 // 8;
+            //     }
+            //     1 => {
+            //         debug!("16 bit integer follows!");
+            //         length = 1 // 16;
+            //     }
+            //     2 => {
+            //         debug!("32 bit integer follows!");
+            //         length = 2;
+            //     }
+            //     0b11 => {
+            //         debug!("Compressed string follows!");
+            //     }
+            //     _ => {
+            //         error!("Unknown length encoding.");
+            //     }
+            // }
             let value_type = ValueType::LengthEncoding {
-                length,
+                length: format,
                 special: true,
             };
             info!("Value type: {:?}", value_type);
@@ -165,11 +163,11 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     // taking the key first
     let (input, key) = (parse_string)(input)?;
     // let (input, key) = take(key_length)(input)?;
-    // info!("Aux key detected: {:?}", key);
+    info!("Aux key detected: {}, parsing value next.", key);
 
     // taking the value next
     let (input, value) = (parse_string)(input)?;
-    info!("Aux key: {} value: {:?}", key, value);
+    info!("Aux key: {} value: {}", key, value);
 
     Ok((
         input,
@@ -195,10 +193,10 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
         //not special
 
         let (input, parsed_string) = take(string_type.get_length())(input)?;
-        // info!(
-        //     "Attempting to parse bytes as string: {:?}",
-        //     parsed_string.to_ascii_lowercase()
-        // );
+        debug!(
+            "Parsed these bytes as string: {:?}",
+            parsed_string.to_ascii_lowercase()
+        );
         info!(
             "Parsed string type: {:?} string: {}",
             string_type,
