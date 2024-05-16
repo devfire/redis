@@ -168,79 +168,15 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
     // info!("Aux key detected: {:?}", key);
 
     // taking the value next
-    let (input, string_type) = (parse_string_length)(input)?;
+    let (input, value) = (parse_string)(input)?;
+    info!("Aux key: {} value: {:?}", key, value);
 
-    if !string_type.is_special() {
-        debug!("For key {} value is not special.", key);
-        // nothing special, a proper string.
-        let (input, value) = take(string_type.get_length())(input)?;
-        info!("Aux key: {} value: {:?}", key, std::str::from_utf8(value));
-        Ok((
-            input,
-            Rdb::OpCode {
-                opcode: RdbOpCode::Aux,
-            },
-        ))
-    } else {
-        // we got a special format!
-        // special format, most likely integers as strings
-        // https://rdb.fnordig.de/file_format.html#string-encoding
-        //
-        // NOTE: all matches return the same thing, oops.
-        // Mainly because we don't care what the Aux OpCode is.
-        match string_type.get_length() {
-            0 => {
-                // 8 bit integer
-                let (input, parsed_string) = (le_u8)(input)?;
-                debug!(
-                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
-                    string_type,
-                    parsed_string,
-                    format!("{}", parsed_string),
-                );
-                Ok((
-                    input,
-                    Rdb::OpCode {
-                        opcode: RdbOpCode::Aux,
-                    },
-                ))
-            }
-            1 => {
-                let (input, parsed_string) = (le_u16)(input)?;
-                debug!(
-                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
-                    string_type,
-                    parsed_string,
-                    format!("{}", parsed_string),
-                );
-                Ok((
-                    input,
-                    Rdb::OpCode {
-                        opcode: RdbOpCode::Aux,
-                    },
-                ))
-            }
-            2 => {
-                let (input, parsed_string) = (le_u32)(input)?;
-                debug!(
-                    "Parsed string length: {:?} parsed bytes: {:?} string: {}",
-                    string_type,
-                    parsed_string,
-                    format!("{}", parsed_string),
-                );
-                Ok((
-                    input,
-                    Rdb::OpCode {
-                        opcode: RdbOpCode::Aux,
-                    },
-                ))
-            }
-            _ => Err(nom::Err::Failure(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::LengthValue,
-            ))),
-        }
-    }
+    Ok((
+        input,
+        Rdb::OpCode {
+            opcode: RdbOpCode::Aux,
+        },
+    ))
 }
 
 fn parse_value_type(input: &[u8]) -> IResult<&[u8], ValueType> {
