@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use anyhow::Result;
 use clap::Parser;
 use protocol::SetCommandParameters;
@@ -93,12 +95,29 @@ async fn main() -> std::io::Result<()> {
             // We may or may not need to expire a value. If not, no big deal, just wait again.
             if let Some(duration) = msg.expire {
                 match duration {
+                    // reminder: seconds are Unix timestamps
                     protocol::SetCommandExpireOption::EX(seconds) => {
                         // Must clone again because we're about to move this into a dedicated sleep thread.
                         let expire_command_handler_clone = set_command_handle_clone.clone();
                         let _expiry_handle = tokio::spawn(async move {
-                            sleep(Duration::from_secs(seconds as u64)).await;
-                            info!("Expiring {:?}", msg);
+                            // get the current system time
+                            let now = SystemTime::now();
+
+                            // how many seconds have elapsed since beginning of time
+                            let duration_since_epoch = now
+                                .duration_since(UNIX_EPOCH)
+                                .ok()
+                                .expect("Failed to calculate duration since epoch"); // Handle potential error
+
+                            // i64 since it is possible for this to be negative, i.e. past time expiration
+                            let expiry_time =
+                                seconds as i64 - duration_since_epoch.as_secs() as i64;
+
+                            // we sleep if this is NON negative
+                            if !expiry_time < 0 {
+                                info!("Sleeping for {} milliseconds.", seconds);
+                                sleep(Duration::from_millis(expiry_time as u64)).await;
+                            }
 
                             // Fire off a command to the handler to remove the value immediately.
                             expire_command_handler_clone.delete_value(&msg.key).await;
@@ -108,7 +127,32 @@ async fn main() -> std::io::Result<()> {
                         // Must clone again because we're about to move this into a dedicated sleep thread.
                         let command_handler_expire_clone = set_command_handle_clone.clone();
                         let _expiry_handle = tokio::spawn(async move {
-                            sleep(Duration::from_millis(milliseconds as u64)).await;
+                            // get the current system time
+                            let now = SystemTime::now();
+
+                            // how many milliseconds have elapsed since beginning of time
+                            let duration_since_epoch = now
+                                .duration_since(UNIX_EPOCH)
+                                .ok()
+                                .expect("Failed to calculate duration since epoch"); // Handle potential error
+
+                            // i64 since it is possible for this to be negative, i.e. past time expiration
+                            let expiry_time =
+                                milliseconds as i64 - duration_since_epoch.as_millis() as i64;
+
+                            // let expiry_time = now.duration_since(milliseconds);
+
+                            // If unix timestamp is in the past, the difference between now and the past is negative.
+                            // In that case, set the sleep to 0.
+                            // let expiry_time =
+                            //     std::cmp::max(0, milliseconds - duration_since_epoch.as_secs());
+
+                            // we sleep if this is NON negative
+                            if !expiry_time < 0 {
+                                info!("Sleeping for {} milliseconds.", milliseconds);
+                                sleep(Duration::from_millis(expiry_time as u64)).await;
+                            }
+
                             info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
