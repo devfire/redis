@@ -48,8 +48,12 @@ async fn main() -> std::io::Result<()> {
 
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
-    let mut config_dbfilename: String = "".to_string();
+    // let mut config_dbfilename: String = "".to_string();
     let mut config_dir: String = "".to_string();
+
+    // Create a multi-producer, single-consumer channel to send expiration messages.
+    // The channel capacity is set to 9600.
+    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -70,18 +74,24 @@ async fn main() -> std::io::Result<()> {
             )
             .await;
         info!("Config db filename: {}", dbfilename.display());
-        config_dbfilename = dbfilename.to_string_lossy().to_string();
+        let config_dbfilename = dbfilename.to_string_lossy().to_string();
+
+        config_command_actor_handle
+            .load_config(
+                &config_dir,
+                &config_dbfilename,
+                set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
+                expire_tx.clone(), // need to pass this to unlock expirations on config file load
+            )
+            .await;
+
+        info!(
+            "Config db dir: {} filename: {}",
+            config_dir, config_dbfilename
+        );
     }
 
-    info!(
-        "Config db dir: {} filename: {}",
-        config_dir, config_dbfilename
-    );
-
-    // Create a multi-producer, single-consumer channel to send expiration messages.
-    // The channel capacity is set to 9600.
-    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
-
+    
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let set_command_handle_clone = set_command_actor_handle.clone();
 
@@ -163,15 +173,6 @@ async fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("0.0.0.0:6379").await?;
 
     info!("Redis is running.");
-
-    config_command_actor_handle
-        .load_config(
-            &config_dir,
-            &config_dbfilename,
-            set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
-            expire_tx.clone(), // need to pass this to unlock expirations on config file load
-        )
-        .await;
 
     loop {
         // Asynchronously wait for an inbound TcpStream.

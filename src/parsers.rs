@@ -110,7 +110,16 @@ fn expiry_to_timestamp(expiry: u64) -> u64 {
         .expect("Failed to calculate duration since epoch"); // Handle potential error
 
     // The expiration is now() as unix timestamp in seconds + seconds specified via redis-cli
-    expiry + duration_since_epoch.as_secs()
+    let expiry_timestamp = expiry + duration_since_epoch.as_secs();
+
+    info!(
+        "expiry: {} seconds since epoch: {} expiry to timestamp: {}",
+        expiry,
+        duration_since_epoch.as_secs(),
+        expiry_timestamp
+    );
+
+    expiry_timestamp
 }
 
 fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
@@ -159,7 +168,8 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
                     ) as u32)
                 },
             ),
-            map( // we have to convert milliseconds to seconds and parse as u64
+            map(
+                // we have to convert milliseconds to seconds and parse as u64
                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
                 |(_expire_option, milliseconds)| {
                     SetCommandExpireOption::PX(expiry_to_timestamp(
