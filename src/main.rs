@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use anyhow::Result;
 use clap::Parser;
 use protocol::SetCommandParameters;
@@ -93,11 +95,24 @@ async fn main() -> std::io::Result<()> {
             // We may or may not need to expire a value. If not, no big deal, just wait again.
             if let Some(duration) = msg.expire {
                 match duration {
+                    // reminder: seconds are Unix timestamps
                     protocol::SetCommandExpireOption::EX(seconds) => {
                         // Must clone again because we're about to move this into a dedicated sleep thread.
                         let expire_command_handler_clone = set_command_handle_clone.clone();
                         let _expiry_handle = tokio::spawn(async move {
-                            sleep(Duration::from_secs(seconds as u64)).await;
+                            // get the current system time
+                            let now = SystemTime::now();
+
+                            let duration_since_epoch = now
+                                .duration_since(UNIX_EPOCH)
+                                .expect("Failed to calculate Unix epoch");
+
+                            // If unix timestamp is in the past, the difference between now and the past is negative.
+                            // In that case, set the sleep to 0.
+                            let expiry_time =
+                                std::cmp::max(0, seconds as u64 - duration_since_epoch.as_secs());
+
+                            sleep(Duration::from_secs(expiry_time)).await;
                             info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
@@ -108,7 +123,19 @@ async fn main() -> std::io::Result<()> {
                         // Must clone again because we're about to move this into a dedicated sleep thread.
                         let command_handler_expire_clone = set_command_handle_clone.clone();
                         let _expiry_handle = tokio::spawn(async move {
-                            sleep(Duration::from_millis(milliseconds as u64)).await;
+                            // get the current system time
+                            let now = SystemTime::now();
+
+                            let duration_since_epoch = now
+                                .duration_since(UNIX_EPOCH)
+                                .expect("Failed to calculate Unix epoch");
+
+                            // If unix timestamp is in the past, the difference between now and the past is negative.
+                            // In that case, set the sleep to 0.
+                            let expiry_time =
+                                std::cmp::max(0, milliseconds - duration_since_epoch.as_secs());
+
+                            sleep(Duration::from_millis(expiry_time)).await;
                             info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.

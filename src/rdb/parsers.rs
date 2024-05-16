@@ -255,7 +255,7 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
 fn parse_expire_option_px(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
     let (input, _) = tag([0xFC])(input)?;
     let (input, value) = le_u64(input)?;
-    info!("Expiry time {} ms.", value);
+    info!("Expiry unix timestamp {} ms.", value);
 
     // let (input, value) = nom::sequence::Tuple::parse(&mut (tag([0xFC]), le_u64), input)
     //     .map(|(input, (_, val))| (input, val))?;
@@ -266,7 +266,7 @@ fn parse_expire_option_px(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption
 fn parse_expire_option_ex(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
     let (input, _) = tag([0xFD])(input)?;
     let (input, value) = le_u32(input)?;
-    info!("Expiry time {} secs.", value);
+    info!("Expiry Unix timestamp {} secs.", value);
     Ok((input, SetCommandExpireOption::EX(value)))
 }
 
