@@ -103,17 +103,21 @@ async fn main() -> std::io::Result<()> {
                             // get the current system time
                             let now = SystemTime::now();
 
+                            // how many seconds have elapsed since beginning of time
                             let duration_since_epoch = now
                                 .duration_since(UNIX_EPOCH)
-                                .expect("Failed to calculate Unix epoch");
+                                .ok()
+                                .expect("Failed to calculate duration since epoch"); // Handle potential error
 
-                            // If unix timestamp is in the past, the difference between now and the past is negative.
-                            // In that case, set the sleep to 0.
+                            // i64 since it is possible for this to be negative, i.e. past time expiration
                             let expiry_time =
-                                std::cmp::max(0, seconds as u64 - duration_since_epoch.as_secs());
+                                seconds as i64 - duration_since_epoch.as_secs() as i64;
 
-                            info!("Sleeping for {} seconds.", expiry_time);
-                            sleep(Duration::from_secs(expiry_time)).await;
+                            // we sleep if this is NON negative
+                            if !expiry_time < 0 {
+                                info!("Sleeping for {} milliseconds.", seconds);
+                                sleep(Duration::from_millis(expiry_time as u64)).await;
+                            }
 
                             // Fire off a command to the handler to remove the value immediately.
                             expire_command_handler_clone.delete_value(&msg.key).await;
@@ -126,21 +130,29 @@ async fn main() -> std::io::Result<()> {
                             // get the current system time
                             let now = SystemTime::now();
 
+                            // how many milliseconds have elapsed since beginning of time
                             let duration_since_epoch = now
                                 .duration_since(UNIX_EPOCH)
-                                .expect("Failed to calculate Unix epoch");
+                                .ok()
+                                .expect("Failed to calculate duration since epoch"); // Handle potential error
+
+                            // i64 since it is possible for this to be negative, i.e. past time expiration
+                            let expiry_time =
+                                milliseconds as i64 - duration_since_epoch.as_millis() as i64;
+
+                            // let expiry_time = now.duration_since(milliseconds);
 
                             // If unix timestamp is in the past, the difference between now and the past is negative.
                             // In that case, set the sleep to 0.
-                            let expiry_time =
-                                std::cmp::max(0, milliseconds - duration_since_epoch.as_secs());
+                            // let expiry_time =
+                            //     std::cmp::max(0, milliseconds - duration_since_epoch.as_secs());
 
-                            info!(
-                                "Now: {:?} ms: {} duration since epoch: {:?}, expiry time: {}",
-                                now, milliseconds, duration_since_epoch, expiry_time
-                            );
+                            // we sleep if this is NON negative
+                            if !expiry_time < 0 {
+                                info!("Sleeping for {} milliseconds.", milliseconds);
+                                sleep(Duration::from_millis(expiry_time as u64)).await;
+                            }
 
-                            sleep(Duration::from_millis(expiry_time)).await;
                             info!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
