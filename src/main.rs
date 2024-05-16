@@ -135,7 +135,11 @@ async fn main() -> std::io::Result<()> {
                             let expiry_time =
                                 std::cmp::max(0, milliseconds - duration_since_epoch.as_secs());
 
-                            info!("Sleeping for {} milliseconds.", expiry_time);
+                            info!(
+                                "Now: {:?} duration since epoch: {:?}, expiry time: {}",
+                                now, duration_since_epoch, expiry_time
+                            );
+
                             sleep(Duration::from_millis(expiry_time)).await;
                             info!("Expiring {:?}", msg);
 
