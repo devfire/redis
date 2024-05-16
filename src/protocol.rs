@@ -1,7 +1,5 @@
 use core::fmt;
 
-// use clap::builder::Str;
-
 #[derive(Debug)]
 pub enum RedisCommand {
     Ping,
@@ -37,13 +35,14 @@ pub enum SetCommandSetOption {
 
 #[derive(Debug, Clone, Copy)]
 pub enum SetCommandExpireOption {
-    EX(u32), // seconds
-    PX(u64), // milliseconds
+    EX(u32), // unix timestamp seconds
+    PX(u64), // unix timestamp milliseconds
     EXAT(usize),
     PXAT(usize),
     KEEPTTL,
 }
 
+// these are passed from the command line
 #[derive(Debug, Clone, PartialEq, Copy, Eq, Hash)]
 pub enum ConfigCommandParameters {
     Dir,

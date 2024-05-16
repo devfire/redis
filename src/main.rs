@@ -140,13 +140,6 @@ async fn main() -> std::io::Result<()> {
                             let expiry_time =
                                 milliseconds as i64 - duration_since_epoch.as_millis() as i64;
 
-                            // let expiry_time = now.duration_since(milliseconds);
-
-                            // If unix timestamp is in the past, the difference between now and the past is negative.
-                            // In that case, set the sleep to 0.
-                            // let expiry_time =
-                            //     std::cmp::max(0, milliseconds - duration_since_epoch.as_secs());
-
                             // we sleep if this is NON negative
                             if !expiry_time < 0 {
                                 info!("Sleeping for {} milliseconds.", milliseconds);

@@ -1,4 +1,7 @@
-use std::usize;
+use std::{
+    time::{SystemTime, UNIX_EPOCH},
+    usize,
+};
 
 use log::info;
 use nom::{
@@ -96,6 +99,20 @@ fn parse_mget(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Mget(keys_to_get)))
 }
 
+fn expiry_to_timestamp(expiry: u64) -> u64 {
+    // get the current system time
+    let now = SystemTime::now();
+
+    // how many seconds have elapsed since beginning of time
+    let duration_since_epoch = now
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .expect("Failed to calculate duration since epoch"); // Handle potential error
+
+    // The expiration is now() as unix timestamp in seconds + seconds specified via redis-cli
+    expiry + duration_since_epoch.as_secs()
+}
+
 fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
     // test string: *3\r\n$3\r\nset\r\n$5\r\nhello\r\n$7\r\noranges\r\n
     let (input, _) = tag("*")(input)?;
@@ -137,17 +154,20 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
             map(
                 tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
                 |(_expire_option, seconds)| {
-                    SetCommandExpireOption::EX(seconds.parse().expect("Seconds conversion failed"))
+                    SetCommandExpireOption::EX(expiry_to_timestamp(
+                        seconds.parse::<u64>().expect("Seconds conversion failed"),
+                    ) as u32)
                 },
             ),
-            map(
+            map( // we have to convert milliseconds to seconds and parse as u64
                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
                 |(_expire_option, milliseconds)| {
-                    SetCommandExpireOption::PX(
+                    SetCommandExpireOption::PX(expiry_to_timestamp(
                         milliseconds
-                            .parse()
-                            .expect("Milliseconds conversion failed"),
-                    )
+                            .parse::<u64>()
+                            .expect("Milliseconds conversion failed")
+                            / 1000,
+                    ))
                 },
             ),
         ))),
