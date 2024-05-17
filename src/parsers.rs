@@ -14,8 +14,8 @@ use nom::{
 };
 
 use crate::protocol::{
-    ConfigCommandParameters, RedisCommand, SetCommandExpireOption, SetCommandParameters,
-    SetCommandSetOption,
+    ConfigCommandParameters, ExpiryOption, RedisCommand, SetCommandExpireOption,
+    SetCommandParameters, SetCommandSetOption,
 };
 
 fn length(input: &str) -> IResult<&str, usize> {
@@ -99,27 +99,22 @@ fn parse_mget(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Mget(keys_to_get)))
 }
 
-fn expiry_to_timestamp(expiry: u64) -> u64 {
+fn expiry_to_timestamp(expiry: ExpiryOption) -> u64 { // u64 always since u32 secs fits into u64
     // get the current system time
     let now = SystemTime::now();
 
     // how many seconds have elapsed since beginning of time
     let duration_since_epoch = now
         .duration_since(UNIX_EPOCH)
-        .ok()
         .expect("Failed to calculate duration since epoch"); // Handle potential error
 
-    // The expiration is now() as unix timestamp in seconds + seconds specified via redis-cli
-    let expiry_timestamp = expiry + duration_since_epoch.as_secs();
-
-    info!(
-        "expiry: {} seconds since epoch: {} expiry to timestamp: {}",
-        expiry,
-        duration_since_epoch.as_secs(),
-        expiry_timestamp
-    );
-
-    expiry_timestamp
+    // we don't want to lose precision between seconds & milliseconds
+    match expiry {
+        ExpiryOption::Seconds(seconds) => seconds as u64 + duration_since_epoch.as_secs(),
+        ExpiryOption::Milliseconds(milliseconds) => {
+            milliseconds + duration_since_epoch.as_millis() as u64 // nominally millis are u128
+        }
+    }
 }
 
 fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
@@ -163,21 +158,20 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
             map(
                 tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
                 |(_expire_option, seconds)| {
-                    SetCommandExpireOption::EX(expiry_to_timestamp(
-                        seconds.parse::<u64>().expect("Seconds conversion failed"),
-                    ) as u32)
+                    SetCommandExpireOption::EX(expiry_to_timestamp(ExpiryOption::Seconds(
+                        seconds.parse::<u32>().expect("Seconds conversion failed"),
+                    )) as u32) // back to u32 since that's what seconds are
                 },
             ),
             map(
                 // we have to convert milliseconds to seconds and parse as u64
                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
                 |(_expire_option, milliseconds)| {
-                    SetCommandExpireOption::PX(expiry_to_timestamp(
+                    SetCommandExpireOption::PX(expiry_to_timestamp(ExpiryOption::Milliseconds(
                         milliseconds
                             .parse::<u64>()
                             .expect("Milliseconds conversion failed")
-                            / 1000,
-                    ))
+                    )))
                 },
             ),
         ))),

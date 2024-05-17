@@ -116,7 +116,7 @@ async fn main() -> std::io::Result<()> {
                             // how many seconds have elapsed since beginning of time
                             let duration_since_epoch = now
                                 .duration_since(UNIX_EPOCH)
-                                .ok()
+                                // .ok()
                                 .expect("Failed to calculate duration since epoch"); // Handle potential error
 
                             // i64 since it is possible for this to be negative, i.e. past time expiration
@@ -125,8 +125,8 @@ async fn main() -> std::io::Result<()> {
 
                             // we sleep if this is NON negative
                             if !expiry_time < 0 {
-                                info!("Sleeping for {} milliseconds.", seconds);
-                                sleep(Duration::from_millis(expiry_time as u64)).await;
+                                info!("Sleeping for {} seconds.", expiry_time);
+                                sleep(Duration::from_secs(expiry_time as u64)).await;
                             }
 
                             // Fire off a command to the handler to remove the value immediately.
@@ -143,7 +143,7 @@ async fn main() -> std::io::Result<()> {
                             // how many milliseconds have elapsed since beginning of time
                             let duration_since_epoch = now
                                 .duration_since(UNIX_EPOCH)
-                                .ok()
+                                // .ok()
                                 .expect("Failed to calculate duration since epoch"); // Handle potential error
 
                             // i64 since it is possible for this to be negative, i.e. past time expiration

@@ -34,6 +34,13 @@ pub enum SetCommandSetOption {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum ExpiryOption {
+    Seconds(u32),
+    Milliseconds(u64),
+}
+
+
+#[derive(Debug, Clone, Copy)]
 pub enum SetCommandExpireOption {
     EX(u32), // unix timestamp seconds
     PX(u64), // unix timestamp milliseconds
