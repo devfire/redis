@@ -152,7 +152,7 @@ async fn main() -> std::io::Result<()> {
 
                             // we sleep if this is NON negative
                             if !expiry_time < 0 {
-                                info!("Sleeping for {} milliseconds.", milliseconds);
+                                info!("Sleeping for {} milliseconds.", expiry_time);
                                 sleep(Duration::from_millis(expiry_time as u64)).await;
                             }
 
