@@ -48,8 +48,12 @@ async fn main() -> std::io::Result<()> {
 
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
-    let mut config_dbfilename: String = "".to_string();
+    // let mut config_dbfilename: String = "".to_string();
     let mut config_dir: String = "".to_string();
+
+    // Create a multi-producer, single-consumer channel to send expiration messages.
+    // The channel capacity is set to 9600.
+    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -70,18 +74,24 @@ async fn main() -> std::io::Result<()> {
             )
             .await;
         info!("Config db filename: {}", dbfilename.display());
-        config_dbfilename = dbfilename.to_string_lossy().to_string();
+        let config_dbfilename = dbfilename.to_string_lossy().to_string();
+
+        config_command_actor_handle
+            .load_config(
+                &config_dir,
+                &config_dbfilename,
+                set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
+                expire_tx.clone(), // need to pass this to unlock expirations on config file load
+            )
+            .await;
+
+        info!(
+            "Config db dir: {} filename: {}",
+            config_dir, config_dbfilename
+        );
     }
 
-    info!(
-        "Config db dir: {} filename: {}",
-        config_dir, config_dbfilename
-    );
-
-    // Create a multi-producer, single-consumer channel to send expiration messages.
-    // The channel capacity is set to 9600.
-    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
-
+    
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let set_command_handle_clone = set_command_actor_handle.clone();
 
@@ -106,7 +116,7 @@ async fn main() -> std::io::Result<()> {
                             // how many seconds have elapsed since beginning of time
                             let duration_since_epoch = now
                                 .duration_since(UNIX_EPOCH)
-                                .ok()
+                                // .ok()
                                 .expect("Failed to calculate duration since epoch"); // Handle potential error
 
                             // i64 since it is possible for this to be negative, i.e. past time expiration
@@ -115,8 +125,8 @@ async fn main() -> std::io::Result<()> {
 
                             // we sleep if this is NON negative
                             if !expiry_time < 0 {
-                                info!("Sleeping for {} milliseconds.", seconds);
-                                sleep(Duration::from_millis(expiry_time as u64)).await;
+                                info!("Sleeping for {} seconds.", expiry_time);
+                                sleep(Duration::from_secs(expiry_time as u64)).await;
                             }
 
                             // Fire off a command to the handler to remove the value immediately.
@@ -133,23 +143,16 @@ async fn main() -> std::io::Result<()> {
                             // how many milliseconds have elapsed since beginning of time
                             let duration_since_epoch = now
                                 .duration_since(UNIX_EPOCH)
-                                .ok()
+                                // .ok()
                                 .expect("Failed to calculate duration since epoch"); // Handle potential error
 
                             // i64 since it is possible for this to be negative, i.e. past time expiration
                             let expiry_time =
                                 milliseconds as i64 - duration_since_epoch.as_millis() as i64;
 
-                            // let expiry_time = now.duration_since(milliseconds);
-
-                            // If unix timestamp is in the past, the difference between now and the past is negative.
-                            // In that case, set the sleep to 0.
-                            // let expiry_time =
-                            //     std::cmp::max(0, milliseconds - duration_since_epoch.as_secs());
-
                             // we sleep if this is NON negative
                             if !expiry_time < 0 {
-                                info!("Sleeping for {} milliseconds.", milliseconds);
+                                info!("Sleeping for {} milliseconds.", expiry_time);
                                 sleep(Duration::from_millis(expiry_time as u64)).await;
                             }
 
@@ -170,15 +173,6 @@ async fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("0.0.0.0:6379").await?;
 
     info!("Redis is running.");
-
-    config_command_actor_handle
-        .load_config(
-            &config_dir,
-            &config_dbfilename,
-            set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
-            expire_tx.clone(), // need to pass this to unlock expirations on config file load
-        )
-        .await;
 
     loop {
         // Asynchronously wait for an inbound TcpStream.
