@@ -14,4 +14,9 @@ pub struct Cli {
     #[arg(long, value_name = "FILE")]
     // #[clap(default_value = "dump.rdb")]
     pub dbfilename: Option<PathBuf>,
+
+    /// TCP port to listen on
+    #[arg(short, long)]
+    #[clap(default_value = "6379")]
+    pub port: u16,
 }
