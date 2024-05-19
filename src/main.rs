@@ -3,6 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Result;
 use clap::Parser;
 use protocol::SetCommandParameters;
+
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
@@ -91,7 +92,6 @@ async fn main() -> std::io::Result<()> {
         );
     }
 
-    
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let set_command_handle_clone = set_command_actor_handle.clone();
 
@@ -170,9 +170,12 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    let listener = TcpListener::bind("0.0.0.0:6379").await?;
+    // cli.port comes from cli.rs; default is 6379
+    let socket_address = std::net::SocketAddr::from(([0, 0, 0, 0], cli.port));
 
-    info!("Redis is running.");
+    let listener = TcpListener::bind(socket_address).await?;
+
+    info!("Redis is running on port {}.", cli.port);
 
     loop {
         // Asynchronously wait for an inbound TcpStream.
