@@ -43,6 +43,10 @@ loop {
     });
 }
 ```
+### Expiry loop
+As part of the main initialization, we kick off a separate thread with an expiry channel. It listens for incoming requests to expire keys and acts accordingly.
+
+NOTE: At the moment, this is a per redis expiry since this implementation supports a single database only.
 
 ## Per-process loop
 To ensure the server can handle multiple connections at the same time, every connection spawns a new thread and gets moved there immediately:
