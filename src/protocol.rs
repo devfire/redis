@@ -21,7 +21,7 @@ pub enum RedisCommand {
 pub enum InfoParameter {
     All,
     Default,
-    Everything,
+    Replication,
 }
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]

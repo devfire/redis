@@ -91,7 +91,6 @@ async fn main() -> std::io::Result<()> {
         );
     }
 
-    
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let set_command_handle_clone = set_command_actor_handle.clone();
 
@@ -441,6 +440,23 @@ async fn process(
 
                         let _ = writer.write_all(&response).await?;
                         writer.flush().await?;
+                    }
+
+                    Ok((_, RedisCommand::Info(info_parameter))) => {
+                        // we may or may not get a value for the INFO command.
+                        //
+                        if let Some(param) = info_parameter {
+                            match param {
+                                protocol::InfoParameter::All => todo!(),
+                                protocol::InfoParameter::Default => todo!(),
+                                protocol::InfoParameter::Replication => todo!(),
+                            }
+                        } else {
+                            // for now, let's send back role:master
+                            let response = Value::String("role:master".to_string()).encode();
+                        let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
+                        }
                     }
                 }
             }
