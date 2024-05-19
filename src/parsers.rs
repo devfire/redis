@@ -252,7 +252,7 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         map(tag_no_case("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {
             RedisCommand::Command
         }),
-        parse_info,
+        parse_echo,
         parse_set,
         parse_get,
         parse_del,
