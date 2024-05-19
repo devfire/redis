@@ -445,6 +445,28 @@ async fn process(
                         let _ = writer.write_all(&response).await?;
                         writer.flush().await?;
                     }
+
+                    Ok((_, RedisCommand::Info(info_parameter))) => {
+                        // we may or may not get a value for the INFO command.
+                        //
+                        // init the response to an empty string.
+                        // We'll override it with something if we need to.
+                        let mut response = Value::String("".to_string()).encode();
+                        if let Some(param) = info_parameter {
+                            match param {
+                                protocol::InfoParameter::All => todo!(),
+                                protocol::InfoParameter::Default => todo!(),
+                                protocol::InfoParameter::Replication => {
+                                    // for now, let's send back role:master
+                                    response = Value::String("role:master".to_string()).encode();
+                                }
+                            }
+                        } else {
+                        }
+
+                        let _ = writer.write_all(&response).await?;
+                        writer.flush().await?;
+                    }
                 }
             }
         }
