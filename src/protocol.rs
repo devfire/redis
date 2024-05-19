@@ -13,6 +13,15 @@ pub enum RedisCommand {
     Append(String, String),          // https://redis.io/commands/append/
     Config(ConfigCommandParameters), // CONFIG GET
     Keys(String),
+    Info(Option<InfoParameter>),
+}
+
+// INFO [section [section ...]]
+#[derive(Clone, Debug)]
+pub enum InfoParameter {
+    All,
+    Default,
+    Everything,
 }
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]

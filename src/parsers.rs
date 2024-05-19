@@ -14,7 +14,7 @@ use nom::{
 };
 
 use crate::protocol::{
-    ConfigCommandParameters, ExpiryOption, RedisCommand, SetCommandExpireOption,
+    ConfigCommandParameters, ExpiryOption, InfoParameter, RedisCommand, SetCommandExpireOption,
     SetCommandParameters, SetCommandSetOption,
 };
 
@@ -99,7 +99,8 @@ fn parse_mget(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Mget(keys_to_get)))
 }
 
-fn expiry_to_timestamp(expiry: ExpiryOption) -> u64 { // u64 always since u32 secs fits into u64
+fn expiry_to_timestamp(expiry: ExpiryOption) -> u64 {
+    // u64 always since u32 secs fits into u64
     // get the current system time
     let now = SystemTime::now();
 
@@ -170,7 +171,7 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
                     SetCommandExpireOption::PX(expiry_to_timestamp(ExpiryOption::Milliseconds(
                         milliseconds
                             .parse::<u64>()
-                            .expect("Milliseconds conversion failed")
+                            .expect("Milliseconds conversion failed"),
                     )))
                 },
             ),
@@ -229,13 +230,29 @@ fn parse_keys(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Keys(pattern.to_string())))
 }
 
+fn parse_info(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$4\r\nINFO\r\n")(input)?;
+
+    let (input, info_parameter) = (opt(alt((
+        // value: The value combinator is used to map the result of a parser to a specific value.
+        //
+        value(InfoParameter::All, tag_no_case("$3\r\nall\r\n")),
+        value(InfoParameter::Default, tag_no_case("$7\r\ndefault\r\n")),
+        value(InfoParameter::Everything, tag_no_case("$10\r\neverything\r\n")),
+    ))))(input)?;
+
+    Ok((input, RedisCommand::Info(info_parameter)))
+}
+
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         map(tag_no_case("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {
             RedisCommand::Command
         }),
-        parse_echo,
+        parse_info,
         parse_set,
         parse_get,
         parse_del,
@@ -244,5 +261,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_append,
         parse_config,
         parse_keys,
+        parse_info,
     ))(input)
 }
