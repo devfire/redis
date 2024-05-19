@@ -240,7 +240,7 @@ fn parse_info(input: &str) -> IResult<&str, RedisCommand> {
         //
         value(InfoParameter::All, tag_no_case("$3\r\nall\r\n")),
         value(InfoParameter::Default, tag_no_case("$7\r\ndefault\r\n")),
-        value(InfoParameter::Everything, tag_no_case("$10\r\neverything\r\n")),
+        value(InfoParameter::Replication, tag_no_case("$11\r\nreplication\r\n")),
     ))))(input)?;
 
     Ok((input, RedisCommand::Info(info_parameter)))
