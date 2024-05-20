@@ -7,16 +7,19 @@ use clap::Parser;
 pub struct Cli {
     /// The directory where RDB files are stored
     #[arg(long)]
-    // #[clap(default_value = ".")]
     pub dir: Option<String>,
 
     /// The name of the RDB file
     #[arg(long, value_name = "FILE")]
-    // #[clap(default_value = "dump.rdb")]
     pub dbfilename: Option<PathBuf>,
 
     /// TCP port to listen on
     #[arg(short, long)]
     #[clap(default_value = "6379")]
     pub port: u16,
+
+    /// Assume the "slave" role instead
+    #[arg(long)]
+    pub replicaof: String,
+
 }
