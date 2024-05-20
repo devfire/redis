@@ -2,20 +2,20 @@ use log::info;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    actors::config::ConfigCommandActor, messages::ConfigActorMessage,
-    protocol::ConfigCommandParameter,
+    actors::config::InfoCommandActor, messages::InfoActorMessage,
+    protocol::InfoCommandParameters,
 };
 
 #[derive(Clone)]
-pub struct ConfigCommandActorHandle {
-    sender: mpsc::Sender<ConfigActorMessage>,
+pub struct InfoCommandActorHandle {
+    sender: mpsc::Sender<InfoActorMessage>,
 }
 
 // Gives you access to the underlying actor.
-impl ConfigCommandActorHandle {
+impl InfoCommandActorHandle {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(8);
-        let mut actor = ConfigCommandActor::new(receiver);
+        let mut actor = InfoCommandActor::new(receiver);
 
         tokio::spawn(async move { actor.run().await });
 
@@ -24,10 +24,10 @@ impl ConfigCommandActorHandle {
 
     /// implements the redis CONFIG GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
-    pub async fn get_value(&self, config_key: ConfigCommandParameter) -> Option<String> {
+    pub async fn get_value(&self, config_key: InfoCommandParameters) -> Option<String> {
         log::info!("Getting value for key: {:?}", config_key);
         let (send, recv) = oneshot::channel();
-        let msg = ConfigActorMessage::GetConfigValue {
+        let msg = InfoActorMessage::GetInfoValue {
             config_key,
             respond_to: send,
         };
@@ -48,8 +48,8 @@ impl ConfigCommandActorHandle {
 
     /// implements the redis CONFIG SET command, taking a key, value pair as input. Returns nothing.
     /// https://redis.io/commands/config-set/
-    pub async fn set_value(&self, config_key: ConfigCommandParameter, config_value: &str) {
-        let msg = ConfigActorMessage::SetConfigValue {
+    pub async fn set_value(&self, config_key: InfoCommandParameters, config_value: &str) {
+        let msg = InfoActorMessage::SetInfoValue {
             config_key,
             config_value: config_value.to_string(),
         };
@@ -68,9 +68,9 @@ impl ConfigCommandActorHandle {
         dir: &str,
         dbfilename: &str,
         set_command_actor_handle: super::set_command::SetCommandActorHandle,
-        expire_tx: mpsc::Sender<crate::protocol::SetCommandParameter>,
+        expire_tx: mpsc::Sender<crate::protocol::SetCommandParameters>,
     ) {
-        let msg = ConfigActorMessage::LoadConfig {
+        let msg = InfoActorMessage::LoadInfo {
             dir: dir.to_string(),
             dbfilename: dbfilename.to_string(),
             set_command_actor_handle,

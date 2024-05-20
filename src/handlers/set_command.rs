@@ -2,7 +2,7 @@ use tokio::sync::{mpsc, oneshot};
 // pub mod actors;
 
 use crate::{
-    actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameters,
+    actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameter,
 };
 
 #[derive(Clone, Debug)]
@@ -66,8 +66,8 @@ impl SetCommandActorHandle {
     /// implements the redis SET command, taking a key, value pair as input. Returns nothing.
     pub async fn set_value(
         &self,
-        expire_tx: mpsc::Sender<SetCommandParameters>,
-        set_parameters: SetCommandParameters,
+        expire_tx: mpsc::Sender<SetCommandParameter>,
+        set_parameters: SetCommandParameter,
     ) {
         let msg = SetActorMessage::SetValue {
             input: set_parameters.clone(),

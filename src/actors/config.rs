@@ -1,9 +1,9 @@
-use crate::protocol::SetCommandParameters;
+use crate::protocol::SetCommandParameter;
 use crate::rdb::codec::RdbCodec;
 
 use crate::rdb::format::Rdb::KeyValuePair;
 // Import necessary modules and types
-use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameters};
+use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameter};
 // use bytes::Buf;
 // use futures_util::io::BufReader;
 
@@ -28,7 +28,7 @@ pub struct ConfigCommandActor {
     receiver: mpsc::Receiver<ConfigActorMessage>,
 
     // The key-value hash map for storing data
-    kv_hash: HashMap<ConfigCommandParameters, String>,
+    kv_hash: HashMap<ConfigCommandParameter, String>,
 }
 
 impl ConfigCommandActor {
@@ -117,7 +117,7 @@ impl ConfigCommandActor {
                                     key, value, key_expiry_time
                                 );
 
-                                let mut set_params = SetCommandParameters {
+                                let mut set_params = SetCommandParameter {
                                     key: key.clone(),
                                     value: value.clone(),
                                     option: None,

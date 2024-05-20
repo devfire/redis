@@ -19,6 +19,6 @@ pub struct Cli {
     pub port: u16,
 
     /// Assume the "slave" role instead
-    #[arg(long, required = false, value_name = "MASTER_IP:PORT")]
+    #[arg(long, value_name = "MASTER_HOST MASTER_PORT")]
     pub replicaof: Option<String>,
 }

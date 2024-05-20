@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use clap::Parser;
-use protocol::SetCommandParameters;
+use protocol::SetCommandParameter;
 
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -25,7 +25,7 @@ use crate::{
     parsers::parse_command,
 };
 
-use crate::protocol::{ConfigCommandParameters, RedisCommand};
+use crate::protocol::{ConfigCommandParameter, RedisCommand};
 
 use env_logger::Env;
 use log::{debug, info};
@@ -54,14 +54,14 @@ async fn main() -> std::io::Result<()> {
 
     // Create a multi-producer, single-consumer channel to send expiration messages.
     // The channel capacity is set to 9600.
-    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
+    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameter>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
     // NOTE: If nothing is passed, cli.rs has the default values for clap.
     if let Some(dir) = cli.dir.as_deref() {
         config_command_actor_handle
-            .set_value(ConfigCommandParameters::Dir, dir)
+            .set_value(ConfigCommandParameter::Dir, dir)
             .await;
         info!("Config directory: {dir}");
         config_dir = dir.to_string();
@@ -70,7 +70,7 @@ async fn main() -> std::io::Result<()> {
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
         config_command_actor_handle
             .set_value(
-                ConfigCommandParameters::DbFilename,
+                ConfigCommandParameter::DbFilename,
                 &dbfilename.to_string_lossy(),
             )
             .await;
@@ -204,7 +204,7 @@ async fn process(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
-    expire_tx: mpsc::Sender<SetCommandParameters>,
+    expire_tx: mpsc::Sender<SetCommandParameter>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -379,7 +379,7 @@ async fn process(
 
                         // populate the set parameters struct.
                         // All the extraneous options are None since this is a pure APPEND op.
-                        let set_parameters = SetCommandParameters {
+                        let set_parameters = SetCommandParameter {
                             key,
                             value: new_value.clone(),
                             expire: None,
@@ -454,9 +454,9 @@ async fn process(
                         let mut response = Value::String("".to_string()).encode();
                         if let Some(param) = info_parameter {
                             match param {
-                                protocol::InfoParameter::All => todo!(),
-                                protocol::InfoParameter::Default => todo!(),
-                                protocol::InfoParameter::Replication => {
+                                protocol::InfoCommandParameter::All => todo!(),
+                                protocol::InfoCommandParameter::Default => todo!(),
+                                protocol::InfoCommandParameter::Replication => {
                                     // for now, let's send back role:master
                                     response = Value::String("role:master".to_string()).encode();
                                 }
