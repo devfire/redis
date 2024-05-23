@@ -2,7 +2,8 @@ use tokio::sync::{mpsc, oneshot};
 // pub mod actors;
 
 use crate::{
-    actors::set::SetCommandActor, messages::SetActorMessage, protocol::SetCommandParameter,
+    actors::{messages::SetActorMessage, set::SetCommandActor},
+    protocol::SetCommandParameter,
 };
 
 #[derive(Clone, Debug)]

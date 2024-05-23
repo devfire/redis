@@ -1,5 +1,5 @@
 // Import necessary modules and types
-use crate::messages::SetActorMessage;
+use crate::actors::messages::SetActorMessage;
 use log::info;
 use std::collections::HashMap;
 use tokio::sync::mpsc;

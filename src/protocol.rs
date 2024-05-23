@@ -26,6 +26,26 @@ pub enum InfoCommandParameter {
     Replication,
 }
 
+/// All fields in the replication section.
+#[derive(Clone, Debug)]
+pub enum Replication {
+    // role: Value is "master" if the instance is replica of no one, 
+    // or "slave" if the instance is a replica of some master instance. 
+    // Note that a replica can be master of another replica (chained replication).
+    Role(ServerRole),
+}
+
+/// Master or slave.
+#[derive(Clone, Debug)]
+pub enum ServerRole {
+    // role: Value is "master" if the instance is replica of no one, 
+    // or "slave" if the instance is a replica of some master instance. 
+    // Note that a replica can be master of another replica (chained replication).
+    Master,
+    Slave,
+}
+
+
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
 #[derive(Clone, Debug)]
 pub struct SetCommandParameter {

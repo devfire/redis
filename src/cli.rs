@@ -14,7 +14,7 @@ pub struct Cli {
     pub dbfilename: Option<PathBuf>,
 
     /// TCP port to listen on
-    #[arg(short, long)]
+    #[arg(short, long, value_parser=clap::value_parser!(u16))]
     #[clap(default_value = "6379")]
     pub port: u16,
 

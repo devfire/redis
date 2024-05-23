@@ -62,12 +62,7 @@ pub enum InfoActorMessage {
     // NOTE: https://redis.io/docs/latest/commands/info/ has a ton of parameters,
     // only some are currently supported.
     GetInfoValue {
-        config_key: InfoCommandParameter,
+        key: InfoCommandParameter,
         respond_to: oneshot::Sender<Option<String>>,
-    },
-    SetInfoValue {
-        // should be either dir or dbfilename
-        config_key: InfoCommandParameter,
-        config_value: String,
     },
 }

@@ -11,7 +11,6 @@ pub mod actors;
 pub mod cli;
 pub mod errors;
 pub mod handlers;
-pub mod messages;
 pub mod parsers;
 pub mod protocol;
 pub mod rdb;
@@ -19,16 +18,18 @@ pub mod rdb;
 use crate::cli::Cli;
 use crate::errors::RedisError;
 
-// Handlers for all the actors defined
 use crate::{
-    handlers::{config_command::ConfigCommandActorHandle, set_command::SetCommandActorHandle},
+    handlers::{
+        config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
+        set_command::SetCommandActorHandle,
+    },
     parsers::parse_command,
 };
 
 use crate::protocol::{ConfigCommandParameter, RedisCommand};
 
 use env_logger::Env;
-use log::{debug, info};
+use log::{debug, info, error};
 use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -46,6 +47,9 @@ async fn main() -> std::io::Result<()> {
 
     // Get a handle to the set actor, one per redis. This starts the actor.
     let set_command_actor_handle = SetCommandActorHandle::new();
+
+    // Get a handle to the info actor, one per redis. This starts the actor.
+    let info_command_actor_handle = InfoCommandActorHandle::new();
 
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
@@ -90,6 +94,12 @@ async fn main() -> std::io::Result<()> {
             "Config db dir: {} filename: {}",
             config_dir, config_dbfilename
         );
+    }
+
+    if let Some(replica) = cli.replicaof.as_deref(){
+        // split the string using spaces as delimiters
+        let replica_split: Vec<&str> = replica.split(" ").collect();
+
     }
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop

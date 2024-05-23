@@ -2,7 +2,7 @@ use log::info;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    actors::config::ConfigCommandActor, messages::ConfigActorMessage,
+    actors::{config::ConfigCommandActor, messages::ConfigActorMessage},
     protocol::ConfigCommandParameter,
 };
 

@@ -3,7 +3,7 @@ use crate::rdb::codec::RdbCodec;
 
 use crate::rdb::format::Rdb::KeyValuePair;
 // Import necessary modules and types
-use crate::{messages::ConfigActorMessage, protocol::ConfigCommandParameter};
+use crate::{actors::messages::ConfigActorMessage, protocol::ConfigCommandParameter};
 // use bytes::Buf;
 // use futures_util::io::BufReader;
 
