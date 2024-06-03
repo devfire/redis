@@ -1,4 +1,3 @@
-use std::net::ToSocketAddrs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
@@ -27,7 +26,7 @@ use crate::{
     parsers::parse_command,
 };
 
-use crate::protocol::{ConfigCommandParameter, InfoCommandOption, RedisCommand};
+use crate::protocol::{ConfigCommandParameter, RedisCommand};
 
 use env_logger::Env;
 use log::{debug, error, info};
@@ -107,8 +106,10 @@ async fn main() -> std::io::Result<()> {
 
         // let master_socket_connection = master_host_port_combo.to_socket_addrs()?;
 
-        info_command_actor_handle
-            .set_value(InfoCommandOption::Replication, &master_host_port_combo);
+        info_command_actor_handle.set_value(
+            protocol::InfoCommandParameter::Replication,
+            &master_host_port_combo,
+        );
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 

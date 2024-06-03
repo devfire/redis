@@ -61,7 +61,7 @@ pub enum InfoActorMessage {
     // NOTE: https://redis.io/docs/latest/commands/info/ has a ton of parameters,
     // only some are currently supported.
     GetInfoValue {
-        key: InfoCommandParameter,
+        info_key: InfoCommandParameter,
         respond_to: oneshot::Sender<Option<String>>,
     },
 

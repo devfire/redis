@@ -20,7 +20,7 @@ pub enum RedisCommand {
 
 // INFO [section [section ...]]
 // The optional parameter can be used to select a specific section of information:
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Copy, Eq, Hash)]
 pub enum InfoCommandParameter {
     All,
     Default,

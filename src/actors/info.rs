@@ -1,5 +1,5 @@
 use crate::{actors::messages::InfoActorMessage, protocol::InfoCommandParameter};
-use log::{debug, error, info};
+
 
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -37,7 +37,7 @@ impl InfoCommandActor {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
-            InfoActorMessage::GetInfoValue { key, respond_to } => {
+            InfoActorMessage::GetInfoValue { info_key: key, respond_to } => {
                 let _ = respond_to.send(Some("None".to_string()));
                 // If the key exists in the hash map, send the value back
                 // info!("Processing {:?}", msg);

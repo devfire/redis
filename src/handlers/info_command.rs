@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     actors::{info::InfoCommandActor, messages::InfoActorMessage},
-    protocol::{InfoCommandOption, InfoCommandParameter},
+    protocol::InfoCommandParameter,
 };
 
 #[derive(Clone)]
@@ -22,14 +22,14 @@ impl InfoCommandActorHandle {
         Self { sender }
     }
 
-    /// implements the redis CONFIG GET command, taking a key as input and returning a value.
+    /// Gets sections from INFO command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
     pub async fn get_value(&self, key: InfoCommandParameter) -> Option<String> {
         log::info!("Getting value for key: {:?}", key);
         let (send, recv) = oneshot::channel();
         let msg = InfoActorMessage::GetInfoValue {
-            key,
-            respond_to: todo!(),
+            info_key: key,
+            respond_to: send,
         };
 
         // Ignore send errors. If this send fails, so does the
@@ -46,12 +46,12 @@ impl InfoCommandActorHandle {
         }
     }
 
-        /// implements the redis CONFIG SET command, taking a key, value pair as input. Returns nothing.
-    /// https://redis.io/commands/config-set/
-    pub async fn set_value(&self, info_key: InfoCommandOption, info_value: &str) {
-        let msg = InfoCommandOption::SetInfoValue {
+    /// Stores sections for redis INFO command, taking a key, value pair as input. Returns nothing.
+    /// https://redis.io/commands/info/
+    pub async fn set_value(&self, info_key: InfoCommandParameter, info_value: &str) {
+        let msg = InfoActorMessage::SetInfoValue {
             info_key,
-            info_value,
+            info_value: info_value.to_owned(),
         };
 
         info!(
@@ -61,5 +61,4 @@ impl InfoCommandActorHandle {
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
-
 }
