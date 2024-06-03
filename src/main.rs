@@ -478,7 +478,10 @@ async fn process(
                         // We'll override it with something if we need to.
                         let mut response = Value::String("".to_string()).encode();
                         if let Some(param) = info_parameter {
-                            let server_info = info_command_actor_handle.get_value(param);
+                            let info = info_command_actor_handle.get_value(param).await;
+                            if let Some(info_section) = info {
+                                response = Value::String(info_section).encode();
+                            }
                         } else {
                         }
 
