@@ -55,7 +55,7 @@ impl InfoCommandActorHandle {
         };
 
         info!(
-            "Setting value for key: {:?}, value: {}",
+            "Setting INFO key: {:?}, value: {}",
             info_key, info_value
         );
         // Ignore send errors.

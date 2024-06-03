@@ -96,20 +96,27 @@ async fn main() -> std::io::Result<()> {
         );
     }
 
-    if let Some(replica) = cli.replicaof.as_deref() {
+    // default to being master, will override below if need to
+    info_command_actor_handle
+        .set_value(protocol::InfoCommandParameter::Replication, "role:master")
+        .await;
+
+    // see if we need to override it
+    if let Some(_replica) = cli.replicaof.as_deref() {
         // split the string using spaces as delimiters
-        let master_host_port_combo = replica.replace(" ", ":");
-        info!(
-            "Setting master connection string to {}",
-            master_host_port_combo
-        );
+        // let master_host_port_combo = replica.replace(" ", ":");
+        let info_value = "role:slave".to_string();
+
+        // info!(
+        //     "Connecting to {}",
+        //     master_host_port_combo
+        // );
 
         // let master_socket_connection = master_host_port_combo.to_socket_addrs()?;
 
-        info_command_actor_handle.set_value(
-            protocol::InfoCommandParameter::Replication,
-            &master_host_port_combo,
-        ).await;
+        info_command_actor_handle
+            .set_value(protocol::InfoCommandParameter::Replication, &info_value)
+            .await;
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
@@ -481,6 +488,8 @@ async fn process(
                         // first, let's see if this INFO section exists
                         if let Some(param) = info_parameter {
                             let info = info_command_actor_handle.get_value(param).await;
+
+                            info!("Retrieved INFO value: {:?}", info);
 
                             // then, let's see if the section contains data. Honestly, it always should be helps to be safe just in case.
                             if let Some(info_section) = info {
