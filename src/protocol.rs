@@ -1,6 +1,5 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
-use std::net::SocketAddr;
 
 #[derive(Debug)]
 pub enum RedisCommand {

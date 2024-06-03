@@ -1,6 +1,5 @@
 use crate::{actors::messages::InfoActorMessage, protocol::InfoCommandParameter};
 
-
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
@@ -27,18 +26,27 @@ impl InfoCommandActor {
     pub async fn run(&mut self) {
         // Continuously receive messages and handle them
         while let Some(msg) = self.receiver.recv().await {
-            self.handle_message(msg).await;
+            self.handle_message(msg);
         }
     }
 
     // Handle a message.
     // NOTE: This is an async function due to TCP connect. The others are not async.
-    pub async fn handle_message(&mut self, msg: InfoActorMessage) {
+    pub fn handle_message(&mut self, msg: InfoActorMessage) {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
-            InfoActorMessage::GetInfoValue { info_key: key, respond_to } => {
-                let _ = respond_to.send(Some("None".to_string()));
+            InfoActorMessage::GetInfoValue {
+                info_key,
+                respond_to,
+            } => {
+                // If the key exists in the hash map, send the value back
+                if let Some(value) = self.kv_hash.get(&info_key) {
+                    let _ = respond_to.send(Some(value.clone()));
+                } else {
+                    // If the key does not exist in the hash map, send None
+                    let _ = respond_to.send(None);
+                }
                 // If the key exists in the hash map, send the value back
                 // info!("Processing {:?}", msg);
             }

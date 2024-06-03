@@ -29,7 +29,7 @@ use crate::{
 use crate::protocol::{ConfigCommandParameter, RedisCommand};
 
 use env_logger::Env;
-use log::{debug, error, info};
+use log::{debug, info};
 use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -109,7 +109,7 @@ async fn main() -> std::io::Result<()> {
         info_command_actor_handle.set_value(
             protocol::InfoCommandParameter::Replication,
             &master_host_port_combo,
-        );
+        ).await;
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
@@ -477,8 +477,12 @@ async fn process(
                         // init the response to an empty string.
                         // We'll override it with something if we need to.
                         let mut response = Value::String("".to_string()).encode();
+
+                        // first, let's see if this INFO section exists
                         if let Some(param) = info_parameter {
                             let info = info_command_actor_handle.get_value(param).await;
+
+                            // then, let's see if the section contains data. Honestly, it always should be helps to be safe just in case.
                             if let Some(info_section) = info {
                                 response = Value::String(info_section).encode();
                             }
