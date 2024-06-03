@@ -1,13 +1,12 @@
-// use clap::builder::Str;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::protocol::{ConfigCommandParameter, SetCommandParameter, InfoCommandParameter};
+use crate::protocol::{ConfigCommandParameter, InfoCommandParameter, SetCommandParameter};
 
 /// The ActorMessage enum defines the kind of messages we can send to the actor.
-/// By using an enum, we can have many different message types, 
+/// By using an enum, we can have many different message types,
 /// and each message type can have its own set of arguments.
-/// We return a value to the sender by using an oneshot channel, 
+/// We return a value to the sender by using an oneshot channel,
 /// which is a message passing channel that allows sending exactly one message.
 #[derive(Debug)]
 pub enum SetActorMessage {
@@ -64,5 +63,10 @@ pub enum InfoActorMessage {
     GetInfoValue {
         key: InfoCommandParameter,
         respond_to: oneshot::Sender<Option<String>>,
+    },
+
+    SetInfoValue {
+        info_key: InfoCommandParameter,
+        info_value: String,
     },
 }

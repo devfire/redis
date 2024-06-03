@@ -1,3 +1,4 @@
+use std::net::ToSocketAddrs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
@@ -26,10 +27,10 @@ use crate::{
     parsers::parse_command,
 };
 
-use crate::protocol::{ConfigCommandParameter, RedisCommand};
+use crate::protocol::{ConfigCommandParameter, InfoCommandOption, RedisCommand};
 
 use env_logger::Env;
-use log::{debug, info, error};
+use log::{debug, error, info};
 use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -53,7 +54,7 @@ async fn main() -> std::io::Result<()> {
 
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
-    // let mut config_dbfilename: String = "".to_string();
+
     let mut config_dir: String = "".to_string();
 
     // Create a multi-producer, single-consumer channel to send expiration messages.
@@ -96,10 +97,19 @@ async fn main() -> std::io::Result<()> {
         );
     }
 
-    if let Some(replica) = cli.replicaof.as_deref(){
+    if let Some(replica) = cli.replicaof.as_deref() {
         // split the string using spaces as delimiters
-        let replica_split: Vec<&str> = replica.split(" ").collect();
+        let master_host_port_combo = replica.replace(" ", ":");
+        info!(
+            "Setting master connection string to {}",
+            master_host_port_combo
+        );
 
+        // let master_socket_connection = master_host_port_combo.to_socket_addrs()?;
+
+        info_command_actor_handle
+            .set_value(InfoCommandOption::Replication, &master_host_port_combo);
+        // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
@@ -194,6 +204,8 @@ async fn main() -> std::io::Result<()> {
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
+        let info_command_actor_handle_clone = info_command_actor_handle.clone();
+
         let expire_tx_clone = expire_tx.clone();
 
         // Spawn our handler to be run asynchronously.
@@ -203,6 +215,7 @@ async fn main() -> std::io::Result<()> {
                 stream,
                 set_command_handler_clone,
                 config_command_handler_clone,
+                info_command_actor_handle_clone,
                 expire_tx_clone,
             )
             .await
@@ -214,6 +227,7 @@ async fn process(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
+    info_command_actor_handle: InfoCommandActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
@@ -463,14 +477,7 @@ async fn process(
                         // We'll override it with something if we need to.
                         let mut response = Value::String("".to_string()).encode();
                         if let Some(param) = info_parameter {
-                            match param {
-                                protocol::InfoCommandParameter::All => todo!(),
-                                protocol::InfoCommandParameter::Default => todo!(),
-                                protocol::InfoCommandParameter::Replication => {
-                                    // for now, let's send back role:master
-                                    response = Value::String("role:master".to_string()).encode();
-                                }
-                            }
+                            let server_info = info_command_actor_handle.get_value(param);
                         } else {
                         }
 

@@ -1,5 +1,6 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
+use std::net::SocketAddr;
 
 #[derive(Debug)]
 pub enum RedisCommand {
@@ -19,7 +20,7 @@ pub enum RedisCommand {
 
 // INFO [section [section ...]]
 // The optional parameter can be used to select a specific section of information:
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub enum InfoCommandParameter {
     All,
     Default,
@@ -27,23 +28,23 @@ pub enum InfoCommandParameter {
 }
 
 /// All fields in the replication section.
-#[derive(Clone, Debug)]
-pub enum Replication {
-    // role: Value is "master" if the instance is replica of no one, 
-    // or "slave" if the instance is a replica of some master instance. 
-    // Note that a replica can be master of another replica (chained replication).
-    Role(ServerRole),
-}
+// #[derive(Clone, Debug)]
+// pub enum ReplicationSection {
+//     // role: Value is "master" if the instance is replica of no one, 
+//     // or "slave" if the instance is a replica of some master instance. 
+//     // Note that a replica can be master of another replica (chained replication).
+//     Role(String),
+// }
 
-/// Master or slave.
-#[derive(Clone, Debug)]
-pub enum ServerRole {
-    // role: Value is "master" if the instance is replica of no one, 
-    // or "slave" if the instance is a replica of some master instance. 
-    // Note that a replica can be master of another replica (chained replication).
-    Master,
-    Slave,
-}
+// /// Master or slave.
+// #[derive(Clone, Debug)]
+// pub enum ServerRole {
+//     // role: Value is "master" if the instance is replica of no one, 
+//     // or "slave" if the instance is a replica of some master instance. 
+//     // Note that a replica can be master of another replica (chained replication).
+//     Master,
+//     Slave, // SocketAddr points to the master, not itself
+// }
 
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]

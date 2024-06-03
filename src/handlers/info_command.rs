@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     actors::{info::InfoCommandActor, messages::InfoActorMessage},
-    protocol::InfoCommandParameter,
+    protocol::{InfoCommandOption, InfoCommandParameter},
 };
 
 #[derive(Clone)]
@@ -45,4 +45,21 @@ impl InfoCommandActorHandle {
             None
         }
     }
+
+        /// implements the redis CONFIG SET command, taking a key, value pair as input. Returns nothing.
+    /// https://redis.io/commands/config-set/
+    pub async fn set_value(&self, info_key: InfoCommandOption, info_value: &str) {
+        let msg = InfoCommandOption::SetInfoValue {
+            info_key,
+            info_value,
+        };
+
+        info!(
+            "Setting value for key: {:?}, value: {}",
+            info_key, info_value
+        );
+        // Ignore send errors.
+        let _ = self.sender.send(msg).await.expect("Failed to set value.");
+    }
+
 }
