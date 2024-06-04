@@ -2,8 +2,8 @@ use log::info;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    actors::config::ConfigCommandActor, messages::ConfigActorMessage,
-    protocol::ConfigCommandParameters,
+    actors::{config::ConfigCommandActor, messages::ConfigActorMessage},
+    protocol::ConfigCommandParameter,
 };
 
 #[derive(Clone)]
@@ -24,7 +24,7 @@ impl ConfigCommandActorHandle {
 
     /// implements the redis CONFIG GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
-    pub async fn get_value(&self, config_key: ConfigCommandParameters) -> Option<String> {
+    pub async fn get_value(&self, config_key: ConfigCommandParameter) -> Option<String> {
         log::info!("Getting value for key: {:?}", config_key);
         let (send, recv) = oneshot::channel();
         let msg = ConfigActorMessage::GetConfigValue {
@@ -48,7 +48,7 @@ impl ConfigCommandActorHandle {
 
     /// implements the redis CONFIG SET command, taking a key, value pair as input. Returns nothing.
     /// https://redis.io/commands/config-set/
-    pub async fn set_value(&self, config_key: ConfigCommandParameters, config_value: &str) {
+    pub async fn set_value(&self, config_key: ConfigCommandParameter, config_value: &str) {
         let msg = ConfigActorMessage::SetConfigValue {
             config_key,
             config_value: config_value.to_string(),
@@ -68,7 +68,7 @@ impl ConfigCommandActorHandle {
         dir: &str,
         dbfilename: &str,
         set_command_actor_handle: super::set_command::SetCommandActorHandle,
-        expire_tx: mpsc::Sender<crate::protocol::SetCommandParameters>,
+        expire_tx: mpsc::Sender<crate::protocol::SetCommandParameter>,
     ) {
         let msg = ConfigActorMessage::LoadConfig {
             dir: dir.to_string(),
