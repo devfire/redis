@@ -19,15 +19,15 @@ pub enum RedisCommand {
 
 // INFO [section [section ...]]
 // The optional parameter can be used to select a specific section of information:
-#[derive(Debug, Clone, PartialEq, Copy, Eq, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub enum InfoCommandParameter {
     All,
     Default,
-    Replication,
+    Replication(ReplicationSection),
 }
 
 /// Replication section https://redis.io/docs/latest/commands/info/
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct ReplicationSection {
     // role: Value is "master" if the instance is replica of no one,
     // or "slave" if the instance is a replica of some master instance.
