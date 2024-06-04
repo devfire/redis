@@ -16,7 +16,11 @@ The following Redis commands have been implemented:
 - [x] KEYS
 - [x] INFO
 
-In addition, you can pass command-line `--dir --dbfilename --replicaof` parameters to restore state from disk.
+# Parameters
+The following CLI parameters are currently supported:
+- [x] dir
+- [x] dbfilename
+- [x] replicaof
 
 # Design Overview
 
