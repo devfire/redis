@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use clap::Parser;
-use protocol::SetCommandParameters;
+use protocol::SetCommandParameter;
 
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -11,7 +11,6 @@ pub mod actors;
 pub mod cli;
 pub mod errors;
 pub mod handlers;
-pub mod messages;
 pub mod parsers;
 pub mod protocol;
 pub mod rdb;
@@ -19,13 +18,15 @@ pub mod rdb;
 use crate::cli::Cli;
 use crate::errors::RedisError;
 
-// Handlers for all the actors defined
 use crate::{
-    handlers::{config_command::ConfigCommandActorHandle, set_command::SetCommandActorHandle},
+    handlers::{
+        config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
+        set_command::SetCommandActorHandle,
+    },
     parsers::parse_command,
 };
 
-use crate::protocol::{ConfigCommandParameters, RedisCommand};
+use crate::protocol::{ConfigCommandParameter, RedisCommand};
 
 use env_logger::Env;
 use log::{debug, info};
@@ -47,21 +48,24 @@ async fn main() -> std::io::Result<()> {
     // Get a handle to the set actor, one per redis. This starts the actor.
     let set_command_actor_handle = SetCommandActorHandle::new();
 
+    // Get a handle to the info actor, one per redis. This starts the actor.
+    let info_command_actor_handle = InfoCommandActorHandle::new();
+
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
-    // let mut config_dbfilename: String = "".to_string();
+
     let mut config_dir: String = "".to_string();
 
     // Create a multi-producer, single-consumer channel to send expiration messages.
     // The channel capacity is set to 9600.
-    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameters>(9600);
+    let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameter>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
     // NOTE: If nothing is passed, cli.rs has the default values for clap.
     if let Some(dir) = cli.dir.as_deref() {
         config_command_actor_handle
-            .set_value(ConfigCommandParameters::Dir, dir)
+            .set_value(ConfigCommandParameter::Dir, dir)
             .await;
         info!("Config directory: {dir}");
         config_dir = dir.to_string();
@@ -70,7 +74,7 @@ async fn main() -> std::io::Result<()> {
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
         config_command_actor_handle
             .set_value(
-                ConfigCommandParameters::DbFilename,
+                ConfigCommandParameter::DbFilename,
                 &dbfilename.to_string_lossy(),
             )
             .await;
@@ -90,6 +94,30 @@ async fn main() -> std::io::Result<()> {
             "Config db dir: {} filename: {}",
             config_dir, config_dbfilename
         );
+    }
+
+    // default to being master, will override below if need to
+    info_command_actor_handle
+        .set_value(protocol::InfoCommandParameter::Replication, "role:master")
+        .await;
+
+    // see if we need to override it
+    if let Some(_replica) = cli.replicaof.as_deref() {
+        // split the string using spaces as delimiters
+        // let master_host_port_combo = replica.replace(" ", ":");
+        let info_value = "role:slave".to_string();
+
+        // info!(
+        //     "Connecting to {}",
+        //     master_host_port_combo
+        // );
+
+        // let master_socket_connection = master_host_port_combo.to_socket_addrs()?;
+
+        info_command_actor_handle
+            .set_value(protocol::InfoCommandParameter::Replication, &info_value)
+            .await;
+        // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
@@ -184,6 +212,8 @@ async fn main() -> std::io::Result<()> {
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
+        let info_command_actor_handle_clone = info_command_actor_handle.clone();
+
         let expire_tx_clone = expire_tx.clone();
 
         // Spawn our handler to be run asynchronously.
@@ -193,6 +223,7 @@ async fn main() -> std::io::Result<()> {
                 stream,
                 set_command_handler_clone,
                 config_command_handler_clone,
+                info_command_actor_handle_clone,
                 expire_tx_clone,
             )
             .await
@@ -204,7 +235,8 @@ async fn process(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
-    expire_tx: mpsc::Sender<SetCommandParameters>,
+    info_command_actor_handle: InfoCommandActorHandle,
+    expire_tx: mpsc::Sender<SetCommandParameter>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -379,7 +411,7 @@ async fn process(
 
                         // populate the set parameters struct.
                         // All the extraneous options are None since this is a pure APPEND op.
-                        let set_parameters = SetCommandParameters {
+                        let set_parameters = SetCommandParameter {
                             key,
                             value: new_value.clone(),
                             expire: None,
@@ -452,14 +484,16 @@ async fn process(
                         // init the response to an empty string.
                         // We'll override it with something if we need to.
                         let mut response = Value::String("".to_string()).encode();
+
+                        // first, let's see if this INFO section exists
                         if let Some(param) = info_parameter {
-                            match param {
-                                protocol::InfoParameter::All => todo!(),
-                                protocol::InfoParameter::Default => todo!(),
-                                protocol::InfoParameter::Replication => {
-                                    // for now, let's send back role:master
-                                    response = Value::String("role:master".to_string()).encode();
-                                }
+                            let info = info_command_actor_handle.get_value(param).await;
+
+                            info!("Retrieved INFO value: {:?}", info);
+
+                            // then, let's see if the section contains data. Honestly, it always should be helps to be safe just in case.
+                            if let Some(info_section) = info {
+                                response = Value::String(info_section).encode();
                             }
                         } else {
                         }

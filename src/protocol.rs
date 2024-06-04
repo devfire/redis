@@ -1,3 +1,4 @@
+// This file stores the various commands and their options currently supported.
 use core::fmt;
 
 #[derive(Debug)]
@@ -5,28 +6,49 @@ pub enum RedisCommand {
     Ping,
     Echo(String),
     Command,
-    Set(SetCommandParameters),
+    Set(SetCommandParameter),
     Get(String),
     Del(Vec<String>),
     Strlen(String),                  // https://redis.io/commands/strlen
     Mget(Vec<String>),               // https://redis.io/commands/mget
     Append(String, String),          // https://redis.io/commands/append/
-    Config(ConfigCommandParameters), // CONFIG GET
+    Config(ConfigCommandParameter), // CONFIG GET
     Keys(String),
-    Info(Option<InfoParameter>),
+    Info(Option<InfoCommandParameter>),
 }
 
 // INFO [section [section ...]]
-#[derive(Clone, Debug)]
-pub enum InfoParameter {
+// The optional parameter can be used to select a specific section of information:
+#[derive(Debug, Clone, PartialEq, Copy, Eq, Hash)]
+pub enum InfoCommandParameter {
     All,
     Default,
     Replication,
 }
 
+/// All fields in the replication section.
+// #[derive(Clone, Debug)]
+// pub enum ReplicationSection {
+//     // role: Value is "master" if the instance is replica of no one, 
+//     // or "slave" if the instance is a replica of some master instance. 
+//     // Note that a replica can be master of another replica (chained replication).
+//     Role(String),
+// }
+
+// /// Master or slave.
+// #[derive(Clone, Debug)]
+// pub enum ServerRole {
+//     // role: Value is "master" if the instance is replica of no one, 
+//     // or "slave" if the instance is a replica of some master instance. 
+//     // Note that a replica can be master of another replica (chained replication).
+//     Master,
+//     Slave, // SocketAddr points to the master, not itself
+// }
+
+
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
 #[derive(Clone, Debug)]
-pub struct SetCommandParameters {
+pub struct SetCommandParameter {
     pub key: String,
     pub value: String,
     pub option: Option<SetCommandSetOption>,
@@ -60,17 +82,17 @@ pub enum SetCommandExpireOption {
 
 // these are passed from the command line
 #[derive(Debug, Clone, PartialEq, Copy, Eq, Hash)]
-pub enum ConfigCommandParameters {
+pub enum ConfigCommandParameter {
     Dir,
     DbFilename,
 }
 
 // this is needed to convert the enum variants to strings
-impl fmt::Display for ConfigCommandParameters {
+impl fmt::Display for ConfigCommandParameter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConfigCommandParameters::Dir => write!(f, "dir"),
-            ConfigCommandParameters::DbFilename => write!(f, "dbfilename"),
+            ConfigCommandParameter::Dir => write!(f, "dir"),
+            ConfigCommandParameter::DbFilename => write!(f, "dbfilename"),
         }
     }
 }
