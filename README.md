@@ -16,7 +16,7 @@ The following Redis commands have been implemented:
 - [x] KEYS
 - [x] INFO
 
-In addition, you can pass command-line `--dir` and `--dbfilename` parameters to restore state from disk.
+In addition, you can pass command-line `--dir --dbfilename --replicaof` parameters to restore state from disk.
 
 # Design Overview
 
