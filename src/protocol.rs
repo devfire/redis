@@ -9,9 +9,9 @@ pub enum RedisCommand {
     Set(SetCommandParameter),
     Get(String),
     Del(Vec<String>),
-    Strlen(String),                  // https://redis.io/commands/strlen
-    Mget(Vec<String>),               // https://redis.io/commands/mget
-    Append(String, String),          // https://redis.io/commands/append/
+    Strlen(String),                 // https://redis.io/commands/strlen
+    Mget(Vec<String>),              // https://redis.io/commands/mget
+    Append(String, String),         // https://redis.io/commands/append/
     Config(ConfigCommandParameter), // CONFIG GET
     Keys(String),
     Info(Option<InfoCommandParameter>),
@@ -26,25 +26,26 @@ pub enum InfoCommandParameter {
     Replication,
 }
 
-/// All fields in the replication section.
-// #[derive(Clone, Debug)]
-// pub enum ReplicationSection {
-//     // role: Value is "master" if the instance is replica of no one, 
-//     // or "slave" if the instance is a replica of some master instance. 
-//     // Note that a replica can be master of another replica (chained replication).
-//     Role(String),
-// }
+/// Replication section https://redis.io/docs/latest/commands/info/
+#[derive(Clone, Debug)]
+pub struct ReplicationSection {
+    // role: Value is "master" if the instance is replica of no one,
+    // or "slave" if the instance is a replica of some master instance.
+    // Note that a replica can be master of another replica (chained replication).
+    pub role: String,
+    pub master_replid: String,
+    pub master_repl_offset: u16,
+}
 
 // /// Master or slave.
 // #[derive(Clone, Debug)]
 // pub enum ServerRole {
-//     // role: Value is "master" if the instance is replica of no one, 
-//     // or "slave" if the instance is a replica of some master instance. 
+//     // role: Value is "master" if the instance is replica of no one,
+//     // or "slave" if the instance is a replica of some master instance.
 //     // Note that a replica can be master of another replica (chained replication).
 //     Master,
 //     Slave, // SocketAddr points to the master, not itself
 // }
-
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
 #[derive(Clone, Debug)]
@@ -52,9 +53,9 @@ pub struct SetCommandParameter {
     pub key: String,
     pub value: String,
     pub option: Option<SetCommandSetOption>,
-    // GET: Return the old string stored at key, or nil if key did not exist. 
+    // GET: Return the old string stored at key, or nil if key did not exist.
     // An error is returned and SET aborted if the value stored at key is not a string.
-    pub get: Option<bool>, 
+    pub get: Option<bool>,
     pub expire: Option<SetCommandExpireOption>,
 }
 
@@ -69,7 +70,6 @@ pub enum ExpiryOption {
     Seconds(u32),
     Milliseconds(u64),
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub enum SetCommandExpireOption {
