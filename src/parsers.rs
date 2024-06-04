@@ -14,8 +14,8 @@ use nom::{
 };
 
 use crate::protocol::{
-    ConfigCommandParameters, ExpiryOption, InfoParameter, RedisCommand, SetCommandExpireOption,
-    SetCommandParameters, SetCommandSetOption,
+    ConfigCommandParameter, ExpiryOption, InfoCommandParameter, RedisCommand,
+    SetCommandExpireOption, SetCommandParameter, SetCommandSetOption,
 };
 
 fn length(input: &str) -> IResult<&str, usize> {
@@ -178,7 +178,7 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
         ))),
     ))(input)?;
 
-    let set_params = SetCommandParameters {
+    let set_params = SetCommandParameter {
         key,
         value,
         option,
@@ -194,7 +194,7 @@ fn parse_get(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$3\r\nGET\r\n")(input)?;
-    // let (input, _echo_length) = (length)(input)?;
+
     let (input, key) = (parse_resp_string)(input)?;
 
     Ok((input, RedisCommand::Get(key.to_string())))
@@ -210,9 +210,9 @@ fn parse_config(input: &str) -> IResult<&str, RedisCommand> {
         // In this case, it's used to map the result of the tag_no_case combinator to ConfigCommandParameters::Dir or
         // ConfigCommandParameters::Dbfilename for the option.
         //
-        value(ConfigCommandParameters::Dir, tag_no_case("$3\r\ndir\r\n")),
+        value(ConfigCommandParameter::Dir, tag_no_case("$3\r\ndir\r\n")),
         value(
-            ConfigCommandParameters::DbFilename,
+            ConfigCommandParameter::DbFilename,
             tag_no_case("$10\r\ndbfilename\r\n"),
         ),
     )))(input)?;
@@ -235,15 +235,21 @@ fn parse_info(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$4\r\nINFO\r\n")(input)?;
 
-    let (input, info_parameter) = (opt(alt((
+    let (input, option) = (opt(alt((
         // value: The value combinator is used to map the result of a parser to a specific value.
         //
-        value(InfoParameter::All, tag_no_case("$3\r\nall\r\n")),
-        value(InfoParameter::Default, tag_no_case("$7\r\ndefault\r\n")),
-        value(InfoParameter::Replication, tag_no_case("$11\r\nreplication\r\n")),
+        value(InfoCommandParameter::All, tag_no_case("$3\r\nall\r\n")),
+        value(
+            InfoCommandParameter::Default,
+            tag_no_case("$7\r\ndefault\r\n"),
+        ),
+        value(
+            InfoCommandParameter::Replication,
+            tag_no_case("$11\r\nreplication\r\n"),
+        ),
     ))))(input)?;
 
-    Ok((input, RedisCommand::Info(info_parameter)))
+    Ok((input, RedisCommand::Info(option)))
 }
 
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
