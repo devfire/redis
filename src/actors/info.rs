@@ -8,8 +8,9 @@ pub struct InfoCommandActor {
     // The receiver for incoming messages
     receiver: mpsc::Receiver<InfoActorMessage>,
 
-    // The key-value hash map for storing data
-    kv_hash: HashMap<InfoCommandParameter, String>,
+    // The section-key-value hash map for storing data.
+    // There are multiple sections, each has multiple keys, each key with one value.
+    kv_hash: HashMap<(InfoCommandParameter, String), String>,
 }
 
 impl InfoCommandActor {

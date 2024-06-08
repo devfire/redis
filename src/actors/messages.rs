@@ -60,13 +60,16 @@ pub enum InfoActorMessage {
     // So, to get a INFO value back the client must supply a String key.
     // NOTE: https://redis.io/docs/latest/commands/info/ has a ton of parameters,
     // only some are currently supported.
+    //
+    // Info values are 2 dimensional:
+    // Example: Replication -> role -> master.
     GetInfoValue {
-        info_key: InfoCommandParameter,
+        info_key: (InfoCommandParameter,String), // this is a tuple key
         respond_to: oneshot::Sender<Option<String>>,
     },
 
     SetInfoValue {
-        info_key: InfoCommandParameter,
+        info_key: (InfoCommandParameter,String), // this is a tuple key
         info_value: String,
     },
 }

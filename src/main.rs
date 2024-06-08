@@ -26,7 +26,7 @@ use crate::{
     parsers::parse_command,
 };
 
-use crate::protocol::{ConfigCommandParameter, RedisCommand};
+use crate::protocol::{ConfigCommandParameter, InfoCommandParameter, RedisCommand};
 
 use env_logger::Env;
 use log::{debug, info};
@@ -97,8 +97,11 @@ async fn main() -> std::io::Result<()> {
     }
 
     // default to being master, will override below if need to
+    let section = "role".to_string();
+    let role = "master";
+
     info_command_actor_handle
-        .set_value(protocol::InfoCommandParameter::Replication, "role:master")
+        .set_value((InfoCommandParameter::Replication, section), role)
         .await;
 
     // see if we need to override it
