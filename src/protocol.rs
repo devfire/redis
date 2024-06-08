@@ -19,7 +19,7 @@ pub enum RedisCommand {
 
 // INFO [section [section ...]]
 // The optional parameter can be used to select a specific section of information:
-#[derive(Debug, Clone, Hash, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum InfoCommandParameter {
     All,
     Default,
@@ -27,25 +27,44 @@ pub enum InfoCommandParameter {
 }
 
 /// Replication section https://redis.io/docs/latest/commands/info/
-#[derive(Clone, Debug)]
-pub struct ReplicationSection {
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct InfoSectionData {
     // role: Value is "master" if the instance is replica of no one,
     // or "slave" if the instance is a replica of some master instance.
     // Note that a replica can be master of another replica (chained replication).
-    pub role: String,
+    pub role: ServerRole,
     pub master_replid: String,
     pub master_repl_offset: u16,
 }
 
-// /// Master or slave.
-// #[derive(Clone, Debug)]
-// pub enum ServerRole {
-//     // role: Value is "master" if the instance is replica of no one,
-//     // or "slave" if the instance is a replica of some master instance.
-//     // Note that a replica can be master of another replica (chained replication).
-//     Master,
-//     Slave, // SocketAddr points to the master, not itself
-// }
+// return InfoSectionData as a string
+impl fmt::Display for InfoSectionData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "role:{}:", &self.role)?;
+        write!(f, "master_replid:{}:", &self.master_replid)?;
+        write!(f, "master_repl_offset:{}:", &self.master_repl_offset)
+    }
+}
+
+/// Master or slave.
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum ServerRole {
+    // role: Value is "master" if the instance is replica of no one,
+    // or "slave" if the instance is a replica of some master instance.
+    // Note that a replica can be master of another replica (chained replication).
+    Master,
+    Slave, // SocketAddr points to the master, not itself
+}
+
+// implement display for ServerRole enum
+impl fmt::Display for ServerRole {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ServerRole::Master => write!(f, "master"),
+            ServerRole::Slave => write!(f, "slave"),
+        }
+    }
+}
 
 // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
 #[derive(Clone, Debug)]

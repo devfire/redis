@@ -1,6 +1,7 @@
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::protocol::InfoSectionData;
 use crate::protocol::{ConfigCommandParameter, InfoCommandParameter, SetCommandParameter};
 
 /// The ActorMessage enum defines the kind of messages we can send to the actor.
@@ -64,12 +65,12 @@ pub enum InfoActorMessage {
     // Info values are 2 dimensional:
     // Example: Replication -> role -> master.
     GetInfoValue {
-        info_key: (InfoCommandParameter,String), // this is a tuple key
-        respond_to: oneshot::Sender<Option<String>>,
+        info_key: InfoCommandParameter, // defined in protocol.rs
+        respond_to: oneshot::Sender<Option<InfoSectionData>>,
     },
 
     SetInfoValue {
-        info_key: (InfoCommandParameter,String), // this is a tuple key
-        info_value: String,
+        info_key: InfoCommandParameter, // defined in protocol.rs
+        info_value: InfoSectionData,
     },
 }

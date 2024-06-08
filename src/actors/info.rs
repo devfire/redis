@@ -1,4 +1,4 @@
-use crate::{actors::messages::InfoActorMessage, protocol::InfoCommandParameter};
+use crate::{actors::messages::InfoActorMessage, protocol::{InfoCommandParameter, InfoSectionData}};
 
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -10,7 +10,7 @@ pub struct InfoCommandActor {
 
     // The section-key-value hash map for storing data.
     // There are multiple sections, each has multiple keys, each key with one value.
-    kv_hash: HashMap<(InfoCommandParameter, String), String>,
+    kv_hash: HashMap<InfoCommandParameter, InfoSectionData>,
 }
 
 impl InfoCommandActor {
@@ -32,7 +32,6 @@ impl InfoCommandActor {
     }
 
     // Handle a message.
-    // NOTE: This is an async function due to TCP connect. The others are not async.
     pub fn handle_message(&mut self, msg: InfoActorMessage) {
         // Match on the type of the message
         match msg {

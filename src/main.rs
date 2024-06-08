@@ -494,9 +494,10 @@ async fn process(
 
                             info!("Retrieved INFO value: {:?}", info);
 
-                            // then, let's see if the section contains data. Honestly, it always should be helps to be safe just in case.
+                            // then, let's see if the section contains data. Honestly, it always should be
+                            // helps to be safe just in case.
                             if let Some(info_section) = info {
-                                response = Value::String(info_section).encode();
+                                response = Value::String(info_section.to_string()).encode();
                             }
                         } else {
                         }
