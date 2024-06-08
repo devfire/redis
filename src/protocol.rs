@@ -46,6 +46,17 @@ impl fmt::Display for InfoSectionData {
     }
 }
 
+// implement new for InfoSectionData
+impl InfoSectionData {
+    pub fn new(role: ServerRole) -> Self {
+        Self {
+            role,
+            master_replid: String::new(),
+            master_repl_offset: 0,
+        }
+    }
+}
+
 /// Master or slave.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum ServerRole {
