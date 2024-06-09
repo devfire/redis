@@ -108,8 +108,8 @@ async fn main() -> std::io::Result<()> {
     }
 
     info_command_actor_handle
-            .set_value(InfoCommandParameter::Replication, info_data)
-            .await;
+        .set_value(InfoCommandParameter::Replication, info_data)
+        .await;
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let set_command_handle_clone = set_command_actor_handle.clone();
@@ -482,8 +482,7 @@ async fn process(
 
                             info!("Retrieved INFO value: {:?}", info);
 
-                            // then, let's see if the section contains data. Honestly, it always should be
-                            // helps to be safe just in case.
+                            // then, let's see if the section contains data.
                             if let Some(info_section) = info {
                                 response = Value::String(info_section.to_string()).encode();
                             }

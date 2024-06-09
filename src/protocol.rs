@@ -1,5 +1,8 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
+use std::iter;
+use rand::{Rng, thread_rng};
+use rand::distributions::Alphanumeric;
 
 #[derive(Debug)]
 pub enum RedisCommand {
@@ -48,10 +51,25 @@ impl fmt::Display for InfoSectionData {
 
 // implement new for InfoSectionData
 impl InfoSectionData {
+    // create a function to generate a random alphanumeric string of 40 characters
+    pub fn generate_replication_id() -> String {
+        let mut rng = thread_rng();
+        let repl_id: String = iter::repeat(())
+                .map(|()| rng.sample(Alphanumeric))
+                .map(char::from)
+                .take(40)
+                .collect();  
+        repl_id
+    }
+
     pub fn new(role: ServerRole) -> Self {
         Self {
-            role,
-            master_replid: String::new(),
+            // role: Value is "master" if the instance is replica of no one
+            role, 
+            // master_replid: The ID of the master instance
+            master_replid: Self::generate_replication_id(), 
+            // Each master also maintains a "replication offset" corresponding to how many bytes of commands
+            // have been added to the replication stream
             master_repl_offset: 0,
         }
     }
