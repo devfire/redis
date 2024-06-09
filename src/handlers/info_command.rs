@@ -25,7 +25,7 @@ impl InfoCommandActorHandle {
     /// Gets sections from INFO command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
     pub async fn get_value(&self, info_key: InfoCommandParameter) -> Option<InfoSectionData> {
-        log::info!("Getting info value for key: {:?}", info_key);
+        info!("Getting info value for key: {:?}", info_key);
         let (send, recv) = oneshot::channel();
         let msg = InfoActorMessage::GetInfoValue {
             info_key,
