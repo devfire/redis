@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     actors::{info::InfoCommandActor, messages::InfoActorMessage},
-    protocol::InfoCommandParameter,
+    protocol::{InfoCommandParameter, InfoSectionData},
 };
 
 #[derive(Clone)]
@@ -24,11 +24,11 @@ impl InfoCommandActorHandle {
 
     /// Gets sections from INFO command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
-    pub async fn get_value(&self, key: InfoCommandParameter) -> Option<String> {
-        log::info!("Getting value for key: {:?}", key);
+    pub async fn get_value(&self, info_key: InfoCommandParameter) -> Option<InfoSectionData> {
+        log::info!("Getting info value for key: {:?}", info_key);
         let (send, recv) = oneshot::channel();
         let msg = InfoActorMessage::GetInfoValue {
-            info_key: key,
+            info_key,
             respond_to: send,
         };
 
@@ -48,16 +48,13 @@ impl InfoCommandActorHandle {
 
     /// Stores sections for redis INFO command, taking a key, value pair as input. Returns nothing.
     /// https://redis.io/commands/info/
-    pub async fn set_value(&self, info_key: InfoCommandParameter, info_value: &str) {
+    pub async fn set_value(&self, info_key: InfoCommandParameter, info_value: InfoSectionData) {
         let msg = InfoActorMessage::SetInfoValue {
             info_key,
-            info_value: info_value.to_owned(),
+            info_value,
         };
 
-        info!(
-            "Setting INFO key: {:?}, value: {}",
-            info_key, info_value
-        );
+        // info!("Setting INFO key: {:?}, value: {}", info_key.clone(), info_value);
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
