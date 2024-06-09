@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use clap::Parser;
-use protocol::SetCommandParameter;
+use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -26,7 +26,7 @@ use crate::{
     parsers::parse_command,
 };
 
-use crate::protocol::{ConfigCommandParameter, RedisCommand};
+use crate::protocol::{ConfigCommandParameter, InfoCommandParameter, RedisCommand};
 
 use env_logger::Env;
 use log::{debug, info};
@@ -96,29 +96,20 @@ async fn main() -> std::io::Result<()> {
         );
     }
 
-    // default to being master, will override below if need to
-    info_command_actor_handle
-        .set_value(protocol::InfoCommandParameter::Replication, "role:master")
-        .await;
+    // initialize to being a master, override if we are a replica
+    let mut info_data: InfoSectionData = InfoSectionData::new(ServerRole::Master);
 
     // see if we need to override it
     if let Some(_replica) = cli.replicaof.as_deref() {
         // split the string using spaces as delimiters
         // let master_host_port_combo = replica.replace(" ", ":");
-        let info_value = "role:slave".to_string();
-
-        // info!(
-        //     "Connecting to {}",
-        //     master_host_port_combo
-        // );
-
-        // let master_socket_connection = master_host_port_combo.to_socket_addrs()?;
-
-        info_command_actor_handle
-            .set_value(protocol::InfoCommandParameter::Replication, &info_value)
-            .await;
+        info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
+
+    info_command_actor_handle
+        .set_value(InfoCommandParameter::Replication, info_data)
+        .await;
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let set_command_handle_clone = set_command_actor_handle.clone();
@@ -491,9 +482,9 @@ async fn process(
 
                             info!("Retrieved INFO value: {:?}", info);
 
-                            // then, let's see if the section contains data. Honestly, it always should be helps to be safe just in case.
+                            // then, let's see if the section contains data.
                             if let Some(info_section) = info {
-                                response = Value::String(info_section).encode();
+                                response = Value::String(info_section.to_string()).encode();
                             }
                         } else {
                         }
