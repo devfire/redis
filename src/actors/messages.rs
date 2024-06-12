@@ -1,3 +1,4 @@
+use tokio::net::unix::SocketAddr;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -73,4 +74,12 @@ pub enum InfoActorMessage {
         info_key: InfoCommandParameter, // defined in protocol.rs
         info_value: InfoSectionData,
     },
+}
+
+#[derive(Debug)]
+pub enum ReplicationActorMessage {
+    // connection string to connect to master
+    ConnectToMaster {
+        connection_string: SocketAddr,
+    }
 }
