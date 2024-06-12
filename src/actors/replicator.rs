@@ -1,4 +1,6 @@
-use tokio::sync::mpsc;
+use log::info;
+use resp::encode_slice;
+use tokio::{io::AsyncWriteExt, net::TcpStream, sync::mpsc};
 
 use super::messages::ReplicationActorMessage;
 
@@ -24,16 +26,31 @@ impl ReplicatorActor {
     pub async fn run(&mut self) {
         // Continuously receive messages and handle them
         while let Some(msg) = self.receiver.recv().await {
-            self.handle_message(msg);
+            self.handle_message(msg).await;
         }
     }
 
     // Handle a message.
-    pub fn handle_message(&mut self, msg: ReplicationActorMessage) {
+    pub async fn handle_message(&mut self, msg: ReplicationActorMessage) {
         // Match on the type of the message
 
         match msg {
-            ReplicationActorMessage::ConnectToMaster { connection_string } => todo!(),
+            ReplicationActorMessage::ConnectToMaster { connection_string } => {
+                info!("Connecting to master: {}", connection_string);
+
+                // Establish a TCP connection to the master with the connection_string
+                let mut stream = TcpStream::connect(connection_string)
+                    .await
+                    .expect("Failed to establish connection to matser.");
+
+                // Send a PING to the master
+                let ping = encode_slice(&["PING"]);
+
+                stream
+                    .write_all(&ping)
+                    .await
+                    .expect("Failed to write to stream");
+            }
         }
     }
 }
