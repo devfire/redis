@@ -1,4 +1,3 @@
-use tokio::net::unix::SocketAddr;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
