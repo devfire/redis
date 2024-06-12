@@ -12,3 +12,4 @@ pub(crate) mod set;
 pub(crate) mod info;
 
 pub(crate) mod messages;
+pub(crate) mod replicator;
