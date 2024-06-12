@@ -1,8 +1,4 @@
-use log::info;
-use tokio::{
-    net::unix::SocketAddr,
-    sync::{mpsc, oneshot},
-};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::actors::{messages::ReplicationActorMessage, replicator::ReplicatorActor};
 

@@ -281,7 +281,7 @@ async fn process(
                 // NOTE: array of arrays is not supported at this time.
                 let request_as_encoded_string = request.to_encoded_string()?;
 
-                debug!("RESP request: {:?}", request_as_encoded_string);
+                info!("RESP request: {:?}", request_as_encoded_string);
 
                 // OK, what we get back from the parser is a command with all of its parameters.
                 // Now we get to do stuff with the command.
