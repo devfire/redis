@@ -74,3 +74,11 @@ pub enum InfoActorMessage {
         info_value: InfoSectionData,
     },
 }
+
+#[derive(Debug)]
+pub enum ReplicationActorMessage {
+    // connection string to connect to master
+    ConnectToMaster {
+        connection_string: String,
+    }
+}

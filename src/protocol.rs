@@ -51,7 +51,7 @@ impl fmt::Display for InfoSectionData {
 
 // implement new for InfoSectionData
 impl InfoSectionData {
-    // create a function to generate a random alphanumeric string of 40 characters
+    // function to generate a random alphanumeric string of 40 characters
     pub fn generate_replication_id() -> String {
         let mut rng = thread_rng();
         let repl_id: String = iter::repeat(())
