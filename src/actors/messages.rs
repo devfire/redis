@@ -80,6 +80,6 @@ pub enum InfoActorMessage {
 pub enum ReplicationActorMessage {
     // connection string to connect to master
     ConnectToMaster {
-        connection_string: SocketAddr,
+        connection_string: String,
     }
 }

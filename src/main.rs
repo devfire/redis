@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
+use tokio::net::unix::SocketAddr;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
@@ -21,7 +22,7 @@ use crate::errors::RedisError;
 use crate::{
     handlers::{
         config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
-        set_command::SetCommandActorHandle,
+        replication::ReplicationActorHandle, set_command::SetCommandActorHandle,
     },
     parsers::parse_command,
 };
@@ -53,6 +54,9 @@ async fn main() -> std::io::Result<()> {
 
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
+
+    // Get a handle to the replication actor, one per redis. This starts the actor.
+    let replication_actor_handle = ReplicationActorHandle::new();
 
     let mut config_dir: String = "".to_string();
 
@@ -100,9 +104,15 @@ async fn main() -> std::io::Result<()> {
     let mut info_data: InfoSectionData = InfoSectionData::new(ServerRole::Master);
 
     // see if we need to override it
-    if let Some(_replica) = cli.replicaof.as_deref() {
+    if let Some(replica) = cli.replicaof.as_deref() {
         // split the string using spaces as delimiters
-        // let master_host_port_combo = replica.replace(" ", ":");
+        let master_host_port_combo = replica.replace(" ", ":");
+
+        // We can pass a string to TcpStream::connect, so no need to create SocketAddr
+        replication_actor_handle
+            .connect_to_master(master_host_port_combo)
+            .await;
+
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }

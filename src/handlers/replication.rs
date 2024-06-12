@@ -24,7 +24,7 @@ impl ReplicationActorHandle {
 
     /// Stores sections for redis INFO command, taking a key, value pair as input. Returns nothing.
     /// https://redis.io/commands/info/
-    pub async fn connect_master(&self, connection_string: SocketAddr) {
+    pub async fn connect_to_master(&self, connection_string: String) {
         let msg = ReplicationActorMessage::ConnectToMaster { connection_string };
 
         // Ignore send errors.
