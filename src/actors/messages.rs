@@ -1,6 +1,9 @@
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::handlers::config_command::ConfigCommandActorHandle;
+use crate::handlers::info_command::InfoCommandActorHandle;
+use crate::handlers::set_command::SetCommandActorHandle;
 use crate::protocol::InfoSectionData;
 use crate::protocol::{ConfigCommandParameter, InfoCommandParameter, SetCommandParameter};
 
@@ -78,15 +81,17 @@ pub enum InfoActorMessage {
 #[derive(Debug)]
 pub enum ReplicationActorMessage {
     // connection string to connect to master
-    ConnectToMaster {
-        connection_string: String,
-    }
+    ConnectToMaster { connection_string: String },
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub enum ProcessorActorMessage {
     // connection string to connect to master
     Process {
         request: resp::Value,
-    }
+        set_command_actor_handle: SetCommandActorHandle,
+        config_command_actor_handle: ConfigCommandActorHandle,
+        info_command_actor_handle: InfoCommandActorHandle,
+        expire_tx: mpsc::Sender<SetCommandParameter>,
+    },
 }
