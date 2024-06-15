@@ -1,15 +1,15 @@
 use crate::actors::{messages::ProcessorActorMessage, processor::ProcessorActor};
 use anyhow::Result;
 use log::info;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 #[derive(Clone)]
-pub struct ProcessorActorHandle {
+pub struct RequestProcessorActorHandle {
     sender: mpsc::Sender<ProcessorActorMessage>,
 }
 
 // Gives you access to the underlying actor.
-impl ProcessorActorHandle {
+impl RequestProcessorActorHandle {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(8);
         let mut actor = ProcessorActor::new(receiver);

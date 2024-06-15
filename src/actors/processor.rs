@@ -29,7 +29,7 @@ impl ProcessorActor {
         match msg {
             // Handle a GetValue message
             ProcessorActorMessage::Process { request } => {
-                // If the key exists in the hash map, send the value back
+                // Process the message from RESP Decoder
                 todo!()
             }
         }

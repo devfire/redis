@@ -2,8 +2,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use clap::Parser;
-use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
+use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -22,7 +22,8 @@ use crate::errors::RedisError;
 use crate::{
     handlers::{
         config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
-        replication::ReplicationActorHandle, set_command::SetCommandActorHandle,
+        replication::ReplicationActorHandle, request_processor::RequestProcessorActorHandle,
+        set_command::SetCommandActorHandle,
     },
     parsers::parse_command,
 };
@@ -57,6 +58,9 @@ async fn main() -> std::io::Result<()> {
 
     // Get a handle to the replication actor, one per redis. This starts the actor.
     let replication_actor_handle = ReplicationActorHandle::new();
+
+    // this is where decoded resp values are sent for processing
+    let request_processor_actor_handle = RequestProcessorActorHandle::new();
 
     let mut config_dir: String = "".to_string();
 
@@ -214,6 +218,7 @@ async fn main() -> std::io::Result<()> {
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
         let info_command_actor_handle_clone = info_command_actor_handle.clone();
+        let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
 
@@ -225,6 +230,7 @@ async fn main() -> std::io::Result<()> {
                 set_command_handler_clone,
                 config_command_handler_clone,
                 info_command_actor_handle_clone,
+                request_processor_actor_handle_clone,
                 expire_tx_clone,
             )
             .await
@@ -237,6 +243,7 @@ async fn process(
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
     info_command_actor_handle: InfoCommandActorHandle,
+    request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
