@@ -36,17 +36,6 @@ impl SetCommandActor {
         while let Some(msg) = self.receiver.recv().await {
             self.handle_message(msg);
         }
-
-        //  // Create a channel to communicate key expiration
-        //  let (expire_tx, mut expire_rx) = mpsc::channel::<String>(9600);
-
-        //  // Spawn a task that waits for a message on the channel
-        //  tokio::spawn(async move {
-        //      while let Some(key) = expire_rx.recv().await {
-        //          // Here you would have access to `self.kv_hash` and could remove the key
-        //          self.kv_hash.remove(&key);
-        //      }
-        //  });
     }
 
     // Handle a message
