@@ -31,7 +31,7 @@ impl ProcessorActor {
     }
 
     // Handle a message.
-    pub async fn handle_message(&mut self, msg: ProcessorActorMessage) -> Value {
+    pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
@@ -41,6 +41,7 @@ impl ProcessorActor {
                 config_command_actor_handle,
                 info_command_actor_handle,
                 expire_tx,
+                respond_to,
             } => {
                 // Process the message from RESP Decoder
                 match request {
@@ -59,7 +60,7 @@ impl ProcessorActor {
                         // NOTE: array of arrays is not supported at this time.
                         let request_as_encoded_string = request
                             .to_encoded_string()
-                            .expect("Failed to to encode request as a string.");
+                            .expect("Failed to encode request as a string.");
 
                         info!("RESP request: {:?}", request_as_encoded_string);
 
@@ -70,14 +71,14 @@ impl ProcessorActor {
                         // If not, we get an actor handle and send it to the actor to process.
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Ping)) => {
-                                // Encode the value to RESP binary buffer.
-                                Value::String("PONG".to_string())
+                                // Ignore send errors
+                                let _ = respond_to.send(Some(Value::String("PONG".to_string())));
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
                             Err(_) => {
                                 // let err_response =
-                                Value::Error(RedisError::ParseFailure.to_string())
+                                let _ = respond_to.send(Some(Value::Error(RedisError::ParseFailure.to_string())));
 
                                 // let _ = writer.write_all(&err_response).await?;
                                 // writer.flush().await?;
@@ -85,14 +86,14 @@ impl ProcessorActor {
                             }
                             Ok((_, RedisCommand::Echo(message))) => {
                                 // Encode the value to RESP binary buffer.
-                                Value::String(message)
+                                let _ = respond_to.send(Some(Value::String(message)));
 
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
                             Ok((_, RedisCommand::Command)) => {
                                 // Encode the value to RESP binary buffer.
-                                Value::String("+OK".to_string())
+                                let _ = respond_to.send(Some(Value::String("+OK".to_string())));
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
@@ -106,7 +107,7 @@ impl ProcessorActor {
                                     .await;
 
                                 // Encode the value to RESP binary buffer.
-                                Value::String("OK".to_string())
+                                let _ = respond_to.send(Some(Value::String("OK".to_string())));
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
@@ -115,11 +116,11 @@ impl ProcessorActor {
                                 // if we do, we return it. If not, we encode Null and send that back.
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    Value::String(value)
+                                    let _ = respond_to.send(Some(Value::String(value)));
                                     // Encode the value to RESP binary buffer.
                                     // let _ = writer.write_all(&response).await?;
                                 } else {
-                                    Value::Null
+                                    let _ = respond_to.send(Some(Value::Null));
                                     // let _ = writer.write_all(&response).await?;
                                 }
                             }
@@ -131,7 +132,7 @@ impl ProcessorActor {
                                     set_command_actor_handle.delete_value(key).await;
                                 }
 
-                                Value::Integer(keys.len() as i64)
+                                let _ = respond_to.send(Some(Value::Integer(keys.len() as i64)));
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
@@ -155,7 +156,7 @@ impl ProcessorActor {
                                         key_collection.push(response);
                                     }
                                 }
-                                Value::Array(key_collection)
+                                let _ = respond_to.send(Some(Value::Array(key_collection)));
 
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -166,13 +167,13 @@ impl ProcessorActor {
                                 // https://redis.io/commands/strlen/
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    Value::Integer(value.len() as i64)
+                                    let _ = respond_to.send(Some(Value::Integer(value.len() as i64)));
                                     // let response = Value::Integer(value.len() as i64).encode();
                                     // Encode the value to RESP binary buffer.
                                     // let _ = writer.write_all(&response).await?;
                                     // writer.flush().await?;
                                 } else {
-                                    Value::Integer(0 as i64)
+                                    let _ = respond_to.send(Some(Value::Integer(0 as i64)));
                                     // let _ = writer.write_all(&response).await?;
                                     // writer.flush().await?;
                                 }
@@ -210,7 +211,7 @@ impl ProcessorActor {
                                     .set_value(expire_tx.clone(), set_parameters)
                                     .await;
 
-                                Value::Integer(new_value.len() as i64)
+                                    let _ = respond_to.send(Some(Value::Integer(new_value.len() as i64)));
                                 // Encode the value to RESP binary buffer.
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -229,13 +230,13 @@ impl ProcessorActor {
 
                                     response.push(Value::String(value));
 
-                                    Value::Array(response)
+                                    let _ = respond_to.send(Some(Value::Array(response)));
 
                                     // Encode the value to RESP binary buffer.
                                     // let _ = writer.write_all(&response_encoded).await?;
                                     // writer.flush().await?;
                                 } else {
-                                    Value::Null
+                                    let _ = respond_to.send(Some(Value::Null));
                                     // let _ = writer.write_all(&response).await?;
                                     // writer.flush().await?;
                                 }
@@ -262,7 +263,7 @@ impl ProcessorActor {
                                 }
 
                                 // info!("Returning keys: {:?}", keys_collection);
-                                Value::Array(keys_collection)
+                                let _ = respond_to.send(Some(Value::Array(keys_collection)));
 
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -283,12 +284,12 @@ impl ProcessorActor {
 
                                     // then, let's see if the section contains data.
                                     if let Some(info_section) = info {
-                                        Value::String(info_section.to_string())
+                                        let _ = respond_to.send(Some(Value::String(info_section.to_string())));
                                     } else {
-                                        Value::Null
+                                        let _ = respond_to.send(Some(Value::Null));
                                     }
                                 } else {
-                                    Value::Null
+                                    let _ = respond_to.send(Some(Value::Null));
                                 }
 
                                 // let _ = writer.write_all(&response).await?;
