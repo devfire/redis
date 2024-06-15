@@ -273,8 +273,12 @@ async fn process(
         let request: resp::Value = decoder.decode().expect("Unable to decode request");
 
         // send the request to the request processor actor
-        request_processor_actor_handle.process_request(request)?;
-
-       
+        let processed_value = request_processor_actor_handle.process_request(
+            request,
+            set_command_actor_handle.clone(),
+            config_command_actor_handle.clone(),
+            info_command_actor_handle.clone(),
+            expire_tx.clone(),
+        )?;
     } // end of loop
 }
