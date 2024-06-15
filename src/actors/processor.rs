@@ -1,9 +1,11 @@
 use crate::{
-    actors::messages::ProcessorActorMessage, errors::RedisError, parsers::parse_command,
-    protocol::RedisCommand,
+    actors::messages::ProcessorActorMessage,
+    errors::RedisError,
+    parsers::parse_command,
+    protocol::{RedisCommand, SetCommandParameter},
 };
 
-use log::info;
+use log::{debug, info};
 use resp::Value;
 use tokio::sync::mpsc;
 
@@ -24,16 +26,22 @@ impl ProcessorActor {
     pub async fn run(&mut self) {
         // Continuously receive messages and handle them
         while let Some(msg) = self.receiver.recv().await {
-            self.handle_message(msg);
+            self.handle_message(msg).await;
         }
     }
 
     // Handle a message.
-    pub fn handle_message(&mut self, msg: ProcessorActorMessage) {
+    pub async fn handle_message(&mut self, msg: ProcessorActorMessage) -> Value {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
-            ProcessorActorMessage::Process { request } => {
+            ProcessorActorMessage::Process {
+                request,
+                set_command_actor_handle,
+                config_command_actor_handle,
+                info_command_actor_handle,
+                expire_tx,
+            } => {
                 // Process the message from RESP Decoder
                 match request {
                     Value::Null => todo!(),
@@ -63,33 +71,33 @@ impl ProcessorActor {
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Ping)) => {
                                 // Encode the value to RESP binary buffer.
-                                let response = Value::String("PONG".to_string()).encode();
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                Value::String("PONG".to_string())
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
                             Err(_) => {
-                                let err_response =
-                                    Value::Error(RedisError::ParseFailure.to_string()).encode();
+                                // let err_response =
+                                Value::Error(RedisError::ParseFailure.to_string())
 
-                                let _ = writer.write_all(&err_response).await?;
-                                writer.flush().await?;
+                                // let _ = writer.write_all(&err_response).await?;
+                                // writer.flush().await?;
                                 // return Err(RedisError::ParseFailure.into()) closes the connection so let's not do that
                             }
                             Ok((_, RedisCommand::Echo(message))) => {
                                 // Encode the value to RESP binary buffer.
-                                let response = Value::String(message).encode();
+                                Value::String(message)
 
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
                             Ok((_, RedisCommand::Command)) => {
                                 // Encode the value to RESP binary buffer.
-                                let response = Value::String("+OK".to_string()).encode();
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                Value::String("+OK".to_string())
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
                             Ok((_, RedisCommand::Set(set_parameters))) => {
-                                info!("Set command parameters: {:?}", set_parameters);
+                                // info!("Set command parameters: {:?}", set_parameters);
 
                                 // Sets the value for the key in the set parameters in the set command actor handle.
                                 // Awaits the result.
@@ -98,21 +106,21 @@ impl ProcessorActor {
                                     .await;
 
                                 // Encode the value to RESP binary buffer.
-                                let response = Value::String("OK".to_string()).encode();
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                Value::String("OK".to_string())
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
                             Ok((_, RedisCommand::Get(key))) => {
                                 // we may or may not get a value for the supplied key.
                                 // if we do, we return it. If not, we encode Null and send that back.
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    let response = Value::String(value).encode();
+                                    Value::String(value)
                                     // Encode the value to RESP binary buffer.
-                                    let _ = writer.write_all(&response).await?;
+                                    // let _ = writer.write_all(&response).await?;
                                 } else {
-                                    let response = Value::Null.encode();
-                                    let _ = writer.write_all(&response).await?;
+                                    Value::Null
+                                    // let _ = writer.write_all(&response).await?;
                                 }
                             }
                             Ok((_, RedisCommand::Del(keys))) => {
@@ -123,9 +131,9 @@ impl ProcessorActor {
                                     set_command_actor_handle.delete_value(key).await;
                                 }
 
-                                let response = Value::Integer(keys.len() as i64).encode();
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                Value::Integer(keys.len() as i64)
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
                             Ok((_, RedisCommand::Mget(keys))) => {
                                 // Returns the values of all specified keys.
@@ -147,10 +155,10 @@ impl ProcessorActor {
                                         key_collection.push(response);
                                     }
                                 }
-                                let response = Value::Array(key_collection).encode();
+                                Value::Array(key_collection)
 
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
                             Ok((_, RedisCommand::Strlen(key))) => {
                                 // we may or may not get a value for the supplied key.
@@ -158,14 +166,15 @@ impl ProcessorActor {
                                 // https://redis.io/commands/strlen/
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    let response = Value::Integer(value.len() as i64).encode();
+                                    Value::Integer(value.len() as i64)
+                                    // let response = Value::Integer(value.len() as i64).encode();
                                     // Encode the value to RESP binary buffer.
-                                    let _ = writer.write_all(&response).await?;
-                                    writer.flush().await?;
+                                    // let _ = writer.write_all(&response).await?;
+                                    // writer.flush().await?;
                                 } else {
-                                    let response = Value::Integer(0 as i64).encode();
-                                    let _ = writer.write_all(&response).await?;
-                                    writer.flush().await?;
+                                    Value::Integer(0 as i64)
+                                    // let _ = writer.write_all(&response).await?;
+                                    // writer.flush().await?;
                                 }
                             }
 
@@ -201,10 +210,10 @@ impl ProcessorActor {
                                     .set_value(expire_tx.clone(), set_parameters)
                                     .await;
 
-                                let response = Value::Integer(new_value.len() as i64).encode();
+                                Value::Integer(new_value.len() as i64)
                                 // Encode the value to RESP binary buffer.
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
                             Ok((_, RedisCommand::Config(config_key))) => {
                                 // we may or may not get a value for the supplied key.
@@ -220,15 +229,15 @@ impl ProcessorActor {
 
                                     response.push(Value::String(value));
 
-                                    let response_encoded = Value::Array(response).encode();
+                                    Value::Array(response)
 
                                     // Encode the value to RESP binary buffer.
-                                    let _ = writer.write_all(&response_encoded).await?;
-                                    writer.flush().await?;
+                                    // let _ = writer.write_all(&response_encoded).await?;
+                                    // writer.flush().await?;
                                 } else {
-                                    let response = Value::Null.encode();
-                                    let _ = writer.write_all(&response).await?;
-                                    writer.flush().await?;
+                                    Value::Null
+                                    // let _ = writer.write_all(&response).await?;
+                                    // writer.flush().await?;
                                 }
                             }
 
@@ -252,11 +261,11 @@ impl ProcessorActor {
                                     keys_collection.push(response);
                                 }
 
-                                info!("Returning keys: {:?}", keys_collection);
-                                let response = Value::Array(keys_collection).encode();
+                                // info!("Returning keys: {:?}", keys_collection);
+                                Value::Array(keys_collection)
 
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
 
                             Ok((_, RedisCommand::Info(info_parameter))) => {
@@ -264,23 +273,26 @@ impl ProcessorActor {
                                 //
                                 // init the response to an empty string.
                                 // We'll override it with something if we need to.
-                                let mut response = Value::String("".to_string()).encode();
+                                // let mut response = Value::String("".to_string()).encode();
 
                                 // first, let's see if this INFO section exists
                                 if let Some(param) = info_parameter {
                                     let info = info_command_actor_handle.get_value(param).await;
 
-                                    info!("Retrieved INFO value: {:?}", info);
+                                    debug!("Retrieved INFO value: {:?}", info);
 
                                     // then, let's see if the section contains data.
                                     if let Some(info_section) = info {
-                                        response = Value::String(info_section.to_string()).encode();
+                                        Value::String(info_section.to_string())
+                                    } else {
+                                        Value::Null
                                     }
                                 } else {
+                                    Value::Null
                                 }
 
-                                let _ = writer.write_all(&response).await?;
-                                writer.flush().await?;
+                                // let _ = writer.write_all(&response).await?;
+                                // writer.flush().await?;
                             }
                         }
                     }
