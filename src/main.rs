@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
-use tokio::net::unix::SocketAddr;
+
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
