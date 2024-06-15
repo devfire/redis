@@ -17,22 +17,18 @@ pub mod protocol;
 pub mod rdb;
 
 use crate::cli::Cli;
-use crate::errors::RedisError;
 
-use crate::{
-    handlers::{
-        config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
-        replication::ReplicationActorHandle, request_processor::RequestProcessorActorHandle,
-        set_command::SetCommandActorHandle,
-    },
-    parsers::parse_command,
+use crate::handlers::{
+    config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
+    replication::ReplicationActorHandle, request_processor::RequestProcessorActorHandle,
+    set_command::SetCommandActorHandle,
 };
 
-use crate::protocol::{ConfigCommandParameter, InfoCommandParameter, RedisCommand};
+use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
-use log::{debug, info};
-use resp::{Decoder, Value};
+use log::info;
+use resp::Decoder;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -273,14 +269,20 @@ async fn process(
         let request: resp::Value = decoder.decode().expect("Unable to decode request");
 
         // send the request to the request processor actor
-        if let Some(processed_value) = request_processor_actor_handle.process_request(
-            request,
-            set_command_actor_handle.clone(),
-            config_command_actor_handle.clone(),
-            info_command_actor_handle.clone(),
-            expire_tx.clone(),
-        ).await {
-
+        if let Some(processed_value) = request_processor_actor_handle
+            .process_request(
+                request,
+                set_command_actor_handle.clone(),
+                config_command_actor_handle.clone(),
+                info_command_actor_handle.clone(),
+                expire_tx.clone(),
+            )
+            .await
+        {
+            // encode the Value as a binary Vec
+            let encoded_value = resp::encode(&processed_value);
+            let _ = writer.write_all(&encoded_value).await?;
+            writer.flush().await?;
         }
     } // end of loop
 }
