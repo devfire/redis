@@ -82,3 +82,11 @@ pub enum ReplicationActorMessage {
         connection_string: String,
     }
 }
+
+#[derive(Debug)]
+pub enum ProcessorActorMessage {
+    // connection string to connect to master
+    Process {
+        request: resp::Value,
+    }
+}
