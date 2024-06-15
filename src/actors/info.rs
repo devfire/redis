@@ -3,7 +3,7 @@ use crate::{actors::messages::InfoActorMessage, protocol::{InfoCommandParameter,
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-/// Handles CONFIG command. Receives message from the InfoCommandActorHandle and processes them accordingly.
+/// Handles INFO command. Receives message from the InfoCommandActorHandle and processes them accordingly.
 pub struct InfoCommandActor {
     // The receiver for incoming messages
     receiver: mpsc::Receiver<InfoActorMessage>,

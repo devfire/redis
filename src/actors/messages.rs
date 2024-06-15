@@ -1,3 +1,4 @@
+use resp::Value;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -93,5 +94,6 @@ pub enum ProcessorActorMessage {
         config_command_actor_handle: ConfigCommandActorHandle,
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
+        respond_to: oneshot::Sender<Option<Value>>,
     },
 }
