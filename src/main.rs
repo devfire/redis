@@ -105,7 +105,7 @@ async fn main() -> std::io::Result<()> {
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
-        // replace the space with : as delimiter
+        // split the string using spaces as delimiters
         let master_host_port_combo = replica.replace(" ", ":");
 
         // We can pass a string to TcpStream::connect, so no need to create SocketAddr
