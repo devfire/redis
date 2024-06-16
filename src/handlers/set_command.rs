@@ -83,24 +83,6 @@ impl SetCommandActorHandle {
             .send(set_parameters)
             .await
             .expect("Unable to start the expiry thread.");
-
-        // let parameters_clone = parameters.clone();
-        // let _expiry_handle = tokio::spawn(async move {
-        //     tokio::time::sleep(std::time::Duration::from_secs(2 as u64)).await;
-        //     // log::info!("Expiring {:?}", msg);
-
-        //     // Fire off a command to the handler to remove the value immediately.
-        //     let msg = SetActorMessage::DeleteValue {
-        //         value: parameters_clone.key.to_string(),
-        //     };
-
-        //     // Ignore send errors.
-        //     let _ = self
-        //         .sender
-        //         .send(msg)
-        //         .await
-        //         .expect("Failed to expire value.");
-        // });
     }
 
     /// implements immediate removal of keys. This is triggered by a tokio::spawn sleep thread in main.rs
