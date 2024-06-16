@@ -25,8 +25,8 @@ impl RequestProcessorActorHandle {
         Self { sender }
     }
 
-    /// Gets sections from INFO command, taking a key as input and returning a value.
-    /// https://redis.io/commands/config-get/
+    /// Processes RESP commands.
+    /// https://redis.io/commands/
     pub async fn process_request(
         &self,
         request: resp::Value,
@@ -49,8 +49,8 @@ impl RequestProcessorActorHandle {
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the
         // failure twice.
-        let _ = self.sender.send(msg);
-        if let Some(value) = recv.await.expect("Actor task has been killed") {
+        let _ = self.sender.send(msg).await;
+        if let Some(value) = recv.await.expect("Processor actor task has been killed") {
             Some(value)
         } else {
             None
