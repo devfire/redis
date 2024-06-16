@@ -41,7 +41,7 @@ impl ReplicatorActor {
                 // Establish a TCP connection to the master with the connection_string
                 let mut stream = TcpStream::connect(connection_string)
                     .await
-                    .expect("Failed to establish connection to matser.");
+                    .expect("Failed to establish connection to master.");
 
                 // Send a PING to the master
                 let ping = encode_slice(&["PING"]);
