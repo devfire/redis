@@ -49,9 +49,6 @@ impl ReplicatorActor {
                     .await
                     .expect("Failed to establish connection to master.");
 
-                // Split the TCP stream into a reader and writer.
-                let (mut reader, mut writer) = stream.into_split();
-
                 // Send a PING to the master
                 let ping = encode_slice(&["PING"]);
 
