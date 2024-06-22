@@ -71,10 +71,8 @@ impl ProcessorActor {
                         // If not, we get an actor handle and send it to the actor to process.
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Ping)) => {
-                                // Ignore send errors
+                                // Send the RESP Value back to the handler, ignore send errors
                                 let _ = respond_to.send(Some(Value::String("PONG".to_string())));
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
                             }
                             Err(_) => {
                                 // let err_response =
@@ -117,11 +115,8 @@ impl ProcessorActor {
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
                                     let _ = respond_to.send(Some(Value::String(value)));
-                                    // Encode the value to RESP binary buffer.
-                                    // let _ = writer.write_all(&response).await?;
                                 } else {
                                     let _ = respond_to.send(Some(Value::Null));
-                                    // let _ = writer.write_all(&response).await?;
                                 }
                             }
                             Ok((_, RedisCommand::Del(keys))) => {
