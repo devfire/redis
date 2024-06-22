@@ -26,4 +26,13 @@ impl ReplicationActorHandle {
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
+
+    /// Sends a command to master
+    /// https://redis.io/commands/
+    pub async fn send_command(&self, command: resp::Value) {
+        let msg = ReplicationActorMessage::SendCommand { command };
+
+        // Ignore send errors.
+        let _ = self.sender.send(msg).await.expect("Failed to set value.");
+    }
 }
