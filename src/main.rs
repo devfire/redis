@@ -105,7 +105,6 @@ async fn main() -> std::io::Result<()> {
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
-        // split the string using spaces as delimiters
         let master_host_port_combo = replica.replace(" ", ":");
 
         // We can pass a string to TcpStream::connect, so no need to create SocketAddr
@@ -119,16 +118,33 @@ async fn main() -> std::io::Result<()> {
 
         // start the handshake process. First is PING.
         // send the PING command to the master
-        let ping = resp::encode(&Value::String("PING".to_string()));
+        // let ping = resp::encode(&Value::String("PING".to_string()));
+        let ping = resp::encode_slice(&["PING"]);
         // replication_actor_handle.send_command(ping).await;
 
         // Split the TCP stream into a reader and writer.
         let (mut reader, mut writer) = stream.into_split();
 
         writer.write_all(&ping).await?;
+
+        // Flush the writer to ensure the PING command is immediately sent to the Redis master server.
         writer.flush().await?;
 
-        // let ping = encode_slice(&["PING"]);
+        // send REPLCONF next,this is the replica notifying the master of the port it's listening on.
+        // part 2 of the handshake
+        let handshake2 =
+            resp::encode_slice(&["REPLCONF", "listening-port", cli.port.to_string().as_str()]);
+
+        writer.write_all(&handshake2).await?;
+        writer.flush().await?;
+
+        // part 3: 
+        // This is the replica notifying the master of its capabilities ("capa" is short for "capabilities")
+        let handshake3 = resp::encode_slice(&["REPLCONF", "capa", "psync2"]);
+
+        writer.write_all(&handshake3).await?;
+        writer.flush().await?;
+
 
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
