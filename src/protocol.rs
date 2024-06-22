@@ -1,8 +1,11 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
-use std::iter;
-use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use std::iter;
+// use tokio_util::codec::{Decoder, Encoder};
+
+// use crate::errors::RedisError;
 
 #[derive(Debug)]
 pub enum RedisCommand {
@@ -19,6 +22,15 @@ pub enum RedisCommand {
     Keys(String),
     Info(Option<InfoCommandParameter>),
 }
+
+// implement Encoder for RedisCommand
+// impl Encoder<RedisCommand> for RedisCommand {
+//     type Error = RedisError;
+
+//     fn encode(&mut self, item: RedisCommand, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
+//         todo!()
+//     }
+// }
 
 // INFO [section [section ...]]
 // The optional parameter can be used to select a specific section of information:
@@ -51,23 +63,30 @@ impl fmt::Display for InfoSectionData {
 
 // implement new for InfoSectionData
 impl InfoSectionData {
-    // function to generate a random alphanumeric string of 40 characters
+    // Generates a random alphanumeric string of 40 characters to serve as a replication ID.
+    // This method is useful for creating unique identifiers for replication purposes in Redis setups.
     pub fn generate_replication_id() -> String {
+        // Initialize a random number generator based on the current thread.
         let mut rng = thread_rng();
+
+        // Create a sequence of 40 random alphanumeric characters.
         let repl_id: String = iter::repeat(())
-                .map(|()| rng.sample(Alphanumeric))
-                .map(char::from)
-                .take(40)
-                .collect();  
+            // Map each iteration to a randomly chosen alphanumeric character.
+            .map(|()| rng.sample(Alphanumeric))
+            // Convert the sampled character into its char representation.
+            .map(char::from)
+            .take(40) // Take only the first 40 characters.
+            .collect(); // Collect the characters into a String.
+
         repl_id
     }
 
     pub fn new(role: ServerRole) -> Self {
         Self {
             // role: Value is "master" if the instance is replica of no one
-            role, 
+            role,
             // master_replid: The ID of the master instance
-            master_replid: Self::generate_replication_id(), 
+            master_replid: Self::generate_replication_id(),
             // Each master also maintains a "replication offset" corresponding to how many bytes of commands
             // have been added to the replication stream
             master_repl_offset: 0,
@@ -82,7 +101,7 @@ pub enum ServerRole {
     // or "slave" if the instance is a replica of some master instance.
     // Note that a replica can be master of another replica (chained replication).
     Master,
-    Slave, // SocketAddr points to the master, not itself
+    Slave,
 }
 
 // implement display for ServerRole enum

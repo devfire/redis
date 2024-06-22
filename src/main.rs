@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Result;
 use clap::Parser;
 
-use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
+use protocol::{InfoSectionData, RedisCommand, ServerRole, SetCommandParameter};
 
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -28,7 +28,7 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
 use log::info;
-use resp::Decoder;
+use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -109,9 +109,26 @@ async fn main() -> std::io::Result<()> {
         let master_host_port_combo = replica.replace(" ", ":");
 
         // We can pass a string to TcpStream::connect, so no need to create SocketAddr
-        replication_actor_handle
-            .connect_to_master(master_host_port_combo)
-            .await;
+        // replication_actor_handle
+        //     .connect_to_master(master_host_port_combo)
+        //     .await;
+
+        let stream = TcpStream::connect(&master_host_port_combo)
+            .await
+            .expect("Failed to establish connection to master.");
+
+        // start the handshake process. First is PING.
+        // send the PING command to the master
+        let ping = resp::encode(&Value::String("PING".to_string()));
+        // replication_actor_handle.send_command(ping).await;
+
+        // Split the TCP stream into a reader and writer.
+        let (mut reader, mut writer) = stream.into_split();
+
+        writer.write_all(&ping).await?;
+        writer.flush().await?;
+
+        // let ping = encode_slice(&["PING"]);
 
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
