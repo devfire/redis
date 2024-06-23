@@ -130,6 +130,15 @@ async fn main() -> std::io::Result<()> {
         // Flush the writer to ensure the PING command is immediately sent to the Redis master server.
         writer.flush().await?;
 
+        // Buffer to store the data
+        let mut buf = vec![0; 1024];
+
+        // Read data from the stream, n is the number of bytes read
+        let n = reader
+            .read(&mut buf)
+            .await
+            .expect("Unable to read from buffer");
+
         // send REPLCONF next,this is the replica notifying the master of the port it's listening on.
         // part 2 of the handshake
         let handshake2 =
@@ -144,15 +153,6 @@ async fn main() -> std::io::Result<()> {
 
         writer.write_all(&handshake3).await?;
         writer.flush().await?;
-
-        // Buffer to store the data
-        let mut buf = vec![0; 1024];
-
-        // Read data from the stream, n is the number of bytes read
-        let n = reader
-            .read(&mut buf)
-            .await
-            .expect("Unable to read from buffer");
 
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
