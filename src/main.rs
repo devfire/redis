@@ -138,13 +138,21 @@ async fn main() -> std::io::Result<()> {
         writer.write_all(&handshake2).await?;
         writer.flush().await?;
 
-        // part 3: 
+        // part 3:
         // This is the replica notifying the master of its capabilities ("capa" is short for "capabilities")
         let handshake3 = resp::encode_slice(&["REPLCONF", "capa", "psync2"]);
 
         writer.write_all(&handshake3).await?;
         writer.flush().await?;
 
+        // Buffer to store the data
+        let mut buf = vec![0; 1024];
+
+        // Read data from the stream, n is the number of bytes read
+        let n = reader
+            .read(&mut buf)
+            .await
+            .expect("Unable to read from buffer");
 
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
