@@ -28,12 +28,12 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
 use log::info;
-use resp::{Decoder, Value};
+use resp::Decoder;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     // Setup the logging framework
     let env = Env::default()
         .filter_or("LOG_LEVEL", "info")
@@ -116,44 +116,26 @@ async fn main() -> std::io::Result<()> {
             .await
             .expect("Failed to establish connection to master.");
 
-        // start the handshake process. First is PING.
-        // send the PING command to the master
-        // let ping = resp::encode(&Value::String("PING".to_string()));
-        let ping = resp::encode_slice(&["PING"]);
-        // replication_actor_handle.send_command(ping).await;
+        // Must clone the actors handlers because tokio::spawn move will grab everything.
+        let set_command_handler_clone = set_command_actor_handle.clone();
+        let config_command_handler_clone = config_command_actor_handle.clone();
+        let info_command_actor_handle_clone = info_command_actor_handle.clone();
+        let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
-        // Split the TCP stream into a reader and writer.
-        let (mut reader, mut writer) = stream.into_split();
-
-        writer.write_all(&ping).await?;
-
-        // Flush the writer to ensure the PING command is immediately sent to the Redis master server.
-        writer.flush().await?;
-
-        // send REPLCONF next,this is the replica notifying the master of the port it's listening on.
-        // part 2 of the handshake
-        let handshake2 =
-            resp::encode_slice(&["REPLCONF", "listening-port", cli.port.to_string().as_str()]);
-
-        writer.write_all(&handshake2).await?;
-        writer.flush().await?;
-
-        // part 3:
-        // This is the replica notifying the master of its capabilities ("capa" is short for "capabilities")
-        let handshake3 = resp::encode_slice(&["REPLCONF", "capa", "psync2"]);
-
-        writer.write_all(&handshake3).await?;
-        writer.flush().await?;
-
-        // Buffer to store the data
-        let mut buf = vec![0; 1024];
-
-        // Read data from the stream, n is the number of bytes read
-        let n = reader
-            .read(&mut buf)
+        let expire_tx_clone = expire_tx.clone();
+        tokio::spawn(async move {
+            process(
+                stream,
+                set_command_handler_clone,
+                config_command_handler_clone,
+                info_command_actor_handle_clone,
+                request_processor_actor_handle_clone,
+                expire_tx_clone,
+            )
             .await
-            .expect("Unable to read from buffer");
+        });
 
+        // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
