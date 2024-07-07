@@ -269,12 +269,15 @@ async fn process(
     let (mut reader, mut writer) = stream.into_split();
 
     // Buffer to store the data
-    let mut buf = vec![0; 1024];
+    let buf = vec![0; 1024];
+    
+    // https://docs.rs/resp/latest/resp/struct.Decoder.html
+    let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
     loop {
         // Read data from the stream, n is the number of bytes read
         let n = reader
-            .read(&mut buf)
+            .read(&mut buf.clone())
             .await
             .expect("Unable to read from buffer");
 
@@ -285,9 +288,6 @@ async fn process(
         }
 
         // info!("Read {} bytes", n);
-
-        // https://docs.rs/resp/latest/resp/struct.Decoder.html
-        let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
         let request: resp::Value = decoder.decode().expect("Unable to decode request");
 
