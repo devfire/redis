@@ -28,9 +28,12 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
 use log::info;
-use resp::Decoder;
+use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+
+use async_channel::{unbounded, TryRecvError};
+
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -63,6 +66,10 @@ async fn main() -> anyhow::Result<()> {
     // Create a multi-producer, single-consumer channel to send expiration messages.
     // The channel capacity is set to 9600.
     let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameter>(9600);
+
+    // An async multi-producer multi-consumer channel, 
+    // where each message can be received by only one of all existing consumers.
+    let (_, tcp_msgs_rx) = async_channel::unbounded();
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -123,6 +130,8 @@ async fn main() -> anyhow::Result<()> {
         let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
+        let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
+
         tokio::spawn(async move {
             process(
                 stream,
@@ -131,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
                 info_command_actor_handle_clone,
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
+                Some(tcp_msgs_rx_clone),
             )
             .await
         });
@@ -251,6 +261,7 @@ async fn main() -> anyhow::Result<()> {
                 info_command_actor_handle_clone,
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
+                None, // we don't have a channel to send msgs to the master
             )
             .await
         });
@@ -264,6 +275,7 @@ async fn process(
     info_command_actor_handle: InfoCommandActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
+    tcp_msgs_rx: Option<async_channel::Receiver<resp::Value>>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -272,40 +284,48 @@ async fn process(
     let mut buf = vec![0; 1024];
 
     loop {
-        // Read data from the stream, n is the number of bytes read
-        let n = reader
-            .read(&mut buf)
-            .await
-            .expect("Unable to read from buffer");
+        // tokio::select! {
+        //     // Read data from the stream, n is the number of bytes read
+        //     let result = reader
+        //         .read(&mut buf)
+        //         .await
+        //          => {
+        //             // If we read 0 bytes, the connection is closed.
+        //             match n {
+        //                 Ok(0) => {
+        //                     info!("Empty buffer.");
+        //                     return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
+        //                                    // return Err(RedisError::ParseFailure.into());
+        //                 }
+        //                 Ok(n) => {
+        //                      // https://docs.rs/resp/latest/resp/struct.Decoder.html
+        //     let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
-        if n == 0 {
-            info!("Empty buffer.");
-            return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
-                           // return Err(RedisError::ParseFailure.into());
-        }
+        //     let request: resp::Value = decoder.decode().expect("Unable to decode request");
 
-        // info!("Read {} bytes", n);
+        //     // send the request to the request processor actor
+        //     if let Some(processed_value) = request_processor_actor_handle
+        //         .process_request(
+        //             request,
+        //             set_command_actor_handle.clone(),
+        //             config_command_actor_handle.clone(),
+        //             info_command_actor_handle.clone(),
+        //             expire_tx.clone(),
+        //         )
+        //         .await
+        //     {
+        //         // encode the Value as a binary Vec
+        //         let encoded_value = resp::encode(&processed_value);
+        //         let _ = writer.write_all(&encoded_value).await?;
+        //         writer.flush().await?;
+        //     } // end of if let Some(processed_value)
+        //                 } // end of Ok(n)
+        //             } // end of match n
+        //             Err(e) => {todo!()} // end of Err(e)
+        //         } // end of let result = reader.read(&mut buf).await
 
-        // https://docs.rs/resp/latest/resp/struct.Decoder.html
-        let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
+        //     // info!("Read {} bytes", n);
 
-        let request: resp::Value = decoder.decode().expect("Unable to decode request");
-
-        // send the request to the request processor actor
-        if let Some(processed_value) = request_processor_actor_handle
-            .process_request(
-                request,
-                set_command_actor_handle.clone(),
-                config_command_actor_handle.clone(),
-                info_command_actor_handle.clone(),
-                expire_tx.clone(),
-            )
-            .await
-        {
-            // encode the Value as a binary Vec
-            let encoded_value = resp::encode(&processed_value);
-            let _ = writer.write_all(&encoded_value).await?;
-            writer.flush().await?;
-        }
+        // } // end of tokio::select
     } // end of loop
 }
