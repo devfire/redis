@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Result;
 use clap::Parser;
 
-use protocol::{InfoSectionData, RedisCommand, ServerRole, SetCommandParameter};
+use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -268,10 +268,10 @@ async fn process(
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
 
-    loop {
-        // Buffer to store the data
-        let mut buf = vec![0; 1024];
+    // Buffer to store the data
+    let mut buf = vec![0; 1024];
 
+    loop {
         // Read data from the stream, n is the number of bytes read
         let n = reader
             .read(&mut buf)
