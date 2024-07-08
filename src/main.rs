@@ -28,12 +28,11 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
 use log::info;
-use resp::{Decoder, Value};
+use resp::Decoder;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use async_channel::{unbounded, TryRecvError};
-
+use async_channel;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -56,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     let config_command_actor_handle = ConfigCommandActorHandle::new();
 
     // Get a handle to the replication actor, one per redis. This starts the actor.
-    let replication_actor_handle = ReplicationActorHandle::new();
+    let _replication_actor_handle = ReplicationActorHandle::new();
 
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
@@ -67,9 +66,9 @@ async fn main() -> anyhow::Result<()> {
     // The channel capacity is set to 9600.
     let (expire_tx, mut expire_rx) = mpsc::channel::<SetCommandParameter>(9600);
 
-    // An async multi-producer multi-consumer channel, 
+    // An async multi-producer multi-consumer channel,
     // where each message can be received by only one of all existing consumers.
-    let (_, tcp_msgs_rx) = async_channel::unbounded();
+    let (_tcp_msg_tx, tcp_msgs_rx) = async_channel::unbounded();
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -140,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
                 info_command_actor_handle_clone,
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
-                Some(tcp_msgs_rx_clone),
+                tcp_msgs_rx_clone,
             )
             .await
         });
@@ -250,6 +249,8 @@ async fn main() -> anyhow::Result<()> {
         let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
+        let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
+        tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
@@ -261,7 +262,7 @@ async fn main() -> anyhow::Result<()> {
                 info_command_actor_handle_clone,
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
-                None, // we don't have a channel to send msgs to the master
+                tcp_msgs_rx_clone, // this channel can never send or receive from the main thread
             )
             .await
         });
@@ -275,7 +276,7 @@ async fn process(
     info_command_actor_handle: InfoCommandActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
-    tcp_msgs_rx: Option<async_channel::Receiver<resp::Value>>,
+    tcp_msgs_rx: async_channel::Receiver<resp::Value>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -284,48 +285,55 @@ async fn process(
     let mut buf = vec![0; 1024];
 
     loop {
-        // tokio::select! {
-        //     // Read data from the stream, n is the number of bytes read
-        //     let result = reader
-        //         .read(&mut buf)
-        //         .await
-        //          => {
-        //             // If we read 0 bytes, the connection is closed.
-        //             match n {
-        //                 Ok(0) => {
-        //                     info!("Empty buffer.");
-        //                     return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
-        //                                    // return Err(RedisError::ParseFailure.into());
-        //                 }
-        //                 Ok(n) => {
-        //                      // https://docs.rs/resp/latest/resp/struct.Decoder.html
-        //     let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
+        tokio::select! {
+            // Read data from the stream, n is the number of bytes read
+        n = reader.read(&mut buf)
+         => {
+            match n {
+                Ok(0) => {info!("Empty buffer.");
+            return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
+                          }
+                Err(e) => {log::error!("{e}")}
+                Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
+                    log::debug!("Received {} bytes", n);
+                    let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
-        //     let request: resp::Value = decoder.decode().expect("Unable to decode request");
+                    let request: resp::Value = decoder.decode().expect("Unable to decode request");
 
-        //     // send the request to the request processor actor
-        //     if let Some(processed_value) = request_processor_actor_handle
-        //         .process_request(
-        //             request,
-        //             set_command_actor_handle.clone(),
-        //             config_command_actor_handle.clone(),
-        //             info_command_actor_handle.clone(),
-        //             expire_tx.clone(),
-        //         )
-        //         .await
-        //     {
-        //         // encode the Value as a binary Vec
-        //         let encoded_value = resp::encode(&processed_value);
-        //         let _ = writer.write_all(&encoded_value).await?;
-        //         writer.flush().await?;
-        //     } // end of if let Some(processed_value)
-        //                 } // end of Ok(n)
-        //             } // end of match n
-        //             Err(e) => {todo!()} // end of Err(e)
-        //         } // end of let result = reader.read(&mut buf).await
+                    // send the request to the request processor actor
+                    if let Some(processed_value) = request_processor_actor_handle
+                        .process_request(
+                            request,
+                            set_command_actor_handle.clone(),
+                            config_command_actor_handle.clone(),
+                            info_command_actor_handle.clone(),
+                            expire_tx.clone(),
+                        )
+                        .await
+                    {
+                        // encode the Value as a binary Vec
+                        let encoded_value = resp::encode(&processed_value);
+                        let _ = writer.write_all(&encoded_value).await?;
+                        writer.flush().await?;
+                    }}
 
-        //     // info!("Read {} bytes", n);
-
-        // } // end of tokio::select
-    } // end of loop
+            }
+         } // end reader
+         // see if we have any message to send to master
+         msg = tcp_msgs_rx.recv() => {
+            match msg {
+                Ok(msg) => {
+                    info!("Sending message to master: {:?}", msg);
+                    // encode the Value as a binary Vec
+                    let encoded_value = resp::encode(&msg);
+                    let _ = writer.write_all(&encoded_value).await?;
+                    writer.flush().await?;
+                }
+                Err(e) => {
+                    log::error!("Something unexpected happened: {e}");
+                }
+            }
+         }
+        } // end tokio::select
+    }
 }
