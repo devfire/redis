@@ -1,4 +1,7 @@
-use crate::{actors::messages::InfoActorMessage, protocol::{InfoCommandParameter, InfoSectionData}};
+use crate::{
+    actors::messages::InfoActorMessage,
+    protocol::{InfoCommandParameter, InfoSectionData},
+};
 
 use std::collections::HashMap;
 use tokio::sync::mpsc;
