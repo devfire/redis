@@ -76,7 +76,8 @@ impl ProcessorActor {
                             }
                             Err(_) => {
                                 // let err_response =
-                                let _ = respond_to.send(Some(Value::Error(RedisError::ParseFailure.to_string())));
+                                let _ = respond_to
+                                    .send(Some(Value::Error(RedisError::ParseFailure.to_string())));
 
                                 // let _ = writer.write_all(&err_response).await?;
                                 // writer.flush().await?;
@@ -162,7 +163,8 @@ impl ProcessorActor {
                                 // https://redis.io/commands/strlen/
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    let _ = respond_to.send(Some(Value::Integer(value.len() as i64)));
+                                    let _ =
+                                        respond_to.send(Some(Value::Integer(value.len() as i64)));
                                     // let response = Value::Integer(value.len() as i64).encode();
                                     // Encode the value to RESP binary buffer.
                                     // let _ = writer.write_all(&response).await?;
@@ -206,7 +208,8 @@ impl ProcessorActor {
                                     .set_value(expire_tx.clone(), set_parameters)
                                     .await;
 
-                                    let _ = respond_to.send(Some(Value::Integer(new_value.len() as i64)));
+                                let _ =
+                                    respond_to.send(Some(Value::Integer(new_value.len() as i64)));
                                 // Encode the value to RESP binary buffer.
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -279,7 +282,8 @@ impl ProcessorActor {
 
                                     // then, let's see if the section contains data.
                                     if let Some(info_section) = info {
-                                        let _ = respond_to.send(Some(Value::String(info_section.to_string())));
+                                        let _ = respond_to
+                                            .send(Some(Value::String(info_section.to_string())));
                                     } else {
                                         let _ = respond_to.send(Some(Value::Null));
                                     }
