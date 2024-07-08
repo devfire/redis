@@ -171,14 +171,8 @@ impl ProcessorActor {
                                 {
                                     let _ =
                                         respond_to.send(Some(Value::Integer(value.len() as i64)));
-                                    // let response = Value::Integer(value.len() as i64).encode();
-                                    // Encode the value to RESP binary buffer.
-                                    // let _ = writer.write_all(&response).await?;
-                                    // writer.flush().await?;
                                 } else {
                                     let _ = respond_to.send(Some(Value::Integer(0 as i64)));
-                                    // let _ = writer.write_all(&response).await?;
-                                    // writer.flush().await?;
                                 }
                             }
 
