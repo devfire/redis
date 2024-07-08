@@ -1,6 +1,7 @@
 use crate::{
     actors::{messages::ProcessorActorMessage, processor::ProcessorActor},
-    handlers::set_command::SetCommandActorHandle, protocol::SetCommandParameter,
+    handlers::set_command::SetCommandActorHandle,
+    protocol::SetCommandParameter,
 };
 
 use log::info;
@@ -33,7 +34,7 @@ impl RequestProcessorActorHandle {
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
         info_command_actor_handle: InfoCommandActorHandle,
-        expire_tx: mpsc::Sender<SetCommandParameter>
+        expire_tx: mpsc::Sender<SetCommandParameter>,
     ) -> Option<Value> {
         info!("Processing request: {:?}", request);
         let (send, recv) = oneshot::channel();

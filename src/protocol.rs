@@ -21,6 +21,7 @@ pub enum RedisCommand {
     Config(ConfigCommandParameter), // CONFIG GET
     Keys(String),
     Info(Option<InfoCommandParameter>),
+    ReplConf,
 }
 
 // implement Encoder for RedisCommand
