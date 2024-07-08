@@ -47,7 +47,10 @@ impl ProcessorActor {
                 match request {
                     Value::Null => todo!(),
                     Value::NullArray => todo!(),
-                    Value::String(_) => todo!(),
+                    Value::String(s) => {
+                        info!("Received string: {}, ignoring.", s);
+                        let _ = respond_to.send(Some(Value::Null));
+                    }
                     Value::Error(_) => todo!(),
                     Value::Integer(_) => todo!(),
                     Value::Bulk(_) => todo!(),
