@@ -297,6 +297,10 @@ impl ProcessorActor {
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
+
+                            Ok((_, RedisCommand::ReplConf)) => {
+                                let _ = respond_to.send(Some(Value::String("OK".to_string())));
+                            }
                         }
                     }
                 }
