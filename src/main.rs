@@ -27,8 +27,8 @@ use crate::handlers::{
 use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
-use log::info;
-use resp::{Decoder, Value};
+use log::{debug, info};
+use resp::{encode_slice, Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -146,30 +146,27 @@ async fn main() -> anyhow::Result<()> {
 
         // begin the replication handshake
         // STEP 1: PING
-        let mut ping: Vec<Value> = Vec::new();
-        ping.push(Value::String("PING".to_string()));
-        tcp_msgs_tx.send(Value::Array(ping)).await?;
+        let mut ping = ["PING"];
+        // send the ping
+        tcp_msgs_tx.send(encode_slice(&ping)).await?;
 
         // STEP 2: REPLCONF listening-port <PORT>
         // initialize the empty array
-        let mut repl_conf_listening_port: Vec<Value> = Vec::new();
+        let repl_conf_listening_port = ["REPLCONF", "listening-port", &cli.port.to_string()];
 
-        // push the value into the array
-        repl_conf_listening_port.push(Value::String(format!(
-            "REPLCONF listening-port {}",
-            cli.port
-        )));
-
-        // send the value
+        // Send the value.
+        // Encodes a slice of string to RESP binary buffer.
+        // It is used to create a request command on redis client.
+        // https://docs.rs/resp/latest/resp/fn.encode_slice.html
         tcp_msgs_tx
-            .send(Value::Array(repl_conf_listening_port))
+            .send(encode_slice(&repl_conf_listening_port))
             .await?;
 
         // STEP 3: REPLCONF capa psync2
         // initialize the empty array
-        let mut repl_conf_capa: Vec<Value> = Vec::new();
-        repl_conf_capa.push(Value::String("REPLCONF capa psync2".to_string()));
-        tcp_msgs_tx.send(Value::Array(repl_conf_capa)).await?;
+        let repl_conf_capa = ["REPLCONF", "capa", "psync2"];
+
+        tcp_msgs_tx.send(encode_slice(&repl_conf_capa)).await?;
 
         // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
@@ -303,7 +300,7 @@ async fn process(
     info_command_actor_handle: InfoCommandActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
-    tcp_msgs_rx: async_channel::Receiver<resp::Value>,
+    tcp_msgs_rx: async_channel::Receiver<Vec<u8>>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -314,49 +311,46 @@ async fn process(
     loop {
         tokio::select! {
             // Read data from the stream, n is the number of bytes read
-        n = reader.read(&mut buf)
-         => {
-            match n {
-                Ok(0) => {
-                    info!("Connection closed. Good bye.");
-                    return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
-                },
-                Err(e) => {
-                    log::error!("{e}")
-                },
-                Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
-                    log::debug!("Received {} bytes", n);
-                    let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
+            n = reader.read(&mut buf) => {
+                match n {
+                    Ok(0) => {
+                        info!("Connection closed. Good bye.");
+                        return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
+                    },
+                    Err(e) => {
+                        log::error!("{e}")
+                    },
+                    Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
+                        log::debug!("Received {} bytes", n);
+                        let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
-                    let request: resp::Value = decoder.decode().expect("Unable to decode request");
+                        let request: resp::Value = decoder.decode().expect("Unable to decode request");
 
-                    // send the request to the request processor actor
-                    if let Some(processed_value) = request_processor_actor_handle
-                        .process_request(
-                            request,
-                            set_command_actor_handle.clone(),
-                            config_command_actor_handle.clone(),
-                            info_command_actor_handle.clone(),
-                            expire_tx.clone(),
-                        )
-                        .await
-                    {
-                        // encode the Value as a binary Vec
-                        let encoded_value = resp::encode(&processed_value);
-                        let _ = writer.write_all(&encoded_value).await?;
-                        writer.flush().await?;
-                    }}
-
-            }
+                        // send the request to the request processor actor
+                        if let Some(processed_value) = request_processor_actor_handle
+                            .process_request(
+                                request,
+                                set_command_actor_handle.clone(),
+                                config_command_actor_handle.clone(),
+                                info_command_actor_handle.clone(),
+                                expire_tx.clone(),
+                            )
+                            .await
+                        {
+                            // encode the Value as a binary Vec
+                            let encoded_value = resp::encode(&processed_value);
+                            let _ = writer.write_all(&encoded_value).await?;
+                            writer.flush().await?;
+                        }
+                    } // end Ok(n)
+                } // end match
          } // end reader
          // see if we have any message to send to master
          msg = tcp_msgs_rx.recv() => {
             match msg {
                 Ok(msg) => {
-                    info!("Sending message to master: {:?}", msg);
-                    // encode the Value as a binary Vec
-                    let encoded_value = resp::encode(&msg);
-                    let _ = writer.write_all(&encoded_value).await?;
+                    debug!("Sending message to master: {:?}", msg);
+                    let _ = writer.write_all(&msg).await?;
                     writer.flush().await?;
                 }
                 Err(e) => {
