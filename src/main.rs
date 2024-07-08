@@ -28,7 +28,7 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
 use log::{debug, info};
-use resp::{encode_slice, Decoder, Value};
+use resp::{encode_slice, Decoder};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -146,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
 
         // begin the replication handshake
         // STEP 1: PING
-        let mut ping = ["PING"];
+        let ping = ["PING"];
         // send the ping
         tcp_msgs_tx.send(encode_slice(&ping)).await?;
 
