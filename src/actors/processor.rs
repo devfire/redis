@@ -5,7 +5,7 @@ use crate::{
     protocol::{RedisCommand, SetCommandParameter},
 };
 
-use log::{debug, info};
+use log::{debug, error, info};
 use resp::Value;
 use tokio::sync::mpsc;
 
@@ -47,8 +47,14 @@ impl ProcessorActor {
                 match request {
                     Value::Null => todo!(),
                     Value::NullArray => todo!(),
-                    Value::String(_) => todo!(),
-                    Value::Error(_) => todo!(),
+                    Value::String(s) => {
+                        info!("Received string: {}, ignoring.", s);
+                        let _ = respond_to.send(None);
+                    }
+                    Value::Error(e) => {
+                        error!("Received error: {}", e);
+                        let _ = respond_to.send(None);
+                    }
                     Value::Integer(_) => todo!(),
                     Value::Bulk(_) => todo!(),
                     Value::BufBulk(_) => todo!(),
@@ -71,14 +77,13 @@ impl ProcessorActor {
                         // If not, we get an actor handle and send it to the actor to process.
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Ping)) => {
-                                // Ignore send errors
+                                // Send the RESP Value back to the handler, ignore send errors
                                 let _ = respond_to.send(Some(Value::String("PONG".to_string())));
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
                             }
                             Err(_) => {
                                 // let err_response =
-                                let _ = respond_to.send(Some(Value::Error(RedisError::ParseFailure.to_string())));
+                                let _ = respond_to
+                                    .send(Some(Value::Error(RedisError::ParseFailure.to_string())));
 
                                 // let _ = writer.write_all(&err_response).await?;
                                 // writer.flush().await?;
@@ -117,11 +122,8 @@ impl ProcessorActor {
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
                                     let _ = respond_to.send(Some(Value::String(value)));
-                                    // Encode the value to RESP binary buffer.
-                                    // let _ = writer.write_all(&response).await?;
                                 } else {
                                     let _ = respond_to.send(Some(Value::Null));
-                                    // let _ = writer.write_all(&response).await?;
                                 }
                             }
                             Ok((_, RedisCommand::Del(keys))) => {
@@ -167,15 +169,10 @@ impl ProcessorActor {
                                 // https://redis.io/commands/strlen/
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    let _ = respond_to.send(Some(Value::Integer(value.len() as i64)));
-                                    // let response = Value::Integer(value.len() as i64).encode();
-                                    // Encode the value to RESP binary buffer.
-                                    // let _ = writer.write_all(&response).await?;
-                                    // writer.flush().await?;
+                                    let _ =
+                                        respond_to.send(Some(Value::Integer(value.len() as i64)));
                                 } else {
                                     let _ = respond_to.send(Some(Value::Integer(0 as i64)));
-                                    // let _ = writer.write_all(&response).await?;
-                                    // writer.flush().await?;
                                 }
                             }
 
@@ -211,7 +208,8 @@ impl ProcessorActor {
                                     .set_value(expire_tx.clone(), set_parameters)
                                     .await;
 
-                                    let _ = respond_to.send(Some(Value::Integer(new_value.len() as i64)));
+                                let _ =
+                                    respond_to.send(Some(Value::Integer(new_value.len() as i64)));
                                 // Encode the value to RESP binary buffer.
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -284,7 +282,8 @@ impl ProcessorActor {
 
                                     // then, let's see if the section contains data.
                                     if let Some(info_section) = info {
-                                        let _ = respond_to.send(Some(Value::String(info_section.to_string())));
+                                        let _ = respond_to
+                                            .send(Some(Value::String(info_section.to_string())));
                                     } else {
                                         let _ = respond_to.send(Some(Value::Null));
                                     }
@@ -294,6 +293,10 @@ impl ProcessorActor {
 
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
+                            }
+
+                            Ok((_, RedisCommand::ReplConf)) => {
+                                let _ = respond_to.send(Some(Value::String("OK".to_string())));
                             }
                         }
                     }
