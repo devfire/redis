@@ -252,6 +252,20 @@ fn parse_info(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Info(option)))
 }
 
+fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$8\r\nREPLCONF\r\n")(input)?;
+
+    // first parameter
+    let (input, _first) = (parse_resp_string)(input)?;
+
+    // second parameter
+    // this could be REPLCONF listening-port <PORT>
+    let (input, _second) = (parse_resp_string)(input)?;
+
+    Ok((input, RedisCommand::ReplConf))
+}
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
