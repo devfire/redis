@@ -146,8 +146,9 @@ async fn main() -> anyhow::Result<()> {
 
         // begin the replication handshake
         // STEP 1: PING
-        let ping = Value::String("PONG".to_string());
-        tcp_msgs_tx.send(ping).await?;
+        let mut ping: Vec<Value> = Vec::new();
+        ping.push(Value::String("PING".to_string()));
+        tcp_msgs_tx.send(Value::Array(ping)).await?;
 
         // STEP 2: REPLCONF listening-port <PORT>
         // join the three strings together into a single value
@@ -160,7 +161,7 @@ async fn main() -> anyhow::Result<()> {
         // STEP 3: REPLCONF capa psync2
         let repl_conf_capa = Value::String("REPLCONF capa psync2".to_string());
         tcp_msgs_tx.send(repl_conf_capa).await?;
-        
+
         // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -267,7 +268,7 @@ async fn main() -> anyhow::Result<()> {
 
         let expire_tx_clone = expire_tx.clone();
         let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
-        tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
+        // tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
@@ -307,10 +308,13 @@ async fn process(
         n = reader.read(&mut buf)
          => {
             match n {
-                Ok(0) => {info!("Empty buffer.");
-            return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
-                          }
-                Err(e) => {log::error!("{e}")}
+                Ok(0) => {
+                    info!("Connection closed. Good bye.");
+                    return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
+                },
+                Err(e) => {
+                    log::error!("{e}")
+                },
                 Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
                     log::debug!("Received {} bytes", n);
                     let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
