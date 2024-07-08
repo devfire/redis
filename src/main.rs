@@ -28,7 +28,7 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
 use log::info;
-use resp::Decoder;
+use resp::{Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -68,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
 
     // An async multi-producer multi-consumer channel,
     // where each message can be received by only one of all existing consumers.
-    let (_tcp_msg_tx, tcp_msgs_rx) = async_channel::unbounded();
+    let (tcp_msgs_tx, tcp_msgs_rx) = async_channel::unbounded();
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -144,6 +144,23 @@ async fn main() -> anyhow::Result<()> {
             .await
         });
 
+        // begin the replication handshake
+        // STEP 1: PING
+        let ping = Value::String("PONG".to_string());
+        tcp_msgs_tx.send(ping).await?;
+
+        // STEP 2: REPLCONF listening-port <PORT>
+        // join the three strings together into a single value
+        let repl_conf_listening_port =
+            Value::String(format!("REPLCONF listening-port {}", cli.port));
+
+        // send the value
+        tcp_msgs_tx.send(repl_conf_listening_port).await?;
+
+        // STEP 3: REPLCONF capa psync2
+        let repl_conf_capa = Value::String("REPLCONF capa psync2".to_string());
+        tcp_msgs_tx.send(repl_conf_capa).await?;
+        
         // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
