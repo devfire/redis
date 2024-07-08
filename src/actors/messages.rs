@@ -2,11 +2,16 @@ use resp::Value;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::handlers::config_command::ConfigCommandActorHandle;
-use crate::handlers::info_command::InfoCommandActorHandle;
-use crate::handlers::set_command::SetCommandActorHandle;
-use crate::protocol::InfoSectionData;
-use crate::protocol::{ConfigCommandParameter, InfoCommandParameter, SetCommandParameter};
+use crate::protocol::RedisCommand;
+use crate::{
+    handlers::{
+        config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
+        set_command::SetCommandActorHandle,
+    },
+    protocol::{
+        ConfigCommandParameter, InfoCommandParameter, InfoSectionData, SetCommandParameter,
+    },
+};
 
 /// The ActorMessage enum defines the kind of messages we can send to the actor.
 /// By using an enum, we can have many different message types,
@@ -83,6 +88,7 @@ pub enum InfoActorMessage {
 pub enum ReplicationActorMessage {
     // connection string to connect to master
     ConnectToMaster { connection_string: String },
+    SendCommand { command: resp::Value },
 }
 
 // #[derive(Debug)]
