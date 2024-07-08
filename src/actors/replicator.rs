@@ -1,5 +1,4 @@
 use log::info;
-use resp::encode_slice;
 use tokio::{io::AsyncWriteExt, net::TcpStream, sync::mpsc};
 
 use super::messages::ReplicationActorMessage;
@@ -7,19 +6,20 @@ use super::messages::ReplicationActorMessage;
 pub struct ReplicatorActor {
     // The receiver for incoming messages
     receiver: mpsc::Receiver<ReplicationActorMessage>,
-    // The section-key-value hash map for storing data.
-    // There are multiple sections, each has multiple keys, each key with one value.
-    // kv_hash: HashMap<InfoCommandParameter, InfoSectionData>,
+    // The stores the stream to the master redis instance.
+    // Has to be an Option because during the initialization we don't have the TCP connection details.
+    master_stream: Option<TcpStream>,
 }
 
 impl ReplicatorActor {
     // Constructor for the actor
     pub fn new(receiver: mpsc::Receiver<ReplicationActorMessage>) -> Self {
-        // Initialize the key-value hash map. The key is an enum of two types, dir and dbfilename.
-        // let kv_hash = HashMap::new();
-
-        // Return a new actor with the given receiver and an empty key-value hash map
-        Self { receiver }
+        let master_stream = None;
+        // Return a new actor with the given receiver and an empty tcp stream
+        Self {
+            receiver,
+            master_stream,
+        }
     }
 
     // Run the actor
@@ -36,20 +36,25 @@ impl ReplicatorActor {
 
         match msg {
             ReplicationActorMessage::ConnectToMaster { connection_string } => {
-                info!("Connecting to master: {}", connection_string);
-
                 // Establish a TCP connection to the master with the connection_string
-                let mut stream = TcpStream::connect(connection_string)
+                let stream = TcpStream::connect(&connection_string)
                     .await
-                    .expect("Failed to establish connection to matser.");
+                    .expect("Failed to establish connection to master.");
 
-                // Send a PING to the master
-                let ping = encode_slice(&["PING"]);
+                // Add the connection to the hash map
+                self.master_stream = Some(stream);
+                info!("Connected to master: {}.", connection_string);
+            }
+            ReplicationActorMessage::SendCommand { command } => {
+                // Send the command to the master
+                let encoded_command = command.encode();
 
-                stream
-                    .write_all(&ping)
-                    .await
-                    .expect("Failed to write to stream");
+                if let Some(ref mut stream) = self.master_stream {
+                    stream
+                        .write_all(&encoded_command)
+                        .await
+                        .expect("Failed to write replication command");
+                }
             }
         }
     }
