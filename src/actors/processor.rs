@@ -5,7 +5,7 @@ use crate::{
     protocol::{RedisCommand, SetCommandParameter},
 };
 
-use log::{debug, info};
+use log::{debug, error, info};
 use resp::Value;
 use tokio::sync::mpsc;
 
@@ -49,9 +49,12 @@ impl ProcessorActor {
                     Value::NullArray => todo!(),
                     Value::String(s) => {
                         info!("Received string: {}, ignoring.", s);
-                        let _ = respond_to.send(Some(Value::Null));
+                        let _ = respond_to.send(None);
                     }
-                    Value::Error(_) => todo!(),
+                    Value::Error(e) => {
+                        error!("Received error: {}", e);
+                        let _ = respond_to.send(None);
+                    }
                     Value::Integer(_) => todo!(),
                     Value::Bulk(_) => todo!(),
                     Value::BufBulk(_) => todo!(),
