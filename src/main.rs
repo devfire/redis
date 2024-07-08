@@ -151,16 +151,25 @@ async fn main() -> anyhow::Result<()> {
         tcp_msgs_tx.send(Value::Array(ping)).await?;
 
         // STEP 2: REPLCONF listening-port <PORT>
-        // join the three strings together into a single value
-        let repl_conf_listening_port =
-            Value::String(format!("REPLCONF listening-port {}", cli.port));
+        // initialize the empty array
+        let mut repl_conf_listening_port: Vec<Value> = Vec::new();
+
+        // push the value into the array
+        repl_conf_listening_port.push(Value::String(format!(
+            "REPLCONF listening-port {}",
+            cli.port
+        )));
 
         // send the value
-        tcp_msgs_tx.send(repl_conf_listening_port).await?;
+        tcp_msgs_tx
+            .send(Value::Array(repl_conf_listening_port))
+            .await?;
 
         // STEP 3: REPLCONF capa psync2
-        let repl_conf_capa = Value::String("REPLCONF capa psync2".to_string());
-        tcp_msgs_tx.send(repl_conf_capa).await?;
+        // initialize the empty array
+        let mut repl_conf_capa: Vec<Value> = Vec::new();
+        repl_conf_capa.push(Value::String("REPLCONF capa psync2".to_string()));
+        tcp_msgs_tx.send(Value::Array(repl_conf_capa)).await?;
 
         // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
