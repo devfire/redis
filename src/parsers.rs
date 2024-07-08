@@ -257,7 +257,7 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$8\r\nREPLCONF\r\n")(input)?;
 
-    // first parameter
+    // parameters as one string 
     let (input, _first) = (parse_resp_string)(input)?;
 
     // second parameter
@@ -282,5 +282,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_config,
         parse_keys,
         parse_info,
+        parse_replconf,
     ))(input)
 }
