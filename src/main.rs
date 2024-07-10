@@ -145,7 +145,7 @@ async fn main() -> anyhow::Result<()> {
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
                 tcp_msgs_rx_clone,
-                master_tx_clone
+                master_tx_clone,
             )
             .await
         });
@@ -159,6 +159,8 @@ async fn main() -> anyhow::Result<()> {
         // wait for the +OK reply from the master before proceeding
         let reply = master_rx.blocking_recv();
 
+        info!("Received reply from master: {:?}", reply);
+
         // STEP 2: REPLCONF listening-port <PORT>
         // initialize the empty array
         let repl_conf_listening_port = ["REPLCONF", "listening-port", &cli.port.to_string()];
@@ -171,11 +173,19 @@ async fn main() -> anyhow::Result<()> {
             .send(encode_slice(&repl_conf_listening_port))
             .await?;
 
+        // wait for the +OK reply from the master before proceeding
+        let reply = master_rx.blocking_recv();
+        info!("Received a response after REPLCONF listening-port: {:?}", reply);
+
         // STEP 3: REPLCONF capa psync2
         // initialize the empty array
         let repl_conf_capa = ["REPLCONF", "capa", "psync2"];
 
         tcp_msgs_tx.send(encode_slice(&repl_conf_capa)).await?;
+
+         // wait for the +OK reply from the master before proceeding
+         let reply = master_rx.blocking_recv();
+         info!("Received a response after REPLCONF capa psync2: {:?}", reply);
 
         // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
