@@ -41,6 +41,7 @@ impl ProcessorActor {
                 config_command_actor_handle,
                 info_command_actor_handle,
                 expire_tx,
+                master_tx,
                 respond_to,
             } => {
                 // Process the message from RESP Decoder
@@ -48,7 +49,10 @@ impl ProcessorActor {
                     Value::Null => todo!(),
                     Value::NullArray => todo!(),
                     Value::String(s) => {
-                        info!("Received string: {}, ignoring.", s);
+                        // client commands *to* redis server come as Arrays, so this must be
+                        // a response from the master server.
+                        info!("Received string: {}, sending it to the channel.", s);
+                        let _ = master_tx.send(s);
                         let _ = respond_to.send(None);
                     }
                     Value::Error(e) => {
