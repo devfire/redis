@@ -28,7 +28,7 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
 use log::{debug, info};
-use resp::{encode_slice, Decoder};
+use resp::{encode_slice, Decoder, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -69,6 +69,10 @@ async fn main() -> anyhow::Result<()> {
     // An async multi-producer multi-consumer channel,
     // where each message can be received by only one of all existing consumers.
     let (tcp_msgs_tx, tcp_msgs_rx) = async_channel::unbounded();
+
+    // Create a multi-producer, single-consumer channel to recv messages from the master.
+    // NOTE: these messages are replies coming back from the master, not commands to the master.
+    let (master_tx, mut master_rx) = mpsc::channel::<String>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -130,6 +134,7 @@ async fn main() -> anyhow::Result<()> {
 
         let expire_tx_clone = expire_tx.clone();
         let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
+        let master_tx_clone = master_tx.clone();
 
         tokio::spawn(async move {
             process(
@@ -140,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
                 tcp_msgs_rx_clone,
+                master_tx_clone
             )
             .await
         });
@@ -149,6 +155,9 @@ async fn main() -> anyhow::Result<()> {
         let ping = ["PING"];
         // send the ping
         tcp_msgs_tx.send(encode_slice(&ping)).await?;
+
+        // wait for the +OK reply from the master before proceeding
+        let reply = master_rx.blocking_recv();
 
         // STEP 2: REPLCONF listening-port <PORT>
         // initialize the empty array
@@ -274,7 +283,8 @@ async fn main() -> anyhow::Result<()> {
 
         let expire_tx_clone = expire_tx.clone();
         let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
-        // tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
+        let master_tx_clone = master_tx.clone();
+        //tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
@@ -287,6 +297,7 @@ async fn main() -> anyhow::Result<()> {
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
                 tcp_msgs_rx_clone, // this channel can never send or receive from the main thread
+                master_tx_clone,
             )
             .await
         });
@@ -301,6 +312,7 @@ async fn process(
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     tcp_msgs_rx: async_channel::Receiver<Vec<u8>>,
+    master_tx: mpsc::Sender<String>,
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -334,6 +346,7 @@ async fn process(
                                 config_command_actor_handle.clone(),
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
+                                master_tx.clone(),
                             )
                             .await
                         {
