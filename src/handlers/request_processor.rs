@@ -35,6 +35,7 @@ impl RequestProcessorActorHandle {
         config_command_actor_handle: ConfigCommandActorHandle,
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
+        master_tx: mpsc::Sender<String>,
     ) -> Option<Value> {
         info!("Processing request: {:?}", request);
         let (send, recv) = oneshot::channel();
@@ -44,6 +45,7 @@ impl RequestProcessorActorHandle {
             config_command_actor_handle,
             info_command_actor_handle,
             expire_tx,
+            master_tx,
             respond_to: send,
         };
 
