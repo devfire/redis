@@ -157,12 +157,9 @@ async fn main() -> anyhow::Result<()> {
         tcp_msgs_tx.send(encode_slice(&ping)).await?;
 
         // wait for the +OK reply from the master before proceeding
-        // let reply = master_rx.recv().await;
+        let reply = master_rx.recv().await;
 
-        info!("Waiting for a reply from master.");
-        if let Some(ack) = master_rx.recv().await {
-            info!("Received reply from master: {:?}", ack);
-        }
+        info!("Received reply to PING: {:?}", reply);
 
         // STEP 2: REPLCONF listening-port <PORT>
         // initialize the empty array
@@ -178,7 +175,10 @@ async fn main() -> anyhow::Result<()> {
 
         // wait for the +OK reply from the master before proceeding
         let reply = master_rx.recv().await;
-        info!("Received a response after REPLCONF listening-port: {:?}", reply);
+        info!(
+            "Received a response after REPLCONF listening-port: {:?}",
+            reply
+        );
 
         // STEP 3: REPLCONF capa psync2
         // initialize the empty array
@@ -186,9 +186,12 @@ async fn main() -> anyhow::Result<()> {
 
         tcp_msgs_tx.send(encode_slice(&repl_conf_capa)).await?;
 
-         // wait for the +OK reply from the master before proceeding
-         let reply = master_rx.recv().await;
-         info!("Received a response after REPLCONF capa psync2: {:?}", reply);
+        // wait for the +OK reply from the master before proceeding
+        let reply = master_rx.recv().await;
+        info!(
+            "Received a response after REPLCONF capa psync2: {:?}",
+            reply
+        );
 
         // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
