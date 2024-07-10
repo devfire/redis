@@ -52,7 +52,10 @@ impl ProcessorActor {
                         // client commands *to* redis server come as Arrays, so this must be
                         // a response from the master server.
                         info!("Received string: {}, sending it to the channel.", s);
-                        let _ = master_tx.send(s);
+                        let _ = master_tx
+                            .send(s)
+                            .await
+                            .expect("Unable to send master replies.");
                         let _ = respond_to.send(None);
                     }
                     Value::Error(e) => {
