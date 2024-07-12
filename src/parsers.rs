@@ -303,5 +303,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_keys,
         parse_info,
         parse_replconf,
+        parse_psync,
     ))(input)
 }
