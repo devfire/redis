@@ -28,7 +28,7 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 use env_logger::Env;
 use log::{debug, info};
-use resp::{encode_slice, Decoder, Value};
+use resp::{encode_slice, Decoder};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -44,6 +44,13 @@ async fn main() -> anyhow::Result<()> {
     env_logger::init_from_env(env);
 
     let cli = Cli::parse();
+
+    // cli.port comes from cli.rs; default is 6379
+    let socket_address = std::net::SocketAddr::from(([0, 0, 0, 0], cli.port));
+
+    let listener = TcpListener::bind(socket_address).await?;
+
+    info!("Redis is running on port {}.", cli.port);
 
     // Get a handle to the set actor, one per redis. This starts the actor.
     let set_command_actor_handle = SetCommandActorHandle::new();
@@ -72,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create a multi-producer, single-consumer channel to recv messages from the master.
     // NOTE: these messages are replies coming back from the master, not commands to the master.
-    let (master_tx, mut master_rx) = mpsc::channel::<String>(9600);
+    let (master_tx, master_rx) = mpsc::channel::<String>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -150,48 +157,7 @@ async fn main() -> anyhow::Result<()> {
             .await
         });
 
-        // begin the replication handshake
-        // STEP 1: PING
-        let ping = ["PING"];
-        // send the ping
-        tcp_msgs_tx.send(encode_slice(&ping)).await?;
-
-        // wait for the +OK reply from the master before proceeding
-        let reply = master_rx.recv().await;
-
-        info!("Received reply to PING: {:?}", reply);
-
-        // STEP 2: REPLCONF listening-port <PORT>
-        // initialize the empty array
-        let repl_conf_listening_port = ["REPLCONF", "listening-port", &cli.port.to_string()];
-
-        // Send the value.
-        // Encodes a slice of string to RESP binary buffer.
-        // It is used to create a request command on redis client.
-        // https://docs.rs/resp/latest/resp/fn.encode_slice.html
-        tcp_msgs_tx
-            .send(encode_slice(&repl_conf_listening_port))
-            .await?;
-
-        // wait for the +OK reply from the master before proceeding
-        let reply = master_rx.recv().await;
-        info!(
-            "Received a response after REPLCONF listening-port: {:?}",
-            reply
-        );
-
-        // STEP 3: REPLCONF capa psync2
-        // initialize the empty array
-        let repl_conf_capa = ["REPLCONF", "capa", "psync2"];
-
-        tcp_msgs_tx.send(encode_slice(&repl_conf_capa)).await?;
-
-        // wait for the +OK reply from the master before proceeding
-        let reply = master_rx.recv().await;
-        info!(
-            "Received a response after REPLCONF capa psync2: {:?}",
-            reply
-        );
+        handshake(tcp_msgs_tx.clone(), master_rx, cli.port.to_string()).await?;
 
         // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
@@ -280,13 +246,6 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // cli.port comes from cli.rs; default is 6379
-    let socket_address = std::net::SocketAddr::from(([0, 0, 0, 0], cli.port));
-
-    let listener = TcpListener::bind(socket_address).await?;
-
-    info!("Redis is running on port {}.", cli.port);
-
     loop {
         // Asynchronously wait for an inbound TcpStream.
         let (stream, _) = listener.accept().await?;
@@ -318,6 +277,57 @@ async fn main() -> anyhow::Result<()> {
             .await
         });
     }
+}
+
+async fn handshake(
+    tcp_msgs_tx: async_channel::Sender<Vec<u8>>,
+    mut master_rx: mpsc::Receiver<String>,
+    port: String,
+) -> anyhow::Result<()> {
+    // begin the replication handshake
+    // STEP 1: PING
+    let ping = ["PING"];
+    // send the ping
+    tcp_msgs_tx.send(encode_slice(&ping)).await?;
+
+    // wait for the +OK reply from the master before proceeding
+    let reply = master_rx.recv().await;
+
+    info!("Received reply to PING: {:?}", reply);
+
+    // STEP 2: REPLCONF listening-port <PORT>
+    // initialize the empty array
+    let repl_conf_listening_port = ["REPLCONF", "listening-port", &port];
+
+    // Send the value.
+    // Encodes a slice of string to RESP binary buffer.
+    // It is used to create a request command on redis client.
+    // https://docs.rs/resp/latest/resp/fn.encode_slice.html
+    tcp_msgs_tx
+        .send(encode_slice(&repl_conf_listening_port))
+        .await?;
+
+    // wait for the +OK reply from the master before proceeding
+    let reply = master_rx.recv().await;
+    info!(
+        "Received a response after REPLCONF listening-port: {:?}",
+        reply
+    );
+
+    // STEP 3: REPLCONF capa psync2
+    // initialize the empty array
+    let repl_conf_capa = ["REPLCONF", "capa", "psync2"];
+
+    tcp_msgs_tx.send(encode_slice(&repl_conf_capa)).await?;
+
+    // wait for the +OK reply from the master before proceeding
+    let reply = master_rx.recv().await;
+    info!(
+        "Received a response after REPLCONF capa psync2: {:?}",
+        reply
+    );
+
+    Ok(())
 }
 
 async fn process(
