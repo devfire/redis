@@ -1,8 +1,10 @@
+use std::fmt::format;
+
 use crate::{
     actors::messages::ProcessorActorMessage,
     errors::RedisError,
     parsers::parse_command,
-    protocol::{RedisCommand, SetCommandParameter},
+    protocol::{InfoCommandParameter, RedisCommand, SetCommandParameter},
 };
 
 use log::{debug, error, info};
@@ -276,10 +278,6 @@ impl ProcessorActor {
 
                             Ok((_, RedisCommand::Info(info_parameter))) => {
                                 // we may or may not get a value for the INFO command.
-                                //
-                                // init the response to an empty string.
-                                // We'll override it with something if we need to.
-                                // let mut response = Value::String("".to_string()).encode();
 
                                 // first, let's see if this INFO section exists
                                 if let Some(param) = info_parameter {
@@ -304,6 +302,17 @@ impl ProcessorActor {
 
                             Ok((_, RedisCommand::ReplConf)) => {
                                 let _ = respond_to.send(Some(Value::String("OK".to_string())));
+                            }
+
+                            Ok((_, RedisCommand::Psync(_replication_id, _offset))) => {
+                                // ignore the _replication_id coming from the replica since we will supply our own
+                                if let Some(info) = info_command_actor_handle
+                                    .get_value(InfoCommandParameter::Replication)
+                                    .await
+                                {
+                                    let reply = format!("FULLRESYNC {} 0", info.master_replid);
+                                    let _ = respond_to.send(Some(Value::String(reply)));
+                                }
                             }
                         }
                     }
