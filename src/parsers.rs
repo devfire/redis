@@ -9,6 +9,7 @@ use nom::{
     bytes::complete::{tag, tag_no_case},
     character::complete::{crlf, not_line_ending},
     combinator::{map, opt, value},
+    number::streaming::le_i16,
     sequence::{terminated, tuple},
     IResult,
 };
@@ -257,7 +258,7 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$8\r\nREPLCONF\r\n")(input)?;
 
-    // parameters as one string 
+    // parameters as one string
     let (input, _first) = (parse_resp_string)(input)?;
 
     // second parameter
@@ -265,6 +266,25 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _second) = (parse_resp_string)(input)?;
 
     Ok((input, RedisCommand::ReplConf))
+}
+
+fn parse_psync(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$5\r\nPSYNC\r\n")(input)?;
+
+    // first argument is the replication ID of the master
+    let (input, replication_id) = (parse_resp_string)(input)?;
+
+    // second argument is the offset of the master
+    let (input, offset_string) = (parse_resp_string)(input)?;
+
+    // Attempt to parse the string as i16
+    let offset = offset_string
+        .parse()
+        .expect("Failed to convert offset to i16");
+
+    Ok((input, RedisCommand::Psync(replication_id, offset)))
 }
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     alt((
@@ -283,5 +303,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_keys,
         parse_info,
         parse_replconf,
+        parse_psync,
     ))(input)
 }

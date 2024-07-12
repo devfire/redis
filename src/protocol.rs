@@ -22,6 +22,7 @@ pub enum RedisCommand {
     Keys(String),
     Info(Option<InfoCommandParameter>),
     ReplConf,
+    Psync(String, i16) // (master_replid, master_repl_offset)
 }
 
 // implement Encoder for RedisCommand
@@ -50,7 +51,7 @@ pub struct InfoSectionData {
     // Note that a replica can be master of another replica (chained replication).
     pub role: ServerRole,
     pub master_replid: String,
-    pub master_repl_offset: u16,
+    pub master_repl_offset: i16, // cannot be u16 because initial offset is -1
 }
 
 // return InfoSectionData as a string
