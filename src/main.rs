@@ -327,6 +327,17 @@ async fn handshake(
         reply
     );
 
+    // send the PSYNC ? -1
+    let psync = ["PSYNC", "?", "-1"];
+    tcp_msgs_tx.send(encode_slice(&psync)).await?;
+
+    // wait for a reply from the master before proceeding
+    let reply = master_rx.recv().await;
+    info!(
+        "Received a response after PSYNC ? -1: {:?}",
+        reply
+    );
+
     Ok(())
 }
 
