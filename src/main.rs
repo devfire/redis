@@ -287,56 +287,39 @@ async fn handshake(
     // begin the replication handshake
     // STEP 1: PING
     let ping = ["PING"];
-    // send the ping
-    tcp_msgs_tx.send(encode_slice(&ping)).await?;
-
-    // wait for the +OK reply from the master before proceeding
-    let reply = master_rx.recv().await;
-
-    info!("Received reply to PING: {:?}", reply);
 
     // STEP 2: REPLCONF listening-port <PORT>
     // initialize the empty array
     let repl_conf_listening_port = ["REPLCONF", "listening-port", &port];
 
-    // Send the value.
-    // Encodes a slice of string to RESP binary buffer.
-    // It is used to create a request command on redis client.
-    // https://docs.rs/resp/latest/resp/fn.encode_slice.html
-    tcp_msgs_tx
-        .send(encode_slice(&repl_conf_listening_port))
-        .await?;
-
-    // wait for the +OK reply from the master before proceeding
-    let reply = master_rx.recv().await;
-    info!(
-        "Received a response after REPLCONF listening-port: {:?}",
-        reply
-    );
-
     // STEP 3: REPLCONF capa psync2
     // initialize the empty array
     let repl_conf_capa = ["REPLCONF", "capa", "psync2"];
 
-    tcp_msgs_tx.send(encode_slice(&repl_conf_capa)).await?;
-
-    // wait for the +OK reply from the master before proceeding
-    let reply = master_rx.recv().await;
-    info!(
-        "Received a response after REPLCONF capa psync2: {:?}",
-        reply
-    );
-
     // send the PSYNC ? -1
     let psync = ["PSYNC", "?", "-1"];
-    tcp_msgs_tx.send(encode_slice(&psync)).await?;
+
+    let handshake = vec![repl_conf_listening_port, repl_conf_capa, psync];
+
+    // send the ping
+    tcp_msgs_tx.send(encode_slice(&ping)).await?;
 
     // wait for a reply from the master before proceeding
     let reply = master_rx.recv().await;
-    info!(
-        "Received a response after PSYNC ? -1: {:?}",
-        reply
-    );
+
+    debug!("Received reply {:?}", reply);
+
+    for command in handshake.iter() {
+        // Send the value.
+        // Encodes a slice of string to RESP binary buffer.
+        // It is used to create a request command on redis client.
+        // https://docs.rs/resp/latest/resp/fn.encode_slice.html
+        tcp_msgs_tx.send(encode_slice(command)).await?;
+
+        // wait for the +OK reply from the master before proceeding
+        let reply = master_rx.recv().await;
+        debug!("Received reply {:?}", reply);
+    }
 
     Ok(())
 }

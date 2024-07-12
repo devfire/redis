@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use crate::{
     actors::messages::ProcessorActorMessage,
     errors::RedisError,
