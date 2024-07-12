@@ -2,7 +2,6 @@ use resp::Value;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::protocol::RedisCommand;
 use crate::{
     handlers::{
         config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,

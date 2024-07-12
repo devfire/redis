@@ -9,7 +9,6 @@ use nom::{
     bytes::complete::{tag, tag_no_case},
     character::complete::{crlf, not_line_ending},
     combinator::{map, opt, value},
-    number::streaming::le_i16,
     sequence::{terminated, tuple},
     IResult,
 };
