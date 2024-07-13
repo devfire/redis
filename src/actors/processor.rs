@@ -302,7 +302,7 @@ impl ProcessorActor {
                                 let _ = respond_to.send(Some(Value::String("OK".to_string())));
                             }
 
-                            Ok((_, RedisCommand::Psync(_replication_id, _offset))) => {
+                            Ok((_, RedisCommand::Psync(_replication_id, offset))) => {
                                 // ignore the _replication_id coming from the replica since we will supply our own
                                 if let Some(info) = info_command_actor_handle
                                     .get_value(InfoCommandParameter::Replication)
@@ -310,6 +310,12 @@ impl ProcessorActor {
                                 {
                                     let reply = format!("FULLRESYNC {} 0", info.master_replid);
                                     let _ = respond_to.send(Some(Value::String(reply)));
+                                }
+
+                                // check if the replica is asking for a full resynch
+                                if offset == -1 {
+                                    info!("Full resync triggered with offset {}", offset);
+                                    
                                 }
                             }
                         }
