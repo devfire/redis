@@ -1,4 +1,4 @@
-use log::info;
+use log::{error, info};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
@@ -85,9 +85,39 @@ impl ConfigCommandActorHandle {
     /// Loads the config file into memory, returning it as a Vec<u8>
     pub async fn get_config(
         &self,
-        dir: &str,
-        dbfilename: &str,
+        // dir: &str,
+        // dbfilename: &str,
     ) -> anyhow::Result<Vec<u8>, RedisError> {
+        // no need to pass these two, we should already know the values
+        let dir: String = "".to_string();
+        let dbfilename: String = "".to_string();
+
+        // Checks if the specified config file exists. If it does, attempts to load its contents into memory.
+        // Upon successful reading, the file's contents are sent through the `respond_to` channel.
+        // If the file does not exist, logs an error message and sends a `None` value through the `respond_to` channel.
+        // This process involves opening the file asynchronously, reading its entire content into a byte vector (`buffer`),
+        // and then sending this buffer through a communication channel designed for responding to configuration requests.
+        // Error handling is performed at each step to ensure robustness against file access issues.
+        if let Some(dir) = self.get_value(ConfigCommandParameter::Dir).await {
+            info!("Found the dir setting: {}", dir);
+        } else {
+            error!("Failed to load the config file dir!");
+            return Err(RedisError::IOError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failure trying to load config into memory.",
+            )));
+        };
+
+        if let Some(dbfilename) = self.get_value(ConfigCommandParameter::DbFilename).await {
+            info!("Found the dbfilename setting: {}", dbfilename);
+        } else {
+            error!("Failed to load the config filename setting!");
+            return Err(RedisError::IOError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failure trying to load config into memory.",
+            )));
+        }
+
         log::info!("Getting config {:?}", dbfilename);
         let (send, recv) = oneshot::channel();
         let msg = ConfigActorMessage::GetConfig {
@@ -111,15 +141,5 @@ impl ConfigCommandActorHandle {
                 "Failure trying to load config into memory.",
             )))
         }
-
-        // this is going back once the msg comes back from the actor.
-        // NOTE: we might get None back, i.e. no value for the given key.
-        // match recv.await.expect("Actor task has been killed") {
-        //     Ok(value) => value,
-        //     Err(e) => Err(RedisError::IOError(std::io::Error::new(
-        //         std::io::ErrorKind::Other,
-        //         "Failure trying to load config into memory.",
-        //     ))),
-        // }
     }
 }

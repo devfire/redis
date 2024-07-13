@@ -11,6 +11,7 @@ use futures::StreamExt;
 use log::{debug, error, info};
 // use resp::Value;
 use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 // use tokio::io::AsyncWriteExt;
 use tokio_util::codec::FramedRead;
 
@@ -149,30 +150,31 @@ impl ConfigCommandActor {
             ConfigActorMessage::GetConfig {
                 dir,
                 dbfilename,
-                respond_to
+                respond_to,
             } => {
-
-                // if let Some(value) = self.kv_hash.get(&config_key) {
-                //     let _ = respond_to.send(Some(value.clone()));
-                // } else {
-                //     // If the key does not exist in the hash map, send None
-                //     let _ = respond_to.send(None);
-                // }
-
                 let fullpath = format!("{}/{}", dir, dbfilename);
 
                 // check to see if the file exists.
                 if !Path::new(&fullpath).exists() {
                     log::error!("Config file does not exist.");
-                    let _ = respond_to.send(None); // this will be
+                    let _ = respond_to.send(None); // this will be turned into an Err in the handler
                 } else {
                     // file exists, let's proceed.
                     // Log the attempt
                     info!("Loading config {} into memory.", fullpath);
 
-                    let rdb_file = File::open(fullpath)
+                    let mut rdb_file = File::open(fullpath)
                         .await
                         .expect("Failed to open RDB file.");
+
+                    let mut buffer: Vec<u8> = Vec::new();
+
+                    rdb_file
+                        .read_to_end(&mut buffer)
+                        .await
+                        .expect("Failed to read config into memory");
+
+                    let _ = respond_to.send(Some(buffer));
                 }
             }
         }
