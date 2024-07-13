@@ -61,6 +61,12 @@ pub enum ConfigActorMessage {
         set_command_actor_handle: crate::handlers::set_command::SetCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
     },
+    GetConfig {
+        // should be either dir or dbfilename
+        dir: String,
+        dbfilename: String,
+        respond_to: oneshot::Sender<Option<Vec<u8>>>,
+    },
 }
 
 #[derive(Debug)]

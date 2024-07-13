@@ -11,6 +11,7 @@ use futures::StreamExt;
 use log::{debug, error, info};
 // use resp::Value;
 use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 // use tokio::io::AsyncWriteExt;
 use tokio_util::codec::FramedRead;
 
@@ -138,12 +139,42 @@ impl ConfigCommandActor {
                             Ok(_) => {
                                 debug!("Ignoring other things.")
                             }
-                            Err(e) => error!("Something bad happened: {}.", e),
+                            Err(e) => error!("Failure trying to load config: {}.", e),
                             // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
                             // Ok(_) => info!("Skipping over OpCodes"),
                             // Err(_) => error!("{}",e),
                         }
                     }
+                }
+            }
+            ConfigActorMessage::GetConfig {
+                dir,
+                dbfilename,
+                respond_to,
+            } => {
+                let fullpath = format!("{}/{}", dir, dbfilename);
+
+                // check to see if the file exists.
+                if !Path::new(&fullpath).exists() {
+                    log::error!("Config file does not exist.");
+                    let _ = respond_to.send(None); // this will be turned into an Err in the handler
+                } else {
+                    // file exists, let's proceed.
+                    // Log the attempt
+                    info!("Loading config {} into memory.", fullpath);
+
+                    let mut rdb_file = File::open(fullpath)
+                        .await
+                        .expect("Failed to open RDB file.");
+
+                    let mut buffer: Vec<u8> = Vec::new();
+
+                    rdb_file
+                        .read_to_end(&mut buffer)
+                        .await
+                        .expect("Failed to read config into memory");
+
+                    let _ = respond_to.send(Some(buffer));
                 }
             }
         }
