@@ -17,7 +17,7 @@ pub enum RedisError {
     #[error("Invalid key passed")]
     KeyNotFound,
 
-    /// Represents all other cases of `std::io::Error`.
+    /// Represents all other cases of `ParseIntError`.
     #[error("Invalid digit parsing")]
     ParseIntError(#[from] ParseIntError),
 

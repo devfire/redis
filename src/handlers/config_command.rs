@@ -3,6 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     actors::{config::ConfigCommandActor, messages::ConfigActorMessage},
+    errors::RedisError,
     protocol::ConfigCommandParameter,
 };
 
@@ -79,5 +80,46 @@ impl ConfigCommandActorHandle {
 
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
+    }
+
+    /// Loads the config file into memory, returning it as a Vec<u8>
+    pub async fn get_config(
+        &self,
+        dir: &str,
+        dbfilename: &str,
+    ) -> anyhow::Result<Vec<u8>, RedisError> {
+        log::info!("Getting config {:?}", dbfilename);
+        let (send, recv) = oneshot::channel();
+        let msg = ConfigActorMessage::GetConfig {
+            dir: dir.to_string(),
+            dbfilename: dbfilename.to_string(),
+            respond_to: send,
+        };
+
+        // Ignore send errors. If this send fails, so does the
+        // recv.await below. There's no reason to check the
+        // failure twice.
+        let _ = self.sender.send(msg).await;
+
+        // this is going back once the msg comes back from the actor.
+        // NOTE: we might get None back, i.e. something bad happened trying to load config into memory.
+        if let Some(config_file) = recv.await.expect("Actor task has been killed") {
+            Ok(config_file)
+        } else {
+            Err(RedisError::IOError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failure trying to load config into memory.",
+            )))
+        }
+
+        // this is going back once the msg comes back from the actor.
+        // NOTE: we might get None back, i.e. no value for the given key.
+        // match recv.await.expect("Actor task has been killed") {
+        //     Ok(value) => value,
+        //     Err(e) => Err(RedisError::IOError(std::io::Error::new(
+        //         std::io::ErrorKind::Other,
+        //         "Failure trying to load config into memory.",
+        //     ))),
+        // }
     }
 }

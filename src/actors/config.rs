@@ -138,12 +138,41 @@ impl ConfigCommandActor {
                             Ok(_) => {
                                 debug!("Ignoring other things.")
                             }
-                            Err(e) => error!("Something bad happened: {}.", e),
+                            Err(e) => error!("Failure trying to load config: {}.", e),
                             // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
                             // Ok(_) => info!("Skipping over OpCodes"),
                             // Err(_) => error!("{}",e),
                         }
                     }
+                }
+            }
+            ConfigActorMessage::GetConfig {
+                dir,
+                dbfilename,
+                respond_to
+            } => {
+
+                // if let Some(value) = self.kv_hash.get(&config_key) {
+                //     let _ = respond_to.send(Some(value.clone()));
+                // } else {
+                //     // If the key does not exist in the hash map, send None
+                //     let _ = respond_to.send(None);
+                // }
+
+                let fullpath = format!("{}/{}", dir, dbfilename);
+
+                // check to see if the file exists.
+                if !Path::new(&fullpath).exists() {
+                    log::error!("Config file does not exist.");
+                    let _ = respond_to.send(None); // this will be
+                } else {
+                    // file exists, let's proceed.
+                    // Log the attempt
+                    info!("Loading config {} into memory.", fullpath);
+
+                    let rdb_file = File::open(fullpath)
+                        .await
+                        .expect("Failed to open RDB file.");
                 }
             }
         }
