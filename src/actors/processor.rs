@@ -302,16 +302,69 @@ impl ProcessorActor {
                                 let _ = respond_to.send(Some(Value::String("OK".to_string())));
                             }
 
-                            Ok((_, RedisCommand::Psync(_replication_id, _offset))) => {
+                            Ok((_, RedisCommand::Psync(_replication_id, offset))) => {
                                 // ignore the _replication_id coming from the replica since we will supply our own
-                                if let Some(info) = info_command_actor_handle
+                                let info = info_command_actor_handle
                                     .get_value(InfoCommandParameter::Replication)
-                                    .await
-                                {
-                                    let reply = format!("FULLRESYNC {} 0", info.master_replid);
-                                    let _ = respond_to.send(Some(Value::String(reply)));
+                                    .await;
+
+                                if let Some(info_section) = info {
+                                    // initial fullresync reply
+                                    let mut reply: Vec<u8> = Vec::from(format!(
+                                        "FULLRESYNC {} 0",
+                                        info_section.master_replid
+                                    ));
+
+                                    // reply.push(
+                                    //     format!("FULLRESYNC {} 0", info_section.master_replid)
+                                    //         .into_bytes(),
+                                    // );
+
+                                    info!("Full resync triggered with offset {}", offset);
+
+                                    // append the file contents immediately after
+                                    // this is the format: $<length_of_file>\r\n<contents_of_file>
+
+                                    // let's get the dir and dbfilename of the config file
+                                    // let dir = config_command_actor_handle.ge
+                                    let rdb_file_contents = config_command_actor_handle
+                                        .get_config()
+                                        .await
+                                        .expect("Failed to load config file into memory.");
+
+                                    // let length = rdb_file_contents.len().to_string().as_bytes();
+                                    reply.extend(Vec::from("$"));
+                                    reply.extend(rdb_file_contents.len().to_string().as_bytes()); // length of file
+                                    reply.extend(Vec::from("\r\n"));
+                                    reply.extend(rdb_file_contents);
+
+                                    let _ = respond_to.send(Some(Value::BufBulk(reply)));
+                                } else {
+                                    error!("Failed to retrieve replication information");
                                 }
-                            }
+                            } //     if let Some(info) = info_command_actor_handle
+                              //         .get_value(InfoCommandParameter::Replication)
+                              //         .await
+                              //     {
+                              //         let reply = format!("FULLRESYNC {} 0", info.master_replid);
+                              //         let _ = respond_to.send(Some(Value::String(reply)));
+
+                              //         // check if the replica is asking for a full resynch
+                              //         if offset == -1 {
+                              //             info!("Full resync triggered with offset {}", offset);
+
+                              //             // let's get the dir and dbfilename of the config file
+                              //             // let dir = config_command_actor_handle.ge
+                              //             let rdb_file_contents = config_command_actor_handle
+                              //                 .get_config()
+                              //                 .await
+                              //                 .expect("Failed to load config file into memory.");
+
+                              //             let _ = respond_to
+                              //                 .send(Some(Value::BufBulk(rdb_file_contents)));
+                              //         }
+                              //     }
+                              // }
                         }
                     }
                 }
