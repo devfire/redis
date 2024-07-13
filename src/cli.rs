@@ -6,11 +6,11 @@ use clap::Parser;
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
     /// The directory where RDB files are stored
-    #[arg(long)]
+    #[arg(long, default_value = "./")]
     pub dir: Option<String>,
 
     /// The name of the RDB file
-    #[arg(long, value_name = "FILE")]
+    #[arg(long, default_value = "dump.rdb", value_name = "FILE")]
     pub dbfilename: Option<PathBuf>,
 
     /// TCP port to listen on
