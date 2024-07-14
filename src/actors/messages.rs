@@ -106,6 +106,6 @@ pub enum ProcessorActorMessage {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-        respond_to: oneshot::Sender<Option<Value>>,
+        respond_to: oneshot::Sender<Option<Vec<u8>>>,
     },
 }
