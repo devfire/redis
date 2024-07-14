@@ -18,6 +18,7 @@ use tokio_util::codec::FramedRead;
 use std::{collections::HashMap, path::Path};
 
 // use tokio::net::TcpStream;
+use tokio::fs;
 use tokio::sync::mpsc;
 
 // include the format.rs file from rdb
@@ -153,6 +154,21 @@ impl ConfigCommandActor {
                 respond_to,
             } => {
                 let fullpath = format!("{}/{}", dir, dbfilename);
+                // list all the files in the directory
+
+                let current_dir = Path::new(".");
+                let mut entries = fs::read_dir(current_dir)
+                    .await
+                    .expect("Failed to read directory");
+
+                while let Some(entry) = entries.next_entry().await.expect("Failed to read entry") {
+                    let path = entry.path();
+                    if path.is_file() {
+                        println!("File: {:?}", path);
+                    } else if path.is_dir() {
+                        println!("Directory: {:?}", path);
+                    }
+                }
 
                 // check to see if the file exists.
                 if !Path::new(&fullpath).exists() {
