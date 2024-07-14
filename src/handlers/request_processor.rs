@@ -5,7 +5,7 @@ use crate::{
 };
 
 use log::info;
-use resp::Value;
+// use resp::Value;
 use tokio::sync::{mpsc, oneshot};
 
 use super::{config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle};
@@ -36,7 +36,7 @@ impl RequestProcessorActorHandle {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-    ) -> Option<Value> {
+    ) -> Option<Vec<u8>> {
         info!("Processing request: {:?}", request);
         let (send, recv) = oneshot::channel();
         let msg = ProcessorActorMessage::Process {
