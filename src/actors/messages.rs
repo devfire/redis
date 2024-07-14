@@ -106,6 +106,25 @@ pub enum ProcessorActorMessage {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-        respond_to: oneshot::Sender<Option<Vec<u8>>>,
+        respond_to: mpsc::Sender<Option<Vec<u8>>>,
     },
+}
+
+// implement the debug trait for the ProcessorActorMessage enum
+impl std::fmt::Debug for ProcessorActorMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProcessorActorMessage::Process {
+                request,
+                set_command_actor_handle: _,
+                config_command_actor_handle: _,
+                info_command_actor_handle: _,
+                expire_tx: _,
+                master_tx: _,
+                respond_to: _,
+            } => {
+                write!(f, "ProcessorActorMessage::Process request: {:?}", request)
+            }
+        }
+    }
 }
