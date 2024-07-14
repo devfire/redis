@@ -89,40 +89,44 @@ impl ConfigCommandActorHandle {
         // dbfilename: &str,
     ) -> anyhow::Result<Vec<u8>, RedisError> {
         // no need to pass these two, we should already know the values
-        let dir: String = "".to_string();
-        let dbfilename: String = "".to_string();
+        let dir;
+        let dbfilename;
 
         // Checks if the specified config file exists. If it does, attempts to load its contents into memory.
+        //
         // Upon successful reading, the file's contents are sent through the `respond_to` channel.
         // If the file does not exist, logs an error message and sends a `None` value through the `respond_to` channel.
+        //
         // This process involves opening the file asynchronously, reading its entire content into a byte vector (`buffer`),
         // and then sending this buffer through a communication channel designed for responding to configuration requests.
         // Error handling is performed at each step to ensure robustness against file access issues.
-        if let Some(dir) = self.get_value(ConfigCommandParameter::Dir).await {
-            info!("Found the dir setting: {}", dir);
+        if let Some(config_directory) = self.get_value(ConfigCommandParameter::Dir).await {
+            info!("Found the dir setting: {}", config_directory);
+            dir = config_directory;
         } else {
-            error!("Failed to load the config file dir!");
+            error!("Failed to get the config file dir!");
             return Err(RedisError::IOError(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Failure trying to load config into memory.",
             )));
         };
 
-        if let Some(dbfilename) = self.get_value(ConfigCommandParameter::DbFilename).await {
-            info!("Found the dbfilename setting: {}", dbfilename);
+        if let Some(config_filename) = self.get_value(ConfigCommandParameter::DbFilename).await {
+            info!("Found the dbfilename setting: {}", config_filename);
+            dbfilename = config_filename;
         } else {
-            error!("Failed to load the config filename setting!");
+            error!("Failed to get the config filename!");
             return Err(RedisError::IOError(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Failure trying to load config into memory.",
             )));
         }
 
-        log::info!("Getting config {:?}", dbfilename);
         let (send, recv) = oneshot::channel();
+
         let msg = ConfigActorMessage::GetConfig {
-            dir: dir.to_string(),
-            dbfilename: dbfilename.to_string(),
+            dir,
+            dbfilename,
             respond_to: send,
         };
 
