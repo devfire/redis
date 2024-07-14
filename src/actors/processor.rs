@@ -32,7 +32,7 @@ impl ProcessorActor {
 
     // Handle a message.
     pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
-        info!("Received message: {:?}", msg);
+        debug!("Received message: {:?}", msg);
         // Match on the type of the message
         match msg {
             // Handle a Process message
@@ -87,7 +87,8 @@ impl ProcessorActor {
                             Ok((_remaining_bytes, RedisCommand::Ping)) => {
                                 // Send the RESP Value back to the handler, ignore send errors
                                 let _ = respond_to
-                                    .send(Some(Value::String("PONG".to_string()).encode())).await;
+                                    .send(Some(Value::String("PONG".to_string()).encode()))
+                                    .await;
                             }
                             Err(_) => {
                                 // let err_response =
@@ -101,7 +102,8 @@ impl ProcessorActor {
                             }
                             Ok((_, RedisCommand::Echo(message))) => {
                                 // Encode the value to RESP binary buffer.
-                                let _ = respond_to.send(Some(Value::String(message).encode())).await;
+                                let _ =
+                                    respond_to.send(Some(Value::String(message).encode())).await;
 
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -109,7 +111,8 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::Command)) => {
                                 // Encode the value to RESP binary buffer.
                                 let _ = respond_to
-                                    .send(Some(Value::String("+OK".to_string()).encode())).await;
+                                    .send(Some(Value::String("+OK".to_string()).encode()))
+                                    .await;
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
@@ -123,8 +126,9 @@ impl ProcessorActor {
                                     .await;
 
                                 // Encode the value to RESP binary buffer.
-                                let _ =
-                                    respond_to.send(Some(Value::String("OK".to_string()).encode())).await;
+                                let _ = respond_to
+                                    .send(Some(Value::String("OK".to_string()).encode()))
+                                    .await;
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
@@ -133,7 +137,8 @@ impl ProcessorActor {
                                 // if we do, we return it. If not, we encode Null and send that back.
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    let _ = respond_to.send(Some(Value::String(value).encode())).await;
+                                    let _ =
+                                        respond_to.send(Some(Value::String(value).encode())).await;
                                 } else {
                                     let _ = respond_to.send(Some(Value::Null.encode())).await;
                                 }
@@ -147,7 +152,8 @@ impl ProcessorActor {
                                 }
 
                                 let _ = respond_to
-                                    .send(Some(Value::Integer(keys.len() as i64).encode())).await;
+                                    .send(Some(Value::Integer(keys.len() as i64).encode()))
+                                    .await;
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
                             }
@@ -171,8 +177,9 @@ impl ProcessorActor {
                                         key_collection.push(response);
                                     }
                                 }
-                                let _ =
-                                    respond_to.send(Some(Value::Array(key_collection).encode())).await;
+                                let _ = respond_to
+                                    .send(Some(Value::Array(key_collection).encode()))
+                                    .await;
 
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -184,10 +191,12 @@ impl ProcessorActor {
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
                                     let _ = respond_to
-                                        .send(Some(Value::Integer(value.len() as i64).encode())).await;
+                                        .send(Some(Value::Integer(value.len() as i64).encode()))
+                                        .await;
                                 } else {
-                                    let _ =
-                                        respond_to.send(Some(Value::Integer(0 as i64).encode())).await;
+                                    let _ = respond_to
+                                        .send(Some(Value::Integer(0 as i64).encode()))
+                                        .await;
                                 }
                             }
 
@@ -224,7 +233,8 @@ impl ProcessorActor {
                                     .await;
 
                                 let _ = respond_to
-                                    .send(Some(Value::Integer(new_value.len() as i64).encode())).await;
+                                    .send(Some(Value::Integer(new_value.len() as i64).encode()))
+                                    .await;
                                 // Encode the value to RESP binary buffer.
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -243,7 +253,9 @@ impl ProcessorActor {
 
                                     response.push(Value::String(value));
 
-                                    let _ = respond_to.send(Some(Value::Array(response).encode())).await;
+                                    let _ = respond_to
+                                        .send(Some(Value::Array(response).encode()))
+                                        .await;
 
                                     // Encode the value to RESP binary buffer.
                                     // let _ = writer.write_all(&response_encoded).await?;
@@ -276,8 +288,9 @@ impl ProcessorActor {
                                 }
 
                                 // info!("Returning keys: {:?}", keys_collection);
-                                let _ =
-                                    respond_to.send(Some(Value::Array(keys_collection).encode())).await;
+                                let _ = respond_to
+                                    .send(Some(Value::Array(keys_collection).encode()))
+                                    .await;
 
                                 // let _ = writer.write_all(&response).await?;
                                 // writer.flush().await?;
@@ -309,8 +322,9 @@ impl ProcessorActor {
                             }
 
                             Ok((_, RedisCommand::ReplConf)) => {
-                                let _ =
-                                    respond_to.send(Some(Value::String("OK".to_string()).encode())).await;
+                                let _ = respond_to
+                                    .send(Some(Value::String("OK".to_string()).encode()))
+                                    .await;
                             }
 
                             Ok((_, RedisCommand::Psync(_replication_id, offset))) => {
@@ -348,12 +362,12 @@ impl ProcessorActor {
 
                                     let mut reply: Vec<u8> = Vec::new();
 
-                                    // let's get the dir and dbfilename of the config file
-                                    info!("Getting config file contents.");
                                     let rdb_file_contents = config_command_actor_handle
                                         .get_config()
                                         .await
                                         .expect("Failed to load config file into memory.");
+
+                                    info!("Retrieved config file contents {:?}.", rdb_file_contents);
 
                                     reply.extend(Vec::from("$"));
                                     reply.extend(rdb_file_contents.len().to_string().as_bytes()); // length of file
