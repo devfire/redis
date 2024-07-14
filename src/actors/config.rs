@@ -156,7 +156,7 @@ impl ConfigCommandActor {
 
                 // check to see if the file exists.
                 if !Path::new(&fullpath).exists() {
-                    log::error!("Config file does not exist.");
+                    log::error!("Config file {} does not exist.", fullpath);
                     let _ = respond_to.send(None); // this will be turned into an Err in the handler
                 } else {
                     // file exists, let's proceed.
