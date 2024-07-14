@@ -1,4 +1,4 @@
-use log::{debug, error, info};
+use log::{debug, error};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
@@ -17,7 +17,7 @@ fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, version) = take(4usize)(input)?;
     let version = String::from_utf8_lossy(version).to_string();
 
-    info!("RDB header version {} detected.", version);
+    debug!("RDB header version {} detected.", version);
     Ok((
         input,
         Rdb::RdbHeader {
@@ -36,7 +36,7 @@ fn parse_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
     // })(input)?;
     // let checksum = String::from_utf8_lossy(checksum).to_string();
 
-    info!("EOF detected.");
+    debug!("EOF detected.");
 
     Ok((
         input,
@@ -55,9 +55,7 @@ fn parse_selectdb(input: &[u8]) -> IResult<&[u8], Rdb> {
 
     let (input, _db_number) = (take(value_type.get_length()))(input)?;
 
-    // info!("Db number: {:?}", std::str::from_utf8(db_number));
-
-    info!("SELECTDB OpCode detected.");
+    debug!("SELECTDB OpCode detected.");
     Ok((
         input,
         Rdb::OpCode {
@@ -129,7 +127,6 @@ fn parse_string_length(input: &[u8]) -> IResult<&[u8], ValueType> {
         }
     };
 
-    // info!("Calculated length: {}", length);
     Ok((input, length))
 }
 
@@ -147,7 +144,7 @@ fn parse_rdb_aux(input: &[u8]) -> IResult<&[u8], Rdb> {
 
     // taking the value next
     let (input, value) = (parse_string)(input)?;
-    info!("Aux key: {} value: {}", key, value);
+    debug!("Aux key: {} value: {}", key, value);
 
     Ok((
         input,
@@ -177,7 +174,7 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
             "Parsed these bytes as string: {:?}",
             parsed_string.to_ascii_lowercase()
         );
-        info!(
+        debug!(
             "Parsed string type: {:?} string: {}",
             string_type,
             std::str::from_utf8(parsed_string)
@@ -237,7 +234,7 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, (value_type, key, value)) =
         tuple((parse_value_type, parse_string, parse_string))(input)?;
 
-    info!(
+        debug!(
         "Parsed kv pair type: {:?} key: {} value: {}",
         value_type, key, value
     );
@@ -255,7 +252,7 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
 fn parse_expire_option_px(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
     let (input, _) = tag([0xFC])(input)?;
     let (input, value) = le_u64(input)?;
-    info!("Expiry unix timestamp {} ms.", value);
+    debug!("Expiry unix timestamp {} ms.", value);
 
     // let (input, value) = nom::sequence::Tuple::parse(&mut (tag([0xFC]), le_u64), input)
     //     .map(|(input, (_, val))| (input, val))?;
@@ -266,7 +263,7 @@ fn parse_expire_option_px(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption
 fn parse_expire_option_ex(input: &[u8]) -> IResult<&[u8], SetCommandExpireOption> {
     let (input, _) = tag([0xFD])(input)?;
     let (input, value) = le_u32(input)?;
-    info!("Expiry Unix timestamp {} secs.", value);
+    debug!("Expiry Unix timestamp {} secs.", value);
     Ok((input, SetCommandExpireOption::EX(value)))
 }
 
@@ -297,7 +294,7 @@ fn parse_rdb_value_with_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
         value,
     };
 
-    info!("Rdb value with expiry: {:?}", rdb_value_with_expiry);
+    debug!("Rdb value with expiry: {:?}", rdb_value_with_expiry);
     Ok((input, rdb_value_with_expiry))
 }
 

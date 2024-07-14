@@ -371,8 +371,8 @@ async fn process(
                             .await
                         {
                             // encode the Value as a binary Vec
-                            let encoded_value = resp::encode(&processed_value);
-                            let _ = writer.write_all(&encoded_value).await?;
+                            // let encoded_value = resp::encode(&processed_value);
+                            let _ = writer.write_all(&processed_value).await?;
                             writer.flush().await?;
                         }
                     } // end Ok(n)
