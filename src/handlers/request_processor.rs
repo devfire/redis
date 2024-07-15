@@ -36,7 +36,7 @@ impl RequestProcessorActorHandle {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-    ) -> Option<Vec<u8>> {
+    ) -> Option<Vec<Vec<u8>>> {
         info!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
         let (send, mut recv) = mpsc::channel(10);
@@ -59,16 +59,19 @@ impl RequestProcessorActorHandle {
             .await
             .expect("Failed to send value for processing.");
 
+        let mut reply: Vec<Vec<u8>> = Vec::new();
+
         // Loop until the channel is closed.
         while let Some(value) = recv.recv().await {
             info!("Received value: {:?}", value);
             if let Some(value) = value {
-                return Some(value);
+                reply.push(value);
             } else {
                 return None;
             }
         }
-        None
+
+        Some(reply)
 
         // while let message = recv.recv().await.expect("msg") {
         //     if let Some(value) = message {
