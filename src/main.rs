@@ -358,7 +358,11 @@ async fn process(
 
                         let request: resp::Value = decoder.decode().expect("Unable to decode request");
 
+                        // a single request can generate multiple replies, so we need to iterate over them
+                        // and send them to the client
+
                         // send the request to the request processor actor
+
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -370,10 +374,13 @@ async fn process(
                             )
                             .await
                         {
-                            // encode the Value as a binary Vec
-                            // let encoded_value = resp::encode(&processed_value);
-                            let _ = writer.write_all(&processed_value).await?;
-                            writer.flush().await?;
+                            // iterate over processed_value and send each one
+                            for value in processed_value.iter() {
+                                let _ = writer.write_all(value).await?;
+                                writer.flush().await?;
+                            }
+                            // let _ = writer.write_all(&processed_value).await?;
+                            // writer.flush().await?;
                         }
                     } // end Ok(n)
                 } // end match
