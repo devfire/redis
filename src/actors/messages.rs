@@ -1,4 +1,3 @@
-use resp::Value;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -89,12 +88,12 @@ pub enum InfoActorMessage {
     },
 }
 
-#[derive(Debug)]
-pub enum ReplicationActorMessage {
-    // connection string to connect to master
-    ConnectToMaster { connection_string: String },
-    SendCommand { command: resp::Value },
-}
+// #[derive(Debug)]
+// pub enum ReplicationActorMessage {
+//     // connection string to connect to master
+//     ConnectToMaster { connection_string: String },
+//     SendCommand { command: resp::Value },
+// }
 
 // #[derive(Debug)]
 pub enum ProcessorActorMessage {

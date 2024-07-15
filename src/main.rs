@@ -19,8 +19,10 @@ pub mod rdb;
 use crate::cli::Cli;
 
 use crate::handlers::{
-    config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
-    replication::ReplicationActorHandle, request_processor::RequestProcessorActorHandle,
+    config_command::ConfigCommandActorHandle,
+    info_command::InfoCommandActorHandle,
+    // replication::ReplicationActorHandle,
+    request_processor::RequestProcessorActorHandle,
     set_command::SetCommandActorHandle,
 };
 
@@ -62,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
     let config_command_actor_handle = ConfigCommandActorHandle::new();
 
     // Get a handle to the replication actor, one per redis. This starts the actor.
-    let _replication_actor_handle = ReplicationActorHandle::new();
+    // let _replication_actor_handle = ReplicationActorHandle::new();
 
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
