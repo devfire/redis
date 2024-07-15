@@ -6,7 +6,7 @@ use crate::{
 
 use log::info;
 // use resp::Value;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use super::{config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle};
 
@@ -36,10 +36,10 @@ impl RequestProcessorActorHandle {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-    ) -> Option<Vec<u8>> {
+    ) -> Option<Vec<Vec<u8>>> {
         info!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
-        let (send, mut recv) = mpsc::channel(10);
+        let (send, recv) = oneshot::channel();
         let msg = ProcessorActorMessage::Process {
             request,
             set_command_actor_handle,
@@ -53,29 +53,13 @@ impl RequestProcessorActorHandle {
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the
         // failure twice.
-        let _ = self
-            .sender
-            .send(msg)
-            .await
-            .expect("Failed to send value for processing.");
+        let _ = self.sender.send(msg).await;
 
-        // Loop until the channel is closed.
-        while let Some(value) = recv.recv().await {
-            info!("Received value: {:?}", value);
-            if let Some(value) = value {
-                return Some(value);
-            } else {
-                return None;
-            }
+        if let Some(value) = recv.await.expect("Actor task has been killed") {
+            Some(value)
+        } else {
+            None
         }
-        None
 
-        // while let message = recv.recv().await.expect("msg") {
-        //     if let Some(value) = message {
-        //         Some(value)
-        //     } else {
-        //         None
-        //     }
-        // }
     }
 }
