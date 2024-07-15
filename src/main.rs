@@ -374,13 +374,11 @@ async fn process(
                             )
                             .await
                         {
-                            // iterate over processed_value and send each one
+                            // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
-                                let _ = writer.write_all(value).await?;
+                                let _ = writer.write_all(&value).await?;
                                 writer.flush().await?;
                             }
-                            // let _ = writer.write_all(&processed_value).await?;
-                            // writer.flush().await?;
                         }
                     } // end Ok(n)
                 } // end match
