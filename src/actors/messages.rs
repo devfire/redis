@@ -106,7 +106,9 @@ pub enum ProcessorActorMessage {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-        respond_to: mpsc::Sender<Option<Vec<u8>>>,
+        // NOTE: a single request like PSYNC can return multiple responses.
+        // So, where a Vec<u8> is a single reponse, a Vec<Vec<u8>> is multiple responses.
+        respond_to: oneshot::Sender<Option<Vec<Vec<u8>>>>,
     },
 }
 

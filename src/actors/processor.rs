@@ -87,34 +87,23 @@ impl ProcessorActor {
                             Ok((_remaining_bytes, RedisCommand::Ping)) => {
                                 // Send the RESP Value back to the handler, ignore send errors
                                 let _ = respond_to
-                                    .send(Some(Value::String("PONG".to_string()).encode()))
-                                    .await;
+                                    .send(Some(vec![(Value::String("PONG".to_string()).encode())]));
                             }
                             Err(_) => {
                                 // let err_response =
-                                let _ = respond_to.send(Some(
-                                    Value::Error(RedisError::ParseFailure.to_string()).encode(),
-                                ));
-
-                                // let _ = writer.write_all(&err_response).await?;
-                                // writer.flush().await?;
-                                // return Err(RedisError::ParseFailure.into()) closes the connection so let's not do that
+                                let _ = respond_to.send(Some(vec![
+                                    (Value::Error(RedisError::ParseFailure.to_string()).encode()),
+                                ]));
                             }
                             Ok((_, RedisCommand::Echo(message))) => {
                                 // Encode the value to RESP binary buffer.
                                 let _ =
-                                    respond_to.send(Some(Value::String(message).encode())).await;
-
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
+                                    respond_to.send(Some(vec![(Value::String(message).encode())]));
                             }
                             Ok((_, RedisCommand::Command)) => {
                                 // Encode the value to RESP binary buffer.
                                 let _ = respond_to
-                                    .send(Some(Value::String("+OK".to_string()).encode()))
-                                    .await;
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
+                                    .send(Some(vec![(Value::String("+OK".to_string()).encode())]));
                             }
                             Ok((_, RedisCommand::Set(set_parameters))) => {
                                 // info!("Set command parameters: {:?}", set_parameters);
@@ -122,25 +111,21 @@ impl ProcessorActor {
                                 // Sets the value for the key in the set parameters in the set command actor handle.
                                 // Awaits the result.
                                 set_command_actor_handle
-                                    .set_value(expire_tx.clone(), set_parameters.clone())
-                                    .await;
+                                    .set_value(expire_tx.clone(), set_parameters.clone());
 
                                 // Encode the value to RESP binary buffer.
                                 let _ = respond_to
-                                    .send(Some(Value::String("OK".to_string()).encode()))
-                                    .await;
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
+                                    .send(Some(vec![(Value::String("OK".to_string()).encode())]));
                             }
                             Ok((_, RedisCommand::Get(key))) => {
                                 // we may or may not get a value for the supplied key.
                                 // if we do, we return it. If not, we encode Null and send that back.
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    let _ =
-                                        respond_to.send(Some(Value::String(value).encode())).await;
+                                    let _ = respond_to
+                                        .send(Some(vec![(Value::String(value).encode())]));
                                 } else {
-                                    let _ = respond_to.send(Some(Value::Null.encode())).await;
+                                    let _ = respond_to.send(Some(vec![(Value::Null.encode())]));
                                 }
                             }
                             Ok((_, RedisCommand::Del(keys))) => {
@@ -152,10 +137,7 @@ impl ProcessorActor {
                                 }
 
                                 let _ = respond_to
-                                    .send(Some(Value::Integer(keys.len() as i64).encode()))
-                                    .await;
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
+                                    .send(Some(vec![(Value::Integer(keys.len() as i64).encode())]));
                             }
                             Ok((_, RedisCommand::Mget(keys))) => {
                                 // Returns the values of all specified keys.
@@ -178,11 +160,7 @@ impl ProcessorActor {
                                     }
                                 }
                                 let _ = respond_to
-                                    .send(Some(Value::Array(key_collection).encode()))
-                                    .await;
-
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
+                                    .send(Some(vec![(Value::Array(key_collection).encode())]));
                             }
                             Ok((_, RedisCommand::Strlen(key))) => {
                                 // we may or may not get a value for the supplied key.
@@ -190,13 +168,12 @@ impl ProcessorActor {
                                 // https://redis.io/commands/strlen/
                                 if let Some(value) = set_command_actor_handle.get_value(&key).await
                                 {
-                                    let _ = respond_to
-                                        .send(Some(Value::Integer(value.len() as i64).encode()))
-                                        .await;
+                                    let _ = respond_to.send(Some(vec![
+                                        (Value::Integer(value.len() as i64).encode()),
+                                    ]));
                                 } else {
                                     let _ = respond_to
-                                        .send(Some(Value::Integer(0 as i64).encode()))
-                                        .await;
+                                        .send(Some(vec![(Value::Integer(0 as i64).encode())]));
                                 }
                             }
 
@@ -232,12 +209,9 @@ impl ProcessorActor {
                                     .set_value(expire_tx.clone(), set_parameters)
                                     .await;
 
-                                let _ = respond_to
-                                    .send(Some(Value::Integer(new_value.len() as i64).encode()))
-                                    .await;
-                                // Encode the value to RESP binary buffer.
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
+                                let _ = respond_to.send(Some(vec![
+                                    (Value::Integer(new_value.len() as i64).encode()),
+                                ]));
                             }
                             Ok((_, RedisCommand::Config(config_key))) => {
                                 // we may or may not get a value for the supplied key.
@@ -254,16 +228,9 @@ impl ProcessorActor {
                                     response.push(Value::String(value));
 
                                     let _ = respond_to
-                                        .send(Some(Value::Array(response).encode()))
-                                        .await;
-
-                                    // Encode the value to RESP binary buffer.
-                                    // let _ = writer.write_all(&response_encoded).await?;
-                                    // writer.flush().await?;
+                                        .send(Some(vec![(Value::Array(response).encode())]));
                                 } else {
-                                    let _ = respond_to.send(Some(Value::Null.encode())).await;
-                                    // let _ = writer.write_all(&response).await?;
-                                    // writer.flush().await?;
+                                    let _ = respond_to.send(Some(vec![(Value::Null.encode())]));
                                 }
                             }
 
@@ -289,11 +256,7 @@ impl ProcessorActor {
 
                                 // info!("Returning keys: {:?}", keys_collection);
                                 let _ = respond_to
-                                    .send(Some(Value::Array(keys_collection).encode()))
-                                    .await;
-
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
+                                    .send(Some(vec![(Value::Array(keys_collection).encode())]));
                             }
 
                             Ok((_, RedisCommand::Info(info_parameter))) => {
@@ -307,24 +270,21 @@ impl ProcessorActor {
 
                                     // then, let's see if the section contains data.
                                     if let Some(info_section) = info {
-                                        let _ = respond_to.send(Some(
-                                            Value::String(info_section.to_string()).encode(),
-                                        ));
+                                        let _ = respond_to.send(Some(vec![Value::String(
+                                            info_section.to_string(),
+                                        )
+                                        .encode()]));
                                     } else {
-                                        let _ = respond_to.send(Some(Value::Null.encode())).await;
+                                        let _ = respond_to.send(Some(vec![Value::Null.encode()]));
                                     }
                                 } else {
-                                    let _ = respond_to.send(Some(Value::Null.encode())).await;
+                                    let _ = respond_to.send(Some(vec![Value::Null.encode()]));
                                 }
-
-                                // let _ = writer.write_all(&response).await?;
-                                // writer.flush().await?;
                             }
 
                             Ok((_, RedisCommand::ReplConf)) => {
                                 let _ = respond_to
-                                    .send(Some(Value::String("OK".to_string()).encode()))
-                                    .await;
+                                    .send(Some(vec![(Value::String("OK".to_string()).encode())]));
                             }
 
                             Ok((_, RedisCommand::Psync(_replication_id, offset))) => {
@@ -334,73 +294,54 @@ impl ProcessorActor {
                                     .await;
 
                                 if let Some(info_section) = info {
-                                    // initial fullresync reply
+                                    // initialize the reply of Vec<Vec<u8>>
+                                    //
+                                    let mut reply = Vec::new();
 
+                                    // initial fullresync reply
                                     let new_offset = 0;
                                     // check if the replica is asking for a full resynch
                                     if offset == -1 {
                                         info!("Full resync triggered with offset {}", new_offset);
                                     }
 
-                                    let _ = respond_to.send(Some(
+                                    reply.push(
                                         Value::String(format!(
                                             "FULLRESYNC {} {}",
                                             info_section.master_replid, new_offset
                                         ))
                                         .encode(),
-                                    ));
-
-                                    // reply.push(
-                                    //     format!("FULLRESYNC {} 0", info_section.master_replid)
-                                    //         .into_bytes(),
-                                    // );
-
-                                    // info!("Full resync triggered with offset {}", offset);
+                                    );
 
                                     // append the file contents immediately after
                                     // this is the format: $<length_of_file>\r\n<contents_of_file>
 
-                                    let mut reply: Vec<u8> = Vec::new();
+                                    let mut rdb_in_memory: Vec<u8> = Vec::new();
 
-                                    let rdb_file_contents = config_command_actor_handle
-                                        .get_config()
-                                        .await
-                                        .expect("Failed to load config file into memory.");
+                                    let rdb_hex = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2";
 
-                                    info!("Retrieved config file contents {:?}.", rdb_file_contents);
+                                    let rdb_file_contents =
+                                        hex::decode(rdb_hex).expect("Failed to decode hex");
 
-                                    reply.extend(Vec::from("$"));
-                                    reply.extend(rdb_file_contents.len().to_string().as_bytes()); // length of file
-                                    reply.extend(Vec::from("\r\n"));
-                                    reply.extend(rdb_file_contents);
+                                    info!(
+                                        "Retrieved config file contents {:?}.",
+                                        rdb_file_contents
+                                    );
+
+                                    rdb_in_memory.extend(Vec::from("$"));
+                                    rdb_in_memory
+                                        .extend(rdb_file_contents.len().to_string().as_bytes()); // length of file
+                                    rdb_in_memory.extend(Vec::from("\r\n"));
+                                    rdb_in_memory.extend(rdb_file_contents);
+
+                                    // add the rdb file to the reply
+                                    reply.push(rdb_in_memory);
 
                                     let _ = respond_to.send(Some(reply));
                                 } else {
                                     error!("Failed to retrieve replication information");
                                 }
-                            } //     if let Some(info) = info_command_actor_handle
-                              //         .get_value(InfoCommandParameter::Replication)
-                              //         .await
-                              //     {
-                              //         let reply = format!("FULLRESYNC {} 0", info.master_replid);
-                              //         let _ = respond_to.send(Some(Value::String(reply)));
-
-                              //         // check if the replica is asking for a full resynch
-                              //         if offset == -1 {
-                              //             info!("Full resync triggered with offset {}", offset);
-
-                              //             // let's get the dir and dbfilename of the config file
-                              //             // let dir = config_command_actor_handle.ge
-                              //             let rdb_file_contents = config_command_actor_handle
-                              //                 .get_config()
-                              //                 .await
-                              //                 .expect("Failed to load config file into memory.");
-
-                              //             let _ = respond_to
-                              //                 .send(Some(Value::BufBulk(rdb_file_contents)));
-                              //         }
-                              //     }
-                              // }
+                            } // end of match
                         }
                     }
                 }
