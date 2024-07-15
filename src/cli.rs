@@ -10,7 +10,7 @@ pub struct Cli {
     pub dir: Option<String>,
 
     /// The name of the RDB file
-    #[arg(long, default_value = "dump.rdb", value_name = "FILE")]
+    #[arg(long, default_value = "empty.rdb", value_name = "FILE")]
     pub dbfilename: Option<PathBuf>,
 
     /// TCP port to listen on

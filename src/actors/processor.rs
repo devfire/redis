@@ -111,7 +111,8 @@ impl ProcessorActor {
                                 // Sets the value for the key in the set parameters in the set command actor handle.
                                 // Awaits the result.
                                 set_command_actor_handle
-                                    .set_value(expire_tx.clone(), set_parameters.clone());
+                                    .set_value(expire_tx.clone(), set_parameters.clone())
+                                    .await;
 
                                 // Encode the value to RESP binary buffer.
                                 let _ = respond_to
@@ -318,10 +319,15 @@ impl ProcessorActor {
 
                                     let mut rdb_in_memory: Vec<u8> = Vec::new();
 
-                                    let rdb_hex = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2";
+                                    // let rdb_hex = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2";
 
-                                    let rdb_file_contents =
-                                        hex::decode(rdb_hex).expect("Failed to decode hex");
+                                    // let rdb_file_contents =
+                                    //     hex::decode(rdb_hex).expect("Failed to decode hex");
+
+                                    let rdb_file_contents = config_command_actor_handle
+                                        .get_config()
+                                        .await
+                                        .expect("Unable to load RDB file into memory");
 
                                     info!(
                                         "Retrieved config file contents {:?}.",
