@@ -85,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     let (master_tx, master_rx) = mpsc::channel::<String>(9600);
 
     // Setup a tokio broadcast channel to communicate all writeable updates to all the replicas.
-    let (replica_tx, mut replica_rx) = broadcast::channel::<Vec<u8>>(9600);
+    let (replica_tx, _replica_rx) = broadcast::channel::<Vec<u8>>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -148,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
         let expire_tx_clone = expire_tx.clone();
         let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
+        let replica_tx_clone = replica_tx.clone();
 
         tokio::spawn(async move {
             handle_connection_to_master(
@@ -159,6 +160,7 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx_clone,
                 tcp_msgs_rx_clone,
                 master_tx_clone,
+                replica_tx_clone
             )
             .await
         });
@@ -378,6 +380,7 @@ async fn handle_connection_from_clients(
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(),
+                                None,
                             )
                             .await
                         {
@@ -419,6 +422,7 @@ async fn handle_connection_to_master(
     expire_tx: mpsc::Sender<SetCommandParameter>,
     tcp_msgs_rx: async_channel::Receiver<Vec<u8>>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
+    replica_tx: broadcast::Sender<Vec<u8>>, // used to send replication messages to the replica
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -453,6 +457,7 @@ async fn handle_connection_to_master(
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(),
+                                Some(replica_tx.clone()),
                             )
                             .await
                         {

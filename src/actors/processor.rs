@@ -6,7 +6,7 @@ use crate::{
 };
 
 use log::{debug, error, info};
-use resp::Value;
+use resp::{encode_slice, Value};
 use tokio::sync::mpsc;
 
 /// Handles CONFIG command. Receives message from the ProcessorActorHandle and processes them accordingly.
@@ -44,6 +44,7 @@ impl ProcessorActor {
                 expire_tx,
                 master_tx,
                 respond_to,
+                replica_tx,
             } => {
                 // Process the message from RESP Decoder
                 match request {
@@ -117,6 +118,13 @@ impl ProcessorActor {
                                 // Encode the value to RESP binary buffer.
                                 let _ = respond_to
                                     .send(Some(vec![(Value::String("OK".to_string()).encode())]));
+
+                                // forward this to the replicas
+                                if let Some(replica_tx) = replica_tx {
+                                    let _ = replica_tx
+                                        .send(request_as_encoded_string.into_bytes())
+                                        .expect("Unable to send replica replies.");
+                                }
                             }
                             Ok((_, RedisCommand::Get(key))) => {
                                 // we may or may not get a value for the supplied key.

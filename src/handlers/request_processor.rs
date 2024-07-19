@@ -6,7 +6,7 @@ use crate::{
 
 use log::info;
 // use resp::Value;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 use super::{config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle};
 
@@ -36,10 +36,12 @@ impl RequestProcessorActorHandle {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
+        replica_tx: Option<broadcast::Sender<Vec<u8>>>, // we get this from master handler only
     ) -> Option<Vec<Vec<u8>>> {
         info!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
         let (send, recv) = oneshot::channel();
+        
         let msg = ProcessorActorMessage::Process {
             request,
             set_command_actor_handle,
@@ -47,6 +49,7 @@ impl RequestProcessorActorHandle {
             info_command_actor_handle,
             expire_tx,
             master_tx,
+            replica_tx,
             respond_to: send,
         };
 
