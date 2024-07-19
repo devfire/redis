@@ -85,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     let (master_tx, master_rx) = mpsc::channel::<String>(9600);
 
     // Setup a tokio broadcast channel to communicate all writeable updates to all the replicas.
-    let (replica_tx, replica_rx) = broadcast::channel::<Vec<u8>>(9600);
+    let (replica_tx, mut replica_rx) = broadcast::channel::<Vec<u8>>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -265,6 +265,7 @@ async fn main() -> anyhow::Result<()> {
         let expire_tx_clone = expire_tx.clone();
         // let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
+        let replica_receiver = replica_tx.subscribe();
         //tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
 
         // Spawn our handler to be run asynchronously.
@@ -278,6 +279,7 @@ async fn main() -> anyhow::Result<()> {
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
                 master_tx_clone,
+                replica_receiver,
             )
             .await
         });
@@ -341,6 +343,7 @@ async fn handle_connection_from_clients(
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
+    mut replica_receiver: broadcast::Receiver<Vec<u8>>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -349,43 +352,61 @@ async fn handle_connection_from_clients(
     let mut buf = vec![0; 1024];
 
     loop {
-        // Read data from the stream, n is the number of bytes read
-        let n = reader.read(&mut buf).await;
-        match n {
-            Ok(0) => {
-                info!("Connection closed. Good bye.");
-                return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
-            }
-            Err(e) => {
-                log::error!("{e}")
-            }
-            Ok(n) => {
-                // https://docs.rs/resp/latest/resp/struct.Decoder.html
-                log::debug!("Received {} bytes", n);
-                let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
+        tokio::select! {
+            // Read data from the stream, n is the number of bytes read
+            n = reader.read(&mut buf) => {
+                match n {
+                    Ok(0) => {
+                        info!("Connection closed. Good bye.");
+                        return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
+                    },
+                    Err(e) => {
+                        log::error!("{e}")
+                    },
+                    Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
+                        log::debug!("Received {} bytes", n);
+                        let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
-                let request: resp::Value = decoder.decode().expect("Unable to decode request");
+                        let request: resp::Value = decoder.decode().expect("Unable to decode request");
 
-                // send the request to the request processor actor
-                if let Some(processed_value) = request_processor_actor_handle
-                    .process_request(
-                        request,
-                        set_command_actor_handle.clone(),
-                        config_command_actor_handle.clone(),
-                        info_command_actor_handle.clone(),
-                        expire_tx.clone(),
-                        master_tx.clone(),
-                    )
-                    .await
-                {
-                    // iterate over processed_value and send each one to the client
-                    for value in processed_value.iter() {
-                        let _ = writer.write_all(&value).await?;
-                        writer.flush().await?;
-                    }
+                        // send the request to the request processor actor
+                        if let Some(processed_value) = request_processor_actor_handle
+                            .process_request(
+                                request,
+                                set_command_actor_handle.clone(),
+                                config_command_actor_handle.clone(),
+                                info_command_actor_handle.clone(),
+                                expire_tx.clone(),
+                                master_tx.clone(),
+                            )
+                            .await
+                        {
+                            // iterate over processed_value and send each one to the client
+                            for value in processed_value.iter() {
+                                let _ = writer.write_all(&value).await?;
+                                writer.flush().await?;
+                            }
+                        }
+                    } // end Ok(n)
+                } // end match
+         } // end reader
+         // see if we have any message to send to master.
+         // handshake() is the only function communicating on this channel.
+         // NOTE: this channel is async_channel::unbounded(), which means only 1 msg will be processed by all consumers.
+         // However, we only have 1 consumer, the master, so this is fine. This is because a replica only connects to 1 master.
+         msg = replica_receiver.recv() => {
+            match msg {
+                Ok(msg) => {
+                    debug!("Sending message to replica: {:?}", msg);
+                    let _ = writer.write_all(&msg).await?;
+                    writer.flush().await?;
                 }
-            } // end Ok(n)
-        } // end match
+                Err(e) => {
+                    log::error!("Something unexpected happened: {e}");
+                }
+            }
+         }
+        } // end tokio::select
     }
 }
 
