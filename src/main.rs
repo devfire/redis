@@ -369,7 +369,7 @@ async fn handle_connection_from_clients(
                         log::debug!("Received {} bytes", n);
                         let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
-                        let request: resp::Value = decoder.decode().expect("Unable to decode request");
+                        let request: resp::Value = decoder.decode()?;
 
                         // send the request to the request processor actor
                         if let Some(processed_value) = request_processor_actor_handle
@@ -446,27 +446,54 @@ async fn handle_connection_to_master(
                         log::debug!("Received {} bytes", n);
                         let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
-                        let request: resp::Value = decoder.decode().expect("Unable to decode request");
+                        let decoded_result = decoder.decode();
 
-                        // send the request to the request processor actor
-                        if let Some(processed_value) = request_processor_actor_handle
-                            .process_request(
-                                request,
-                                set_command_actor_handle.clone(),
-                                config_command_actor_handle.clone(),
-                                info_command_actor_handle.clone(),
-                                expire_tx.clone(),
-                                master_tx.clone(),
-                                Some(replica_tx.clone()),
-                            )
-                            .await
-                        {
-                            // iterate over processed_value and send each one to the client
-                            for value in processed_value.iter() {
-                                let _ = writer.write_all(&value).await?;
-                                writer.flush().await?;
+                        match decoded_result {
+                            Ok(request) => {
+                                // send the request to the request processor actor
+                                if let Some(processed_value) = request_processor_actor_handle
+                                    .process_request(
+                                        request,
+                                        set_command_actor_handle.clone(),
+                                        config_command_actor_handle.clone(),
+                                        info_command_actor_handle.clone(),
+                                        expire_tx.clone(),
+                                        master_tx.clone(),
+                                        Some(replica_tx.clone()),
+                                    )
+                                    .await
+                                {
+                                    // iterate over processed_value and send each one to the client
+                                    for value in processed_value.iter() {
+                                        let _ = writer.write_all(&value).await?;
+                                        writer.flush().await?;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Error decoding request: {e}");
                             }
                         }
+
+                        // send the request to the request processor actor
+                        // if let Some(processed_value) = request_processor_actor_handle
+                        //     .process_request(
+                        //         request,
+                        //         set_command_actor_handle.clone(),
+                        //         config_command_actor_handle.clone(),
+                        //         info_command_actor_handle.clone(),
+                        //         expire_tx.clone(),
+                        //         master_tx.clone(),
+                        //         Some(replica_tx.clone()),
+                        //     )
+                        //     .await
+                        // {
+                        //     // iterate over processed_value and send each one to the client
+                        //     for value in processed_value.iter() {
+                        //         let _ = writer.write_all(&value).await?;
+                        //         writer.flush().await?;
+                        //     }
+                        // }
                     } // end Ok(n)
                 } // end match
          } // end reader
