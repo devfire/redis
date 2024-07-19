@@ -5,7 +5,7 @@ use clap::Parser;
 
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
 
 pub mod actors;
@@ -81,7 +81,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Create a multi-producer, single-consumer channel to recv messages from the master.
     // NOTE: these messages are replies coming back from the master, not commands to the master.
+    // Used by handshake() to receive ack +OK replies from the master.
     let (master_tx, master_rx) = mpsc::channel::<String>(9600);
+
+    // Setup a tokio broadcast channel to communicate all writeable updates to all the replicas.
+    let (replica_tx, replica_rx) = broadcast::channel::<Vec<u8>>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -146,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
         let master_tx_clone = master_tx.clone();
 
         tokio::spawn(async move {
-            process(
+            handle_connection_to_master(
                 stream,
                 set_command_handler_clone,
                 config_command_handler_clone,
@@ -259,21 +263,20 @@ async fn main() -> anyhow::Result<()> {
         let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
-        let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
+        // let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
         //tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
         tokio::spawn(async move {
-            process(
+            handle_connection_from_clients(
                 stream,
                 set_command_handler_clone,
                 config_command_handler_clone,
                 info_command_actor_handle_clone,
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
-                tcp_msgs_rx_clone, // this channel can never send or receive from the main thread
                 master_tx_clone,
             )
             .await
@@ -326,7 +329,67 @@ async fn handshake(
     Ok(())
 }
 
-async fn process(
+// This function will handle the connection from the client.
+// The reason why we need two separate functions, one for clients and one for master,
+// is because the replica will be sending commands to the master and receiving replies.
+// In other words, a redis instance can be both, a replica client to the master, and a server to its own clients.
+async fn handle_connection_from_clients(
+    stream: TcpStream,
+    set_command_actor_handle: SetCommandActorHandle,
+    config_command_actor_handle: ConfigCommandActorHandle,
+    info_command_actor_handle: InfoCommandActorHandle,
+    request_processor_actor_handle: RequestProcessorActorHandle,
+    expire_tx: mpsc::Sender<SetCommandParameter>,
+    master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
+) -> anyhow::Result<()> {
+    // Split the TCP stream into a reader and writer.
+    let (mut reader, mut writer) = stream.into_split();
+
+    // Buffer to store the data
+    let mut buf = vec![0; 1024];
+
+    loop {
+        // Read data from the stream, n is the number of bytes read
+        let n = reader.read(&mut buf).await;
+        match n {
+            Ok(0) => {
+                info!("Connection closed. Good bye.");
+                return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
+            }
+            Err(e) => {
+                log::error!("{e}")
+            }
+            Ok(n) => {
+                // https://docs.rs/resp/latest/resp/struct.Decoder.html
+                log::debug!("Received {} bytes", n);
+                let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
+
+                let request: resp::Value = decoder.decode().expect("Unable to decode request");
+
+                // send the request to the request processor actor
+                if let Some(processed_value) = request_processor_actor_handle
+                    .process_request(
+                        request,
+                        set_command_actor_handle.clone(),
+                        config_command_actor_handle.clone(),
+                        info_command_actor_handle.clone(),
+                        expire_tx.clone(),
+                        master_tx.clone(),
+                    )
+                    .await
+                {
+                    // iterate over processed_value and send each one to the client
+                    for value in processed_value.iter() {
+                        let _ = writer.write_all(&value).await?;
+                        writer.flush().await?;
+                    }
+                }
+            } // end Ok(n)
+        } // end match
+    }
+}
+
+async fn handle_connection_to_master(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
@@ -334,7 +397,7 @@ async fn process(
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     tcp_msgs_rx: async_channel::Receiver<Vec<u8>>,
-    master_tx: mpsc::Sender<String>,
+    master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -381,7 +444,10 @@ async fn process(
                     } // end Ok(n)
                 } // end match
          } // end reader
-         // see if we have any message to send to master
+         // see if we have any message to send to master.
+         // handshake() is the only function communicating on this channel.
+         // NOTE: this channel is async_channel::unbounded(), which means only 1 msg will be processed by all consumers.
+         // However, we only have 1 consumer, the master, so this is fine. This is because a replica only connects to 1 master.
          msg = tcp_msgs_rx.recv() => {
             match msg {
                 Ok(msg) => {
