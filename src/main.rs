@@ -3,6 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Result;
 use clap::Parser;
 
+use nom::Err;
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
 use tokio::sync::{broadcast, mpsc};
@@ -148,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
         let expire_tx_clone = expire_tx.clone();
         let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
-        let replica_tx_clone = replica_tx.clone();
+        // let replica_tx_clone = replica_tx.clone();
 
         tokio::spawn(async move {
             handle_connection_to_master(
@@ -160,7 +161,7 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx_clone,
                 tcp_msgs_rx_clone,
                 master_tx_clone,
-                replica_tx_clone
+                // replica_tx_clone, // used to send replication messages to the replica
             )
             .await
         });
@@ -267,7 +268,9 @@ async fn main() -> anyhow::Result<()> {
         let expire_tx_clone = expire_tx.clone();
         // let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
-        let replica_receiver = replica_tx.subscribe();
+
+        let replica_tx_clone = replica_tx.clone();
+        let replica_rx_subscriber = replica_tx.subscribe();
         //tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
 
         // Spawn our handler to be run asynchronously.
@@ -281,7 +284,8 @@ async fn main() -> anyhow::Result<()> {
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
                 master_tx_clone,
-                replica_receiver,
+                replica_tx_clone,
+                replica_rx_subscriber,
             )
             .await
         });
@@ -345,7 +349,8 @@ async fn handle_connection_from_clients(
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
-    mut replica_receiver: broadcast::Receiver<Vec<u8>>, // used to receive replication messages from the master
+    replica_tx: broadcast::Sender<Vec<u8>>, // used to send replication messages to the replica
+    mut replica_rx: broadcast::Receiver<Vec<u8>>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -380,7 +385,7 @@ async fn handle_connection_from_clients(
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(),
-                                None,
+                                Some(replica_tx.clone()),
                             )
                             .await
                         {
@@ -397,7 +402,7 @@ async fn handle_connection_from_clients(
          // handshake() is the only function communicating on this channel.
          // NOTE: this channel is async_channel::unbounded(), which means only 1 msg will be processed by all consumers.
          // However, we only have 1 consumer, the master, so this is fine. This is because a replica only connects to 1 master.
-         msg = replica_receiver.recv() => {
+         msg = replica_rx.recv() => {
             match msg {
                 Ok(msg) => {
                     debug!("Sending message to replica: {:?}", msg);
@@ -422,7 +427,6 @@ async fn handle_connection_to_master(
     expire_tx: mpsc::Sender<SetCommandParameter>,
     tcp_msgs_rx: async_channel::Receiver<Vec<u8>>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
-    replica_tx: broadcast::Sender<Vec<u8>>, // used to send replication messages to the replica
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (mut reader, mut writer) = stream.into_split();
@@ -459,7 +463,7 @@ async fn handle_connection_to_master(
                                         info_command_actor_handle.clone(),
                                         expire_tx.clone(),
                                         master_tx.clone(),
-                                        Some(replica_tx.clone()),
+                                        None, // connections to master cannot receive replication messages
                                     )
                                     .await
                                 {
@@ -471,7 +475,7 @@ async fn handle_connection_to_master(
                                 }
                             }
                             Err(e) => {
-                                log::error!("Error decoding request: {e}");
+                                log::error!("Unable to decode request: {e}");
                             }
                         }
 

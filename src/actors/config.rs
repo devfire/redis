@@ -164,9 +164,9 @@ impl ConfigCommandActor {
                 while let Some(entry) = entries.next_entry().await.expect("Failed to read entry") {
                     let path = entry.path();
                     if path.is_file() {
-                        println!("File: {:?}", path);
+                        debug!("File: {:?}", path);
                     } else if path.is_dir() {
-                        println!("Directory: {:?}", path);
+                        debug!("Directory: {:?}", path);
                     }
                 }
 

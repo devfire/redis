@@ -41,7 +41,7 @@ impl RequestProcessorActorHandle {
         info!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
         let (send, recv) = oneshot::channel();
-        
+
         let msg = ProcessorActorMessage::Process {
             request,
             set_command_actor_handle,

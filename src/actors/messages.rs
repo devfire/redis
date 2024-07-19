@@ -106,10 +106,10 @@ pub enum ProcessorActorMessage {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
+        replica_tx: Option<broadcast::Sender<Vec<u8>>>,
         // NOTE: a single request like PSYNC can return multiple responses.
         // So, where a Vec<u8> is a single reponse, a Vec<Vec<u8>> is multiple responses.
         respond_to: oneshot::Sender<Option<Vec<Vec<u8>>>>,
-        replica_tx: Option<broadcast::Sender<Vec<u8>>>,
     },
 }
 
@@ -124,10 +124,10 @@ impl std::fmt::Debug for ProcessorActorMessage {
                 info_command_actor_handle: _,
                 expire_tx: _,
                 master_tx: _,
+                replica_tx,
                 respond_to: _,
-                replica_tx: _,
             } => {
-                write!(f, "ProcessorActorMessage::Process request: {:?}", request)
+                write!(f, "ProcessorActorMessage::Process request: {:?}, replica sender: {:?}", request, replica_tx)
             }
         }
     }

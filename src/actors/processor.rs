@@ -32,7 +32,7 @@ impl ProcessorActor {
 
     // Handle a message.
     pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
-        debug!("Received message: {:?}", msg);
+        info!("Received message: {:?}", msg);
         // Match on the type of the message
         match msg {
             // Handle a Process message
@@ -43,8 +43,8 @@ impl ProcessorActor {
                 info_command_actor_handle,
                 expire_tx,
                 master_tx,
-                respond_to,
                 replica_tx,
+                respond_to,
             } => {
                 // Process the message from RESP Decoder
                 match request {
@@ -107,7 +107,7 @@ impl ProcessorActor {
                                     .send(Some(vec![(Value::String("+OK".to_string()).encode())]));
                             }
                             Ok((_, RedisCommand::Set(set_parameters))) => {
-                                // info!("Set command parameters: {:?}", set_parameters);
+                                info!("Set command parameters: {:?}", set_parameters);
 
                                 // Sets the value for the key in the set parameters in the set command actor handle.
                                 // Awaits the result.
@@ -120,8 +120,12 @@ impl ProcessorActor {
                                     .send(Some(vec![(Value::String("OK".to_string()).encode())]));
 
                                 // forward this to the replicas
-                                if let Some(replica_tx) = replica_tx {
-                                    let _ = replica_tx
+                                if let Some(replica_tx_sender) = replica_tx {
+                                    info!(
+                                        "Forwarding {} command to replicas.",
+                                        request_as_encoded_string
+                                    );
+                                    let _ = replica_tx_sender
                                         .send(request_as_encoded_string.into_bytes())
                                         .expect("Unable to send replica replies.");
                                 }
