@@ -37,6 +37,7 @@ impl RequestProcessorActorHandle {
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
         replica_tx: Option<broadcast::Sender<Vec<u8>>>, // we get this from master handler only
+        client_or_replica_tx: Option<mpsc::Sender<bool>>,
     ) -> Option<Vec<Vec<u8>>> {
         info!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
@@ -50,6 +51,7 @@ impl RequestProcessorActorHandle {
             expire_tx,
             master_tx,
             replica_tx,
+            client_or_replica_tx,
             respond_to: send,
         };
 
