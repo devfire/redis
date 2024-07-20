@@ -1,7 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use crate::errors::RedisError;
 use anyhow::Result;
 use clap::Parser;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
@@ -347,8 +347,11 @@ async fn handshake(
 
 // This function will handle the connection from the client.
 // The reason why we need two separate functions, one for clients and one for master,
-// is because the replica will be sending commands to the master and receiving replies.
+// is because the replica will be acting as a client, sending commands to the master and receiving replies.
+//
+// But the handle_connection_from_clients() function will only be receiving commands from clients and sending replies.
 // In other words, a redis instance can be both, a replica client to the master, and a server to its own clients.
+// So, this is the "server" part of the redis instance.
 async fn handle_connection_from_clients(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
@@ -365,6 +368,12 @@ async fn handle_connection_from_clients(
 
     // Buffer to store the data
     let mut buf = vec![0; 1024];
+
+    // This is a channel to let the thread know whether the client is a replica or not.
+    // We need to know because replication messages are only sent to replicas, not to redis-cli clients.
+    let (client_or_replica_tx, mut client_or_replica_rx) = mpsc::channel::<bool>(3);
+
+    let mut am_i_replica: bool = false;
 
     loop {
         tokio::select! {
@@ -394,8 +403,9 @@ async fn handle_connection_from_clients(
                                 config_command_actor_handle.clone(),
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
-                                master_tx.clone(),
+                                master_tx.clone(), // TODO: this needs to be an Option, None here.
                                 Some(replica_tx.clone()),
+                                Some(client_or_replica_tx.clone()),
                             )
                             .await
                         {
@@ -413,23 +423,34 @@ async fn handle_connection_from_clients(
             match msg {
                 Ok(msg) => {
                     info!("Sending message to replica: {:?}", msg);
-                    // check to make sure this client is a replica, not a redis-cli client.
-                    // if it is a redis-cli client, we don't want to send replication messages to it.
-                    // we only want to send replication messages to replicas.
-
-
-                    let _ = writer.write_all(&msg).await?;
-                    writer.flush().await?;
+                    // Send replication messages only to replicas, not to other clients.
+                    if am_i_replica {
+                        let _ = writer.write_all(&msg).await?;
+                        writer.flush().await?;
+                    } else {
+                        debug!("Not sending replication message to non-replica client.");
+                    }
                 }
                 Err(e) => {
                     log::error!("Something unexpected happened: {e}");
                 }
             }
          }
+         msg = client_or_replica_rx.recv() => {
+            if let Some(client_type) = msg {
+                // check to make sure this client is a replica, not a redis-cli client.
+                // if it is a redis-cli client, we don't want to send replication messages to it.
+                // we only want to send replication messages to replicas.
+                am_i_replica = client_type;
+
+                info!("Updated client replica status to {:?}", am_i_replica);
+            }
+         }
         } // end tokio::select
     }
 }
 
+// This is the "client" part of the redis instance.
 async fn handle_connection_to_master(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
@@ -474,8 +495,9 @@ async fn handle_connection_to_master(
                                         config_command_actor_handle.clone(),
                                         info_command_actor_handle.clone(),
                                         expire_tx.clone(),
-                                        master_tx.clone(),
+                                        master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                         None, // connections to master cannot receive replication messages
+                                        None, // connections to master cannot update replica status
                                     )
                                     .await
                                 {
