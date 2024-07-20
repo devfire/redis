@@ -1,4 +1,4 @@
-use log::info;
+use tracing::info;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
@@ -6,7 +6,7 @@ use crate::{
     protocol::{InfoCommandParameter, InfoSectionData},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct InfoCommandActorHandle {
     sender: mpsc::Sender<InfoActorMessage>,
 }
