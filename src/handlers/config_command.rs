@@ -1,4 +1,4 @@
-use log::{error, info};
+use tracing::{debug, error, info};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
@@ -7,7 +7,7 @@ use crate::{
     protocol::ConfigCommandParameter,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ConfigCommandActorHandle {
     sender: mpsc::Sender<ConfigActorMessage>,
 }
@@ -26,7 +26,7 @@ impl ConfigCommandActorHandle {
     /// implements the redis CONFIG GET command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
     pub async fn get_value(&self, config_key: ConfigCommandParameter) -> Option<String> {
-        log::info!("Getting value for key: {:?}", config_key);
+        debug!("Getting value for key: {:?}", config_key);
         let (send, recv) = oneshot::channel();
         let msg = ConfigActorMessage::GetConfigValue {
             config_key,
