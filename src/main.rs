@@ -3,6 +3,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use tracing::{debug, error, info};
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
 use tokio::sync::{broadcast, mpsc};
@@ -28,8 +29,8 @@ use crate::handlers::{
 
 use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
-use env_logger::Env;
-use log::{debug, info};
+// use env_logger::Env;
+// use log::{debug, info};
 use resp::{encode_slice, Decoder};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -38,12 +39,17 @@ use async_channel;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Setup the logging framework
-    let env = Env::default()
-        .filter_or("LOG_LEVEL", "info")
-        .write_style_or("LOG_STYLE", "always");
+    // construct a subscriber that prints formatted traces to stdout
+    let subscriber = tracing_subscriber::FmtSubscriber::new();
+    // use that subscriber to process traces emitted after this point
+    tracing::subscriber::set_global_default(subscriber)?;
 
-    env_logger::init_from_env(env);
+    // Setup the logging framework
+    // let env = Env::default()
+    //     .filter_or("LOG_LEVEL", "info")
+    //     .write_style_or("LOG_STYLE", "always");
+
+    // env_logger::init_from_env(env);
 
     let cli = Cli::parse();
 
@@ -103,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
             .await;
-        info!("Config directory: {dir}");
+        tracing::info!("Config directory: {dir}");
         config_dir = dir.to_string();
     }
 
@@ -300,6 +306,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
+#[tracing::instrument]
 async fn handshake(
     tcp_msgs_tx: async_channel::Sender<Vec<u8>>,
     mut master_rx: mpsc::Receiver<String>,
@@ -352,6 +359,7 @@ async fn handshake(
 // But the handle_connection_from_clients() function will only be receiving commands from clients and sending replies.
 // In other words, a redis instance can be both, a replica client to the master, and a server to its own clients.
 // So, this is the "server" part of the redis instance.
+// #[tracing::instrument]
 async fn handle_connection_from_clients(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
@@ -385,12 +393,12 @@ async fn handle_connection_from_clients(
                         return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
                     },
                     Err(e) => {
-                        log::error!("{e}");
+                        error!("{e}");
                         // return RedisError
                         return Err(RedisError::ParseFailure.into());
                     },
                     Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
-                        log::debug!("Received {} bytes", n);
+                        debug!("Received {} bytes", n);
                         let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
                         let request: resp::Value = decoder.decode()?;
@@ -432,7 +440,7 @@ async fn handle_connection_from_clients(
                     }
                 }
                 Err(e) => {
-                    log::error!("Something unexpected happened: {e}");
+                    error!("Something unexpected happened: {e}");
                 }
             }
          }
@@ -451,6 +459,7 @@ async fn handle_connection_from_clients(
 }
 
 // This is the "client" part of the redis instance.
+// #[tracing::instrument]
 async fn handle_connection_to_master(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
@@ -477,10 +486,10 @@ async fn handle_connection_to_master(
                         return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
                     },
                     Err(e) => {
-                        log::error!("{e}")
+                        error!("{e}")
                     },
                     Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
-                        log::debug!("Received {} bytes", n);
+                        debug!("Received {} bytes", n);
                         let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
 
                         let decoded_result = decoder.decode();
@@ -509,7 +518,7 @@ async fn handle_connection_to_master(
                                 }
                             }
                             Err(e) => {
-                                log::error!("Unable to decode request: {e}");
+                                error!("Unable to decode request: {e}");
                             }
                         }
 
@@ -528,7 +537,7 @@ async fn handle_connection_to_master(
                     writer.flush().await?;
                 }
                 Err(e) => {
-                    log::error!("Something unexpected happened: {e}");
+                    error!("Something unexpected happened: {e}");
                 }
             }
          }

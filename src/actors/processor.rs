@@ -5,8 +5,8 @@ use crate::{
     protocol::{InfoCommandParameter, RedisCommand, SetCommandParameter},
 };
 
-use log::{debug, error, info};
-use resp::{encode_slice, Value};
+use tracing::{debug, error, info};
+use resp::Value;
 use tokio::sync::mpsc;
 
 /// Handles CONFIG command. Receives message from the ProcessorActorHandle and processes them accordingly.

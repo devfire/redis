@@ -691,7 +691,6 @@ dependencies = [
  "futures",
  "futures-util",
  "hex",
- "log",
  "nom",
  "rand",
  "rdb",
