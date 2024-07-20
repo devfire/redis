@@ -422,13 +422,13 @@ async fn handle_connection_from_clients(
          msg = replica_rx.recv() => {
             match msg {
                 Ok(msg) => {
-                    info!("Sending message to replica: {:?}", msg);
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
+                        info!("Sending message to replica: {:?}", msg);
                         let _ = writer.write_all(&msg).await?;
                         writer.flush().await?;
                     } else {
-                        debug!("Not sending replication message to non-replica client.");
+                        info!("Not sending replication message to non-replica client.");
                     }
                 }
                 Err(e) => {
@@ -436,15 +436,15 @@ async fn handle_connection_from_clients(
                 }
             }
          }
-         msg = client_or_replica_rx.recv() => {
-            if let Some(client_type) = msg {
-                // check to make sure this client is a replica, not a redis-cli client.
-                // if it is a redis-cli client, we don't want to send replication messages to it.
-                // we only want to send replication messages to replicas.
-                am_i_replica = client_type;
+         Some(msg) = client_or_replica_rx.recv() => {
+            // // if let Some(client_type) = msg {
+            //     // check to make sure this client is a replica, not a redis-cli client.
+            //     // if it is a redis-cli client, we don't want to send replication messages to it.
+            //     // we only want to send replication messages to replicas.
+                am_i_replica  = msg;
 
                 info!("Updated client replica status to {:?}", am_i_replica);
-            }
+            // // }
          }
         } // end tokio::select
     }
