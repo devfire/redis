@@ -3,7 +3,7 @@ use std::{
     usize,
 };
 
-use log::info;
+use tracing::info;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},

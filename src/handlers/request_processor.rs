@@ -4,13 +4,13 @@ use crate::{
     protocol::SetCommandParameter,
 };
 
-use log::info;
+use tracing::info;
 // use resp::Value;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use super::{config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RequestProcessorActorHandle {
     sender: mpsc::Sender<ProcessorActorMessage>,
 }
