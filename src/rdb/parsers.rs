@@ -1,4 +1,4 @@
-use log::{debug, error};
+use tracing::{debug, error};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},

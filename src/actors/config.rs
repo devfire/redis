@@ -8,7 +8,7 @@ use crate::{actors::messages::ConfigActorMessage, protocol::ConfigCommandParamet
 // use futures_util::io::BufReader;
 
 use futures::StreamExt;
-use log::{debug, error, info};
+use tracing::{debug, error, info};
 // use resp::Value;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -89,7 +89,7 @@ impl ConfigCommandActor {
 
                 // check to see if the file exists.
                 if !Path::new(&fullpath).exists() {
-                    log::error!("Config file does not exist.");
+                    error!("Config file does not exist.");
                 } else {
                     // file exists, let's proceed.
                     // Log the attempt
@@ -172,7 +172,7 @@ impl ConfigCommandActor {
 
                 // check to see if the file exists.
                 if !Path::new(&fullpath).exists() {
-                    log::error!("Config file {} does not exist.", fullpath);
+                    error!("Config file {} does not exist.", fullpath);
                     let _ = respond_to.send(None); // this will be turned into an Err in the handler
                 } else {
                     // file exists, let's proceed.
