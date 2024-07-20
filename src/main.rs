@@ -1,9 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-
+use crate::errors::RedisError;
 use anyhow::Result;
 use clap::Parser;
 
-use nom::Err;
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
 
 use tokio::sync::{broadcast, mpsc};
@@ -86,6 +85,15 @@ async fn main() -> anyhow::Result<()> {
     let (master_tx, master_rx) = mpsc::channel::<String>(9600);
 
     // Setup a tokio broadcast channel to communicate all writeable updates to all the replicas.
+    // This is a multi-producer, multi-consumer channel.
+    // Both the replica_tx Sender and replica_rx Receiver are cloned and passed to the client handler.
+    // The replica_tx is given to request_processor_actor_handle.process_request() to send writeable updates to the replica,
+    // via the same initial connection that the replica used to connect to the master.
+    //
+    // NOTE: the master handler that got created as part of the outbound connection from the replica to the master,
+    // does not handle replication messages. It only sends commands to the master and receives replies.
+    // Basically, from master's POV, a replica is just a client. But from replica's POV, it acts as a client to the master,
+    // receiving replies from the master via the master_rx channel.
     let (replica_tx, _replica_rx) = broadcast::channel::<Vec<u8>>(9600);
 
     // Check the value provided by the arguments.
@@ -368,7 +376,9 @@ async fn handle_connection_from_clients(
                         return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
                     },
                     Err(e) => {
-                        log::error!("{e}")
+                        log::error!("{e}");
+                        // return RedisError
+                        return Err(RedisError::ParseFailure.into());
                     },
                     Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
                         log::debug!("Received {} bytes", n);
@@ -398,14 +408,16 @@ async fn handle_connection_from_clients(
                     } // end Ok(n)
                 } // end match
          } // end reader
-         // see if we have any message to send to master.
-         // handshake() is the only function communicating on this channel.
-         // NOTE: this channel is async_channel::unbounded(), which means only 1 msg will be processed by all consumers.
-         // However, we only have 1 consumer, the master, so this is fine. This is because a replica only connects to 1 master.
+         // see if we have any message to send to replicas.
          msg = replica_rx.recv() => {
             match msg {
                 Ok(msg) => {
-                    debug!("Sending message to replica: {:?}", msg);
+                    info!("Sending message to replica: {:?}", msg);
+                    // check to make sure this client is a replica, not a redis-cli client.
+                    // if it is a redis-cli client, we don't want to send replication messages to it.
+                    // we only want to send replication messages to replicas.
+
+
                     let _ = writer.write_all(&msg).await?;
                     writer.flush().await?;
                 }
@@ -479,31 +491,12 @@ async fn handle_connection_to_master(
                             }
                         }
 
-                        // send the request to the request processor actor
-                        // if let Some(processed_value) = request_processor_actor_handle
-                        //     .process_request(
-                        //         request,
-                        //         set_command_actor_handle.clone(),
-                        //         config_command_actor_handle.clone(),
-                        //         info_command_actor_handle.clone(),
-                        //         expire_tx.clone(),
-                        //         master_tx.clone(),
-                        //         Some(replica_tx.clone()),
-                        //     )
-                        //     .await
-                        // {
-                        //     // iterate over processed_value and send each one to the client
-                        //     for value in processed_value.iter() {
-                        //         let _ = writer.write_all(&value).await?;
-                        //         writer.flush().await?;
-                        //     }
-                        // }
                     } // end Ok(n)
                 } // end match
          } // end reader
          // see if we have any message to send to master.
          // handshake() is the only function communicating on this channel.
-         // NOTE: this channel is async_channel::unbounded(), which means only 1 msg will be processed by all consumers.
+         // NOTE: this channel is async_channel::unbounded(), which means only 1 msg will be processed by all consumers, like AWS SQS.
          // However, we only have 1 consumer, the master, so this is fine. This is because a replica only connects to 1 master.
          msg = tcp_msgs_rx.recv() => {
             match msg {
