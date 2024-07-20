@@ -44,6 +44,7 @@ impl ProcessorActor {
                 expire_tx,
                 master_tx,
                 replica_tx,
+                client_or_replica_tx,
                 respond_to,
             } => {
                 // Process the message from RESP Decoder
@@ -298,6 +299,14 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::ReplConf)) => {
                                 let _ = respond_to
                                     .send(Some(vec![(Value::String("OK".to_string()).encode())]));
+
+                                // inform the handler_client that this is a replica
+                                if let Some(client_or_replica_tx_sender) = client_or_replica_tx {
+                                    let _ = client_or_replica_tx_sender
+                                        .send(true)
+                                        .await
+                                        .expect("Unable to update replica client status.");
+                                }
                             }
 
                             Ok((_, RedisCommand::Psync(_replication_id, offset))) => {
