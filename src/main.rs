@@ -306,7 +306,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-#[tracing::instrument]
+// #[tracing::instrument]
 async fn handshake(
     tcp_msgs_tx: async_channel::Sender<Vec<u8>>,
     mut master_rx: mpsc::Receiver<String>,
@@ -346,7 +346,7 @@ async fn handshake(
 
         // wait for the +OK reply from the master before proceeding
         let reply = master_rx.recv().await;
-        debug!("Received reply {:?}", reply);
+        info!("Received reply from the master {:?}", reply);
     }
 
     Ok(())

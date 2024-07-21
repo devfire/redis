@@ -368,7 +368,12 @@ impl ProcessorActor {
                                 } else {
                                     error!("Failed to retrieve replication information");
                                 }
-                            } // end of match
+                            } // end of psync
+                            Ok((_, RedisCommand::Fullresync(_,_ ,_ ))) => {
+                                // noop, Fullresync should never be encoded as an array
+                                error!("Fullresync should never be encoded as an array.");
+                                let _ = respond_to.send(None);
+                            }
                         }
                     }
                 }

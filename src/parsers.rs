@@ -7,8 +7,8 @@ use tracing::info;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
-    character::complete::{crlf, not_line_ending},
-    combinator::{map, opt, value},
+    character::{complete::{crlf, not_line_ending}, streaming::alphanumeric1},
+    combinator::{map, opt, value, verify},
     sequence::{terminated, tuple},
     IResult,
 };
@@ -285,6 +285,38 @@ fn parse_psync(input: &str) -> IResult<&str, RedisCommand> {
 
     Ok((input, RedisCommand::Psync(replication_id, offset)))
 }
+
+fn parse_fullresync(input: &str) -> IResult<&str, RedisCommand> {
+    // +FULLRESYNC <REPL_ID> 0\r\n
+    let (input, _) = tag("+FULLRESYNC")(input)?;
+
+    // next, we need to grab the replica ID, an alphanumeric string of 40 characters
+    let (input, repl_id) = verify(alphanumeric1, |s: &str| s.len() == 40)(input)?;
+
+    // next is the offset
+    let (input, offset_string) = (parse_resp_string)(input)?;
+
+    // crlf next
+    let (input, _) = crlf(input)?;
+
+    // next is the RDB file contents: $<length>\r\n<contents>
+    let (input, _) = tag("$")(input)?;
+    let (input, len) = (length)(input)?; // length eats crlf
+
+    // take the len bytes
+    let (input, rdb_contents) = nom::bytes::streaming::take(len)(input)?;
+
+    // Attempt to parse the string as i16
+    let offset = offset_string
+        .parse()
+        .expect("Failed to convert offset to i16");
+
+    Ok((
+        input,
+        RedisCommand::Fullresync(repl_id.to_string(), offset, rdb_contents.bytes().collect()),
+    ))
+}
+
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
@@ -303,5 +335,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_info,
         parse_replconf,
         parse_psync,
+        parse_fullresync
     ))(input)
 }
