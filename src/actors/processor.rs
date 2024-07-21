@@ -5,9 +5,9 @@ use crate::{
     protocol::{InfoCommandParameter, RedisCommand, SetCommandParameter},
 };
 
-use tracing::{debug, error, info};
 use resp::Value;
 use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
 
 /// Handles CONFIG command. Receives message from the ProcessorActorHandle and processes them accordingly.
 pub struct ProcessorActor {
@@ -32,7 +32,7 @@ impl ProcessorActor {
 
     // Handle a message.
     pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
-        info!("Received message: {:?}", msg);
+        info!("Handling message: {:?}", msg);
         // Match on the type of the message
         match msg {
             // Handle a Process message
@@ -51,15 +51,33 @@ impl ProcessorActor {
                 match request {
                     Value::Null => todo!(),
                     Value::NullArray => todo!(),
-                    Value::String(s) => {
+                    Value::String(_) => {
                         // client commands *to* redis server come as Arrays, so this must be
                         // a response from the master server.
-                        info!("Received string: {}, sending it to the channel.", s);
-                        let _ = master_tx
-                            .send(s)
-                            .await
-                            .expect("Unable to send master replies.");
-                        let _ = respond_to.send(None);
+                        let request_as_encoded_string = request
+                            .to_encoded_string()
+                            .expect("Failed to encode request as a string.");
+
+                        info!("RESP request: {:?}", request_as_encoded_string);
+
+                        match parse_command(&request_as_encoded_string) {
+                            Ok((_remaining_bytes, RedisCommand::Fullresync(repl_id, offset))) => {
+                                // we got RDB mem dump, time to load it
+                                info!("Received +FULLRESYNC {} {} command.", repl_id, offset);
+                                let _ = respond_to.send(None);
+                            }
+                            _ => {
+                                info!(
+                                    "Unknown string {}, forwarding to replica.",
+                                    request_as_encoded_string
+                                );
+                                let _ = master_tx
+                                    .send(request_as_encoded_string)
+                                    .await
+                                    .expect("Unable to send master replies.");
+                                let _ = respond_to.send(None);
+                            }
+                        }
                     }
                     Value::Error(e) => {
                         error!("Received error: {}", e);
@@ -355,13 +373,14 @@ impl ProcessorActor {
                                         rdb_file_contents
                                     );
 
-                                    rdb_in_memory.extend(Vec::from("$"));
+                                    // rdb_in_memory.extend(Vec::from("$"));
+                                    rdb_in_memory.push(b'$');
                                     rdb_in_memory
                                         .extend(rdb_file_contents.len().to_string().as_bytes()); // length of file
-                                    rdb_in_memory.extend(Vec::from("\r\n"));
+                                    rdb_in_memory.extend("\r\n".as_bytes());
                                     rdb_in_memory.extend(rdb_file_contents);
 
-                                    // add the rdb file to the reply
+                                    // add the rdb file to the reply, at this point reply has 2 elements, each Vec<u8>
                                     reply.push(rdb_in_memory);
 
                                     let _ = respond_to.send(Some(reply));
@@ -369,10 +388,8 @@ impl ProcessorActor {
                                     error!("Failed to retrieve replication information");
                                 }
                             } // end of psync
-                            Ok((_, RedisCommand::Fullresync(_,_ ,_ ))) => {
-                                // noop, Fullresync should never be encoded as an array
-                                error!("Fullresync should never be encoded as an array.");
-                                let _ = respond_to.send(None);
+                            _ => {
+                                warn!("Unsupported command: {:?}", request_as_encoded_string);
                             }
                         }
                     }
