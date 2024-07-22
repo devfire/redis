@@ -16,6 +16,7 @@ pub mod handlers;
 pub mod parsers;
 pub mod protocol;
 pub mod rdb;
+pub mod resp;
 
 use crate::cli::Cli;
 
@@ -31,7 +32,8 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 // use env_logger::Env;
 // use log::{debug, info};
-use resp::{encode_slice, Decoder};
+// use resp::{encode_slice, Decoder};
+
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 

@@ -148,6 +148,7 @@ impl ConfigCommandActor {
                     }
                 }
             }
+            // Loads on disk RDB file into memory and returns as Vec<u8> of bytes.
             ConfigActorMessage::GetConfig {
                 dir,
                 dbfilename,

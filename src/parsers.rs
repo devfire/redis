@@ -321,7 +321,22 @@ fn parse_fullresync(input: &str) -> IResult<&str, RedisCommand> {
     ))
 }
 
+/// Parse RDB in memory representation after FULLRESYNC
+/// $<length>\r\n<contents>
+/// NOTE: this does not actually parse the RDB file, just the length and the bytes.
+/// The actual parsing of the RDB file is done in the RDB codec in rdb/.
+fn parse_rdb(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("$")(input)?;
+    let (input, len) = (length)(input)?; // length eats crlf
+
+    // take the len bytes
+    let (input, rdb_contents) = nom::bytes::streaming::take(len)(input)?;
+
+    Ok((input, RedisCommand::Rdb(rdb_contents.bytes().collect())))
+}
+
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
+    info!("Parsing command: {}", input);
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         map(tag_no_case("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {
@@ -340,5 +355,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_replconf,
         parse_psync,
         parse_fullresync,
+        parse_rdb
     ))(input)
 }
