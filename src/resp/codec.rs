@@ -3,6 +3,7 @@ use tokio_util::codec::{Decoder, Encoder};
 
 use bytes::{Buf, BytesMut};
 use nom::{Err, Needed};
+use tracing::error;
 
 use crate::errors::RedisError;
 
@@ -48,7 +49,10 @@ impl Decoder for RespCodec {
             }
             Err(Err::Incomplete(Needed::Size(_))) => Ok(None),
 
-            Err(_) => Err(RedisError::ParseFailure),
+            Err(e) => {
+                error!("Error {} parsing RESP message: {:?}", e, src);
+                Err(RedisError::ParseFailure)
+            }
         }
     }
 } // end of impl Decoder for RespCodec
