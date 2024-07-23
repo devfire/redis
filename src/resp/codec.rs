@@ -34,6 +34,9 @@ impl Decoder for RespCodec {
             return Ok(None);
         }
 
+        // convert decimal ascii to string
+        tracing::info!("Decoding: {:?}", src);
+
         match parse_resp(src) {
             Ok((remaining_bytes, parsed_message)) => {
                 // advance the cursor by the difference between what we read
