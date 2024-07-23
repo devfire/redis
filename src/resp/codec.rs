@@ -1,7 +1,7 @@
 use tokio_util::codec::{Decoder, Encoder};
-use tracing::info;
+// use tracing::info;
 
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BytesMut};
 use nom::{Err, Needed};
 
 use crate::errors::RedisError;
@@ -95,5 +95,5 @@ impl Encoder<RespValue> for RespCodec {
             RespValue::NullArray => todo!(),
         }
         Ok(())
-    }
+    } // end of fn encode
 } // end of impl Encoder for RespCodec

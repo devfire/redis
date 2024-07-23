@@ -1,7 +1,7 @@
 use crate::{
     actors::{messages::ProcessorActorMessage, processor::ProcessorActor},
     handlers::set_command::SetCommandActorHandle,
-    protocol::SetCommandParameter,
+    protocol::SetCommandParameter, resp::value::RespValue,
 };
 
 use tracing::info;
@@ -30,7 +30,7 @@ impl RequestProcessorActorHandle {
     /// https://redis.io/commands/
     pub async fn process_request(
         &self,
-        request: resp::Value,
+        request: RespValue,
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
         info_command_actor_handle: InfoCommandActorHandle,
