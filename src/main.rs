@@ -1,10 +1,15 @@
-use crate::errors::RedisError;
+
+use crate::resp::value::RespValue;
+
 use anyhow::Result;
 use clap::Parser;
+use futures::{SinkExt, StreamExt};
+use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio_util::codec::{FramedRead, FramedWrite};
 
-use tracing::{debug, error, info};
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
+use tracing::{debug, error, info};
 
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
@@ -16,6 +21,7 @@ pub mod handlers;
 pub mod parsers;
 pub mod protocol;
 pub mod rdb;
+pub mod resp;
 
 use crate::cli::Cli;
 
@@ -31,8 +37,9 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 
 // use env_logger::Env;
 // use log::{debug, info};
-use resp::{encode_slice, Decoder};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+// use resp::{encode_slice, Decoder};
+
+// use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 use async_channel;
@@ -75,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
 
-    let mut config_dir: String = "".to_string();
+    // let mut config_dir: String = "".to_string();
 
     // Create a multi-producer, single-consumer channel to send expiration messages.
     // The channel capacity is set to 9600.
@@ -100,7 +107,7 @@ async fn main() -> anyhow::Result<()> {
     // does not handle replication messages. It only sends commands to the master and receives replies.
     // Basically, from master's POV, a replica is just a client. But from replica's POV, it acts as a client to the master,
     // receiving replies from the master via the master_rx channel.
-    let (replica_tx, _replica_rx) = broadcast::channel::<Vec<u8>>(9600);
+    let (replica_tx, _replica_rx) = broadcast::channel::<RespValue>(9600);
 
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
@@ -109,8 +116,8 @@ async fn main() -> anyhow::Result<()> {
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
             .await;
-        tracing::info!("Config directory: {dir}");
-        config_dir = dir.to_string();
+        // tracing::info!("Config directory: {dir}");
+        // config_dir = dir.to_string();
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
@@ -120,22 +127,21 @@ async fn main() -> anyhow::Result<()> {
                 &dbfilename.to_string_lossy(),
             )
             .await;
-        info!("Config db filename: {}", dbfilename.display());
-        let config_dbfilename = dbfilename.to_string_lossy().to_string();
+        // info!("Config db filename: {}", dbfilename.display());
+        // let config_dbfilename = dbfilename.to_string_lossy().to_string();
 
         config_command_actor_handle
-            .load_config(
-                &config_dir,
-                &config_dbfilename,
+            .import_config(
                 set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
+                None, // load from disk
                 expire_tx.clone(), // need to pass this to unlock expirations on config file load
             )
             .await;
 
-        info!(
-            "Config db dir: {} filename: {}",
-            config_dir, config_dbfilename
-        );
+        // info!(
+        //     "Config db dir: {} filename: {}",
+        //     config_dir, config_dbfilename
+        // );
     }
 
     // initialize to being a master, override if we are a replica
@@ -306,47 +312,48 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-#[tracing::instrument]
+// #[tracing::instrument]
 async fn handshake(
-    tcp_msgs_tx: async_channel::Sender<Vec<u8>>,
+    tcp_msgs_tx: async_channel::Sender<RespValue>,
     mut master_rx: mpsc::Receiver<String>,
     port: String,
 ) -> anyhow::Result<()> {
     // begin the replication handshake
     // STEP 1: PING
-    let ping = ["PING"];
+    let ping = RespValue::array_from_slice(&["PING"]);
 
     // STEP 2: REPLCONF listening-port <PORT>
     // initialize the empty array
-    let repl_conf_listening_port = ["REPLCONF", "listening-port", &port];
+    let repl_conf_listening_port =
+        RespValue::array_from_slice(&["REPLCONF", "listening-port", &port]);
 
     // STEP 3: REPLCONF capa psync2
     // initialize the empty array
-    let repl_conf_capa = ["REPLCONF", "capa", "psync2"];
+    let repl_conf_capa = RespValue::array_from_slice(&["REPLCONF", "capa", "psync2"]);
 
     // send the PSYNC ? -1
-    let psync = ["PSYNC", "?", "-1"];
+    let psync = RespValue::array_from_slice(&["PSYNC", "?", "-1"]);
 
     let handshake = vec![repl_conf_listening_port, repl_conf_capa, psync];
 
     // send the ping
-    tcp_msgs_tx.send(encode_slice(&ping)).await?;
+    tcp_msgs_tx.send(ping).await?;
 
     // wait for a reply from the master before proceeding
     let reply = master_rx.recv().await;
 
     debug!("Received reply {:?}", reply);
 
-    for command in handshake.iter() {
+    for command in handshake.into_iter() {
         // Send the value.
         // Encodes a slice of string to RESP binary buffer.
         // It is used to create a request command on redis client.
         // https://docs.rs/resp/latest/resp/fn.encode_slice.html
-        tcp_msgs_tx.send(encode_slice(command)).await?;
+        tcp_msgs_tx.send(command).await?;
 
         // wait for the +OK reply from the master before proceeding
         let reply = master_rx.recv().await;
-        debug!("Received reply {:?}", reply);
+        info!("Received reply from the master {:?}", reply);
     }
 
     Ok(())
@@ -368,14 +375,14 @@ async fn handle_connection_from_clients(
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
-    replica_tx: broadcast::Sender<Vec<u8>>, // used to send replication messages to the replica
-    mut replica_rx: broadcast::Receiver<Vec<u8>>, // used to receive replication messages from the master
+    replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
+    mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
     // Split the TCP stream into a reader and writer.
-    let (mut reader, mut writer) = stream.into_split();
+    let (reader, writer) = stream.into_split();
 
-    // Buffer to store the data
-    let mut buf = vec![0; 1024];
+    let mut reader = FramedRead::new(reader, RespCodec::new());
+    let mut writer = FramedWrite::new(writer, RespCodec::new());
 
     // This is a channel to let the thread know whether the client is a replica or not.
     // We need to know because replication messages are only sent to replicas, not to redis-cli clients.
@@ -385,26 +392,10 @@ async fn handle_connection_from_clients(
 
     loop {
         tokio::select! {
-            // Read data from the stream, n is the number of bytes read
-            n = reader.read(&mut buf) => {
-                match n {
-                    Ok(0) => {
-                        info!("Connection closed. Good bye.");
-                        return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
-                    },
-                    Err(e) => {
-                        error!("{e}");
-                        // return RedisError
-                        return Err(RedisError::ParseFailure.into());
-                    },
-                    Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
-                        debug!("Received {} bytes", n);
-                        let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
-
-                        let request: resp::Value = decoder.decode()?;
-
-                        // send the request to the request processor actor
-
+            Some(msg) = reader.next() => {
+                match msg {
+                    Ok(request) => {
+                        // send the request to the request processor actor.
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -412,7 +403,7 @@ async fn handle_connection_from_clients(
                                 config_command_actor_handle.clone(),
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
-                                master_tx.clone(), // TODO: this needs to be an Option, None here.
+                                master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()),
                                 Some(client_or_replica_tx.clone()),
                             )
@@ -420,21 +411,22 @@ async fn handle_connection_from_clients(
                         {
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
-                                let _ = writer.write_all(&value).await?;
-                                writer.flush().await?;
+                                let _ = writer.send(value.clone()).await?;
                             }
                         }
-                    } // end Ok(n)
-                } // end match
-         } // end reader
-         // see if we have any message to send to replicas.
+                    }
+                    Err(e) => {
+                        error!("Unable to decode request: {e}");
+                    }
+                }
+            }
          msg = replica_rx.recv() => {
             match msg {
                 Ok(msg) => {
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
                         info!("Sending message to replica: {:?}", msg);
-                        let _ = writer.write_all(&msg).await?;
+                        let _ = writer.send(msg).await?;
                         writer.flush().await?;
                     } else {
                         info!("Not sending replication message to non-replica client.");
@@ -468,62 +460,44 @@ async fn handle_connection_to_master(
     info_command_actor_handle: InfoCommandActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
-    tcp_msgs_rx: async_channel::Receiver<Vec<u8>>,
+    tcp_msgs_rx: async_channel::Receiver<RespValue>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
-    let (mut reader, mut writer) = stream.into_split();
+    let (reader, writer) = stream.into_split();
 
-    // Buffer to store the data
-    let mut buf = vec![0; 1024];
+    let mut reader = FramedRead::new(reader, RespCodec::new());
+    let mut writer = FramedWrite::new(writer, RespCodec::new());
 
     loop {
         tokio::select! {
             // Read data from the stream, n is the number of bytes read
-            n = reader.read(&mut buf) => {
-                match n {
-                    Ok(0) => {
-                        info!("Connection closed. Good bye.");
-                        return Ok(()); // we don't want to return an error since an empty buffer is not a problem.
-                    },
-                    Err(e) => {
-                        error!("{e}")
-                    },
-                    Ok(n) => {// https://docs.rs/resp/latest/resp/struct.Decoder.html
-                        debug!("Received {} bytes", n);
-                        let mut decoder = Decoder::new(std::io::BufReader::new(buf.as_slice()));
-
-                        let decoded_result = decoder.decode();
-
-                        match decoded_result {
-                            Ok(request) => {
-                                // send the request to the request processor actor
-                                if let Some(processed_value) = request_processor_actor_handle
-                                    .process_request(
-                                        request,
-                                        set_command_actor_handle.clone(),
-                                        config_command_actor_handle.clone(),
-                                        info_command_actor_handle.clone(),
-                                        expire_tx.clone(),
-                                        master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                        None, // connections to master cannot receive replication messages
-                                        None, // connections to master cannot update replica status
-                                    )
-                                    .await
-                                {
-                                    // iterate over processed_value and send each one to the client
-                                    for value in processed_value.iter() {
-                                        let _ = writer.write_all(&value).await?;
-                                        writer.flush().await?;
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("Unable to decode request: {e}");
+            Some(msg) = reader.next() => {
+                match msg {
+                    Ok(request) => {
+                        // send the request to the request processor actor
+                        if let Some(processed_value) = request_processor_actor_handle
+                            .process_request(
+                                request,
+                                set_command_actor_handle.clone(),
+                                config_command_actor_handle.clone(),
+                                info_command_actor_handle.clone(),
+                                expire_tx.clone(),
+                                master_tx.clone(), // these are ack +OK replies from the master back to handshake()
+                                None, // connections to master cannot receive replication messages
+                                None, // connections to master cannot update replica status
+                            )
+                            .await
+                        {
+                            // iterate over processed_value and send each one to the client
+                            for value in processed_value.iter() {
+                                let _ = writer.send(value.clone()).await?;
                             }
                         }
-
-                    } // end Ok(n)
+                    }
+                    Err(e) => {
+                        error!("Unable to decode request: {e}");
+                    }
                 } // end match
          } // end reader
          // see if we have any message to send to master.
@@ -534,7 +508,7 @@ async fn handle_connection_to_master(
             match msg {
                 Ok(msg) => {
                     debug!("Sending message to master: {:?}", msg);
-                    let _ = writer.write_all(&msg).await?;
+                    let _ = writer.send(msg).await?;
                     writer.flush().await?;
                 }
                 Err(e) => {

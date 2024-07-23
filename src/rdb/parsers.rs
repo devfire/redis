@@ -335,7 +335,6 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
     debug!("Parsing: {:?}", input.to_ascii_lowercase());
     alt((
-        // map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         parse_rdb_header,
         parse_eof,
         parse_selectdb,

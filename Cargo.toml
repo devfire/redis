@@ -31,7 +31,6 @@ hex = "0.4.3"
 nom = "7.1.3"
 rand = "0.8.5"
 rdb = "0.2.1"
-resp = "1.0.3"
 strum = { version = "0.25.0", features = ["derive"] }
 strum_macros = "0.25.3"
 thiserror = "1.0.32"
