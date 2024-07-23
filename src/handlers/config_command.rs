@@ -64,13 +64,15 @@ impl ConfigCommandActorHandle {
     }
 
     /// Loads the config file on startup
-    pub async fn load_config(
+    pub async fn import_config(
         &self,
         set_command_actor_handle: super::set_command::SetCommandActorHandle,
+        import_from_memory: Option<Vec<u8>>, // if None, load from disk. Otherwise, load from memory.
         expire_tx: mpsc::Sender<crate::protocol::SetCommandParameter>,
     ) {
-        let msg = ConfigActorMessage::LoadConfig {
+        let msg = ConfigActorMessage::ImportRdb {
             set_command_actor_handle,
+            import_from_memory,
             expire_tx, // this is a channel back to main.rs expiry loop
         };
 
@@ -78,27 +80,14 @@ impl ConfigCommandActorHandle {
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
 
-    /// Loads the config file into memory, returning it as a Vec<u8>
-    pub async fn get_config(
+    /// Tells the config actor to load rdb file into memory, and return it as a Vec<u8>
+    pub async fn get_rdb(
         &self,
         // dir: &str,
         // dbfilename: &str,
     ) -> anyhow::Result<Vec<u8>, RedisError> {
-        // no need to pass these two, we should already know the values
-        let dir;
-        let dbfilename;
-
-        // Checks if the specified config file exists. If it does, attempts to load its contents into memory.
-        //
-        // Upon successful reading, the file's contents are sent through the `respond_to` channel.
-        // If the file does not exist, logs an error message and sends a `None` value through the `respond_to` channel.
-        //
-        // This process involves opening the file asynchronously, reading its entire content into a byte vector (`buffer`),
-        // and then sending this buffer through a communication channel designed for responding to configuration requests.
-        // Error handling is performed at each step to ensure robustness against file access issues.
         if let Some(config_directory) = self.get_value(ConfigCommandParameter::Dir).await {
-            info!("Found the dir setting: {}", config_directory);
-            dir = config_directory;
+            debug!("Found the dir setting: {}", config_directory);
         } else {
             error!("Failed to get the config file dir!");
             return Err(RedisError::IOError(std::io::Error::new(
@@ -108,8 +97,7 @@ impl ConfigCommandActorHandle {
         };
 
         if let Some(config_filename) = self.get_value(ConfigCommandParameter::DbFilename).await {
-            info!("Found the dbfilename setting: {}", config_filename);
-            dbfilename = config_filename;
+            debug!("Found the dbfilename setting: {}", config_filename);
         } else {
             error!("Failed to get the config filename!");
             return Err(RedisError::IOError(std::io::Error::new(
@@ -120,11 +108,7 @@ impl ConfigCommandActorHandle {
 
         let (send, recv) = oneshot::channel();
 
-        let msg = ConfigActorMessage::GetConfig {
-            dir,
-            dbfilename,
-            respond_to: send,
-        };
+        let msg = ConfigActorMessage::GetRdb { respond_to: send };
 
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the

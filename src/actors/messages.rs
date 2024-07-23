@@ -55,14 +55,12 @@ pub enum ConfigActorMessage {
         config_key: ConfigCommandParameter,
         config_value: String,
     },
-    LoadConfig {
+    ImportRdb {
         set_command_actor_handle: crate::handlers::set_command::SetCommandActorHandle,
+        import_from_memory: Option<Vec<u8>>,
         expire_tx: mpsc::Sender<SetCommandParameter>,
     },
-    GetConfig {
-        // should be either dir or dbfilename
-        dir: String,
-        dbfilename: String,
+    GetRdb {
         respond_to: oneshot::Sender<Option<Vec<u8>>>,
     },
 }
@@ -127,7 +125,11 @@ impl std::fmt::Debug for ProcessorActorMessage {
                 client_or_replica_tx: _,
                 respond_to: _,
             } => {
-                write!(f, "ProcessorActorMessage::Process request: {:?}, replica sender: {:?}", request, replica_tx)
+                write!(
+                    f,
+                    "ProcessorActorMessage::Process request: {:?}, replica sender: {:?}",
+                    request, replica_tx
+                )
             }
         }
     }

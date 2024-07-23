@@ -131,8 +131,9 @@ async fn main() -> anyhow::Result<()> {
         // let config_dbfilename = dbfilename.to_string_lossy().to_string();
 
         config_command_actor_handle
-            .load_config(
+            .import_config(
                 set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
+                None, // load from disk
                 expire_tx.clone(), // need to pass this to unlock expirations on config file load
             )
             .await;

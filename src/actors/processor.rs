@@ -423,7 +423,7 @@ impl ProcessorActor {
                                     //     hex::decode(rdb_hex).expect("Failed to decode hex");
 
                                     let rdb_file_contents = config_command_actor_handle
-                                        .get_config()
+                                        .get_rdb()
                                         .await
                                         .expect("Unable to load RDB file into memory");
 
@@ -448,9 +448,14 @@ impl ProcessorActor {
                     RespValue::BulkString(_) => todo!(),
                     RespValue::Rdb(rdb) => {
                         info!("Received RDB file: {:?}", rdb);
-                        let _ = respond_to.send(None);
 
-                    },
+                        // Import it into the config actor
+                        config_command_actor_handle
+                            .import_config(set_command_actor_handle.clone(), Some(rdb), expire_tx)
+                            .await;
+
+                        let _ = respond_to.send(None);
+                    }
                 }
             }
         }
