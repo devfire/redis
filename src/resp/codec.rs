@@ -62,6 +62,7 @@ impl Encoder<RespValue> for RespCodec {
     type Error = RedisError;
 
     fn encode(&mut self, item: RespValue, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        tracing::info!("Encoding: {:?}", item);
         match item {
             RespValue::SimpleString(s) => {
                 dst.extend_from_slice(b"+");
@@ -112,7 +113,6 @@ impl Encoder<RespValue> for RespCodec {
                 dst.extend_from_slice(&rdb);
             }
         }
-        tracing::info!("Encoded: {:?}", dst);
         Ok(())
     } // end of fn encode
 } // end of impl Encoder for RespCodec
