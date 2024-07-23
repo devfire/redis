@@ -12,7 +12,7 @@ pub enum RespValue {
     /// For Integers the first byte of the reply is ":".
     Integer(i64),
     /// For Bulk Strings the first byte of the reply is "$".
-    BulkString(Option<String>),
+    BulkString(Option<Vec<u8>>),
     /// For Bulk <binary> Strings the first byte of the reply is "$".
     // BufBulk(Vec<u8>),
     /// For Arrays the first byte of the reply is "*".

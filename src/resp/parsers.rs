@@ -4,82 +4,95 @@ use nom::{
     branch::alt,
     bytes::{
         complete::{tag, tag_no_case},
-        streaming::take_while1,
+        streaming::{take, take_while, take_while1},
     },
     character::{
-        complete::{crlf, not_line_ending},
+        complete::crlf,
         streaming::{alphanumeric1, digit1},
     },
-    combinator::{map, map_res, opt, value, verify},
+    combinator::{map, map_res},
     multi::count,
-    sequence::{preceded, terminated, tuple},
+    sequence::{preceded, terminated},
     IResult,
 };
 use tracing::info;
 
-fn parse_number(input: &str) -> IResult<&str, i64> {
-    map_res(digit1, |s: &str| s.parse::<i64>())(input)
-}
-
 // strings are encoded as a plus (+) character, followed by a string.
-fn parse_simple_string(input: &str) -> IResult<&str, RespValue> {
-    info!("Parsing string: {}", input);
+fn parse_simple_string(input: &[u8]) -> IResult<&[u8], RespValue> {
+    info!("Parsing simple string: {:?}", input);
     map(
-        terminated(preceded(tag("+"), take_while1(|c| c != '\r')), crlf),
-        |s: &str| RespValue::SimpleString(s.to_string()),
+        terminated(preceded(tag("+"), take_while(|c| c != b'\r')), crlf),
+        |s: &[u8]| RespValue::SimpleString(String::from_utf8_lossy(s).to_string()),
     )(input)
 }
 
 // integers are encoded as a colon (:) character, followed by a number.
-fn parse_integer(input: &str) -> IResult<&str, RespValue> {
-    info!("Parsing integer: {}", input);
-    let (input, _) = tag(":")(input)?;
-    let (input, num) = alphanumeric1(input)?;
-    let (input, _) = crlf(input)?;
-    let num = num.parse::<i64>().unwrap();
-    Ok((input, RespValue::Integer(num)))
+fn parse_integer(input: &[u8]) -> IResult<&[u8], RespValue> {
+    info!("Parsing integer: {:?}", input);
+    map(
+        terminated(
+            preceded(
+                tag(":"),
+                map_res(take_while(|c: u8| c.is_ascii_digit()), |s| {
+                    String::from_utf8_lossy(s).parse::<i64>()
+                }),
+            ),
+            crlf,
+        ),
+        RespValue::Integer,
+    )(input)
 }
 
 // errors are encoded as a minus (-) character, followed by an error message.
-fn parse_error(input: &str) -> IResult<&str, RespValue> {
-    info!("Parsing error: {}", input);
+fn parse_error(input: &[u8]) -> IResult<&[u8], RespValue> {
+    info!("Parsing error: {:?}", input);
     map(
-        terminated(preceded(tag("-"), take_while1(|c| c != '\r')), crlf),
-        |s: &str| RespValue::Error(s.to_string()),
+        terminated(preceded(tag("-"), take_while(|c| c != b'\r')), crlf),
+        |s: &[u8]| RespValue::Error(String::from_utf8_lossy(s).to_string()),
     )(input)
 }
 
 // bulk strings are encoded as a dollar sign ($) character,
 // followed by the number of bytes in the string, followed by CRLF,
 // followed by the string itself.
-fn parse_bulk_string(input: &str) -> IResult<&str, RespValue> {
-    info!("Parsing bulk string: {}", input);
-    let (input, length) = preceded(tag("$"), parse_number)(input)?;
+fn parse_bulk_string(input: &[u8]) -> IResult<&[u8], RespValue> {
+    info!("Parsing bulk string: {:?}", input);
+    let (input, length) = preceded(
+        tag("$"),
+        map_res(take_while(|c: u8| c.is_ascii_digit()), |s| {
+            String::from_utf8_lossy(s).parse::<i64>()
+        }),
+    )(input)?;
     let (input, _) = crlf(input)?;
 
     if length == -1 {
         Ok((input, RespValue::BulkString(None)))
     } else {
-        let (input, data) = take_while1(|c| c != '\r')(input)?;
+        let (input, data) = take(length as usize)(input)?;
         let (input, _) = crlf(input)?;
-        Ok((input, RespValue::BulkString(Some(data.to_string()))))
+        Ok((input, RespValue::BulkString(Some(data.to_vec()))))
     }
 }
 
-fn parse_array(input: &str) -> IResult<&str, RespValue> {
-    let (input, array_size) = preceded(tag("*"), parse_number)(input)?;
+fn parse_array(input: &[u8]) -> IResult<&[u8], RespValue> {
+    let (input, array_size) = preceded(
+        tag("*"),
+        map_res(digit1, |s: &[u8]| {
+            std::str::from_utf8(s).unwrap().parse::<i64>()
+        }),
+    )(input)?;
     let (input, _) = crlf(input)?;
 
     if array_size < 0 {
-        Ok((input, RespValue::Array(vec![])))
+        Ok((input, RespValue::NullArray))
     } else {
         let (input, elements) = count(parse_resp, array_size as usize)(input)?;
         Ok((input, RespValue::Array(elements)))
     }
 }
 
-pub fn parse_resp(input: &str) -> IResult<&str, RespValue> {
-    info!("Parsing resp: {}", input);
+pub fn parse_resp(input: &[u8]) -> IResult<&[u8], RespValue> {
+    info!("Parsing resp: {:?}", input);
     alt((
         map(tag_no_case("$-1\r\n"), |_| RespValue::Null),
         map(tag_no_case("*-1\r\n"), |_| RespValue::NullArray),
