@@ -4,11 +4,11 @@ use nom::{
     branch::alt,
     bytes::{
         complete::{tag, tag_no_case},
-        streaming::{take, take_while, take_while1},
+        streaming::{take, take_while},
     },
     character::{
         complete::crlf,
-        streaming::{alphanumeric1, digit1},
+        streaming::digit1,
     },
     combinator::{map, map_res},
     multi::count,

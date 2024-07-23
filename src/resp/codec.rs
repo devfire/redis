@@ -1,5 +1,5 @@
-use tracing::info;
 use tokio_util::codec::{Decoder, Encoder};
+use tracing::info;
 
 use bytes::{Buf, BufMut, BytesMut};
 use nom::{Err, Needed};
@@ -48,4 +48,52 @@ impl Decoder for RespCodec {
             Err(_) => Err(RedisError::ParseFailure),
         }
     }
-}
+} // end of impl Decoder for RespCodec
+
+// now let's implement the Encoder
+impl Encoder<RespValue> for RespCodec {
+    type Error = RedisError;
+
+    fn encode(&mut self, item: RespValue, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        match item {
+            RespValue::SimpleString(s) => {
+                dst.extend_from_slice(b"+");
+                dst.extend_from_slice(s.as_bytes());
+                dst.extend_from_slice(b"\r\n");
+            }
+            RespValue::Error(s) => {
+                dst.extend_from_slice(b"-");
+                dst.extend_from_slice(s.as_bytes());
+                dst.extend_from_slice(b"\r\n");
+            }
+            RespValue::Integer(i) => {
+                dst.extend_from_slice(b":");
+                dst.extend_from_slice(i.to_string().as_bytes());
+                dst.extend_from_slice(b"\r\n");
+            }
+            RespValue::BulkString(Some(data)) => {
+                dst.extend_from_slice(b"$");
+                dst.extend_from_slice(data.len().to_string().as_bytes());
+                dst.extend_from_slice(b"\r\n");
+                dst.extend_from_slice(&data);
+                dst.extend_from_slice(b"\r\n");
+            }
+            RespValue::BulkString(None) => {
+                dst.extend_from_slice(b"$-1\r\n");
+            }
+            RespValue::Array(arr) => {
+                dst.extend_from_slice(b"*");
+                dst.extend_from_slice(arr.len().to_string().as_bytes());
+                dst.extend_from_slice(b"\r\n");
+                for item in arr {
+                    self.encode(item, dst)?;
+                }
+            }
+            RespValue::Null => {
+                dst.extend_from_slice(b"_\r\n");
+            }
+            RespValue::NullArray => todo!(),
+        }
+        Ok(())
+    }
+} // end of impl Encoder for RespCodec
