@@ -7,8 +7,8 @@ use tracing::info;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
-    character::complete::{crlf, not_line_ending},
-    combinator::{map, opt, value},
+    character::{complete::{crlf, not_line_ending}, streaming::alphanumeric1},
+    combinator::{map, opt, value, verify},
     sequence::{terminated, tuple},
     IResult,
 };
@@ -285,7 +285,58 @@ fn parse_psync(input: &str) -> IResult<&str, RedisCommand> {
 
     Ok((input, RedisCommand::Psync(replication_id, offset)))
 }
+
+fn parse_fullresync(input: &str) -> IResult<&str, RedisCommand> {
+    // +FULLRESYNC <REPL_ID> 0\r\n
+    let (input, _) = tag_no_case("+FULLRESYNC ")(input)?; // note trailing space
+
+    // next, we need to grab the replica ID, an alphanumeric string of 40 characters
+    let (input, repl_id) = verify(alphanumeric1, |s: &str| s.len() == 40)(input)?;
+
+    // nom parse empty space
+    let (input, _) = nom::character::streaming::space1(input)?;
+
+    // next is the offset which is an integer
+    let (input, offset_string) = nom::character::streaming::digit1(input)?;
+
+    // crlf next
+    let (input, _) = crlf(input)?;
+
+    // next is the RDB file contents: $<length>\r\n<contents>
+    // let (input, _) = tag("$")(input)?;
+    // let (input, len) = (length)(input)?; // length eats crlf
+
+    // // take the len bytes
+    // let (input, rdb_contents) = nom::bytes::streaming::take(len)(input)?;
+
+    // Attempt to parse the string as i16
+    let offset = offset_string
+        .parse()
+        .expect("Failed to convert offset to i16");
+
+    Ok((
+        input,
+        // RedisCommand::Fullresync(repl_id.to_string(), offset, rdb_contents.bytes().collect()),
+        RedisCommand::Fullresync(repl_id.to_string(), offset),
+    ))
+}
+
+/// Parse RDB in memory representation after FULLRESYNC
+/// $<length>\r\n<contents>
+/// NOTE: this does not actually parse the RDB file, just the length and the bytes.
+/// The actual parsing of the RDB file is done in the RDB codec in rdb/.
+fn parse_rdb(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("$")(input)?;
+    let (input, len) = (length)(input)?; // length eats crlf
+
+    // take the len bytes
+    let (input, rdb_contents) = nom::bytes::streaming::take(len)(input)?;
+
+    Ok((input, RedisCommand::Rdb(rdb_contents.bytes().collect())))
+}
+
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
+    info!("Parsing command: {}", input);
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         map(tag_no_case("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {
@@ -303,5 +354,7 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_info,
         parse_replconf,
         parse_psync,
+        parse_fullresync,
+        parse_rdb
     ))(input)
 }
