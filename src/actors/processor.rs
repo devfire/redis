@@ -37,7 +37,7 @@ impl ProcessorActor {
 
     // Handle a RespValue message, parse it into a RedisCommand, and reply back with the appropriate response.
     pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
-        info!("Handling message: {:?}", msg);
+        debug!("Handling message: {:?}", msg);
         // Match on the type of the message
         match msg {
             // Handle a Process message
@@ -177,7 +177,7 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::Command)) => {
                                 // Encode the value to RESP binary buffer.
                                 let _ = respond_to
-                                    .send(Some(vec![(RespValue::SimpleString("+OK".to_string()))]));
+                                    .send(Some(vec![(RespValue::SimpleString("OK".to_string()))]));
                             }
                             Ok((_, RedisCommand::Set(set_parameters))) => {
                                 info!("Set command parameters: {:?}", set_parameters);
