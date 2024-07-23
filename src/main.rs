@@ -416,7 +416,7 @@ async fn handle_connection_from_clients(
                         }
                     }
                     Err(e) => {
-                        error!("Unable to decode request: {e}");
+                        error!("Unable to decode request from client: {e}");
                     }
                 }
             }
@@ -496,7 +496,7 @@ async fn handle_connection_to_master(
                         }
                     }
                     Err(e) => {
-                        error!("Unable to decode request: {e}");
+                        error!("Unable to decode request from master: {e}");
                     }
                 } // end match
          } // end reader
