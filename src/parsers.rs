@@ -336,7 +336,7 @@ fn parse_rdb(input: &str) -> IResult<&str, RedisCommand> {
 }
 
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
-    info!("Parsing command: {}", input);
+    tracing::debug!("Parsing command: {}", input);
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         map(tag_no_case("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {
