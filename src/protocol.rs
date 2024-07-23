@@ -22,7 +22,9 @@ pub enum RedisCommand {
     Keys(String),
     Info(Option<InfoCommandParameter>),
     ReplConf,
-    Psync(String, i16) // (master_replid, master_repl_offset)
+    Psync(String, i16), // client (master_replid, master_repl_offset)
+    Fullresync(String, i16), // master's (master_replid, master_repl_offset)
+    Rdb(Vec<u8>), // RDB file in memory representation
 }
 
 // implement Encoder for RedisCommand
