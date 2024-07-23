@@ -12,7 +12,7 @@ use nom::{
     sequence::{preceded, terminated},
     IResult,
 };
-use tracing::debug;
+use tracing::{debug, info};
 
 // strings are encoded as a plus (+) character, followed by a string.
 fn parse_simple_string(input: &[u8]) -> IResult<&[u8], RespValue> {
@@ -106,7 +106,7 @@ fn parse_rdb(input: &[u8]) -> IResult<&[u8], RespValue> {
 }
 
 pub fn parse_resp(input: &[u8]) -> IResult<&[u8], RespValue> {
-    debug!("Parsing resp: {:?}", input);
+    info!("Parsing resp: {:?}", input);
     alt((
         map(tag_no_case("$-1\r\n"), |_| RespValue::Null),
         map(tag_no_case("*-1\r\n"), |_| RespValue::NullArray),
