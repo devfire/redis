@@ -80,11 +80,15 @@ impl ConfigCommandActor {
             }
 
             ConfigActorMessage::LoadConfig {
-                dir,
-                dbfilename,
                 set_command_actor_handle,
                 expire_tx,
             } => {
+                let dir = self.kv_hash.get(&ConfigCommandParameter::Dir).unwrap();
+                let dbfilename = self
+                    .kv_hash
+                    .get(&ConfigCommandParameter::DbFilename)
+                    .unwrap();
+
                 let fullpath = format!("{}/{}", dir, dbfilename);
 
                 // check to see if the file exists.

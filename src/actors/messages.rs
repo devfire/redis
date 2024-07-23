@@ -56,9 +56,6 @@ pub enum ConfigActorMessage {
         config_value: String,
     },
     LoadConfig {
-        // should be either dir or dbfilename
-        dir: String,
-        dbfilename: String,
         set_command_actor_handle: crate::handlers::set_command::SetCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
     },

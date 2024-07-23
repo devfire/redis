@@ -1,4 +1,4 @@
-use crate::errors::RedisError;
+
 use crate::resp::value::RespValue;
 
 use anyhow::Result;
@@ -82,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
 
-    let mut config_dir: String = "".to_string();
+    // let mut config_dir: String = "".to_string();
 
     // Create a multi-producer, single-consumer channel to send expiration messages.
     // The channel capacity is set to 9600.
@@ -116,8 +116,8 @@ async fn main() -> anyhow::Result<()> {
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
             .await;
-        tracing::info!("Config directory: {dir}");
-        config_dir = dir.to_string();
+        // tracing::info!("Config directory: {dir}");
+        // config_dir = dir.to_string();
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
@@ -127,22 +127,20 @@ async fn main() -> anyhow::Result<()> {
                 &dbfilename.to_string_lossy(),
             )
             .await;
-        info!("Config db filename: {}", dbfilename.display());
-        let config_dbfilename = dbfilename.to_string_lossy().to_string();
+        // info!("Config db filename: {}", dbfilename.display());
+        // let config_dbfilename = dbfilename.to_string_lossy().to_string();
 
         config_command_actor_handle
             .load_config(
-                &config_dir,
-                &config_dbfilename,
                 set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
                 expire_tx.clone(), // need to pass this to unlock expirations on config file load
             )
             .await;
 
-        info!(
-            "Config db dir: {} filename: {}",
-            config_dir, config_dbfilename
-        );
+        // info!(
+        //     "Config db dir: {} filename: {}",
+        //     config_dir, config_dbfilename
+        // );
     }
 
     // initialize to being a master, override if we are a replica

@@ -432,13 +432,6 @@ impl ProcessorActor {
                                         rdb_file_contents
                                     );
 
-                                    // // rdb_in_memory.extend(Vec::from("$"));
-                                    // rdb_in_memory.push(b'$');
-                                    // rdb_in_memory
-                                    //     .extend(rdb_file_contents.len().to_string().as_bytes()); // length of file
-                                    // rdb_in_memory.extend("\r\n".as_bytes());
-                                    // rdb_in_memory.extend(rdb_file_contents);
-
                                     // add the rdb file to the reply, at this point reply has 2 elements, each Vec<u8>
                                     reply.push(RespValue::Rdb(rdb_file_contents));
 

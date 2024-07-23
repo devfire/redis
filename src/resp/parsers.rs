@@ -12,11 +12,11 @@ use nom::{
     sequence::{preceded, terminated},
     IResult,
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 // strings are encoded as a plus (+) character, followed by a string.
 fn parse_simple_string(input: &[u8]) -> IResult<&[u8], RespValue> {
-    info!("Parsing simple string: {:?}", input);
+    debug!("Parsing simple string: {:?}", input);
     map(
         terminated(preceded(tag("+"), take_while(|c| c != b'\r')), crlf),
         |s: &[u8]| RespValue::SimpleString(String::from_utf8_lossy(s).to_string()),
@@ -25,7 +25,7 @@ fn parse_simple_string(input: &[u8]) -> IResult<&[u8], RespValue> {
 
 // integers are encoded as a colon (:) character, followed by a number.
 fn parse_integer(input: &[u8]) -> IResult<&[u8], RespValue> {
-    info!("Parsing integer: {:?}", input);
+    debug!("Parsing integer: {:?}", input);
     map(
         terminated(
             preceded(
@@ -42,7 +42,7 @@ fn parse_integer(input: &[u8]) -> IResult<&[u8], RespValue> {
 
 // errors are encoded as a minus (-) character, followed by an error message.
 fn parse_error(input: &[u8]) -> IResult<&[u8], RespValue> {
-    info!("Parsing error: {:?}", input);
+    debug!("Parsing error: {:?}", input);
     map(
         terminated(preceded(tag("-"), take_while(|c| c != b'\r')), crlf),
         |s: &[u8]| RespValue::Error(String::from_utf8_lossy(s).to_string()),
@@ -53,7 +53,7 @@ fn parse_error(input: &[u8]) -> IResult<&[u8], RespValue> {
 // followed by the number of bytes in the string, followed by CRLF,
 // followed by the string itself.
 fn parse_bulk_string(input: &[u8]) -> IResult<&[u8], RespValue> {
-    info!("Parsing bulk string: {:?}", input);
+    debug!("Parsing bulk string: {:?}", input);
     let (input, length) = preceded(
         tag("$"),
         map_res(take_while(|c: u8| c.is_ascii_digit()), |s| {
