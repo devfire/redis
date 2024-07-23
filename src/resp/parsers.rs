@@ -6,10 +6,7 @@ use nom::{
         complete::{tag, tag_no_case},
         streaming::{take, take_while},
     },
-    character::{
-        complete::crlf,
-        streaming::digit1,
-    },
+    character::{complete::crlf, streaming::digit1},
     combinator::{map, map_res},
     multi::count,
     sequence::{preceded, terminated},
@@ -91,6 +88,23 @@ fn parse_array(input: &[u8]) -> IResult<&[u8], RespValue> {
     }
 }
 
+// parse in-bound RDB file in memory representation. This follows FULLRESYNC redis command.
+// The file is sent using the following format:
+// $<length_of_file>\r\n<contents_of_file>
+// (This is similar to how Bulk Strings are encoded, but without the trailing \r\n)
+fn parse_rdb(input: &[u8]) -> IResult<&[u8], RespValue> {
+    let (input, length) = preceded(
+        tag("$"),
+        map_res(take_while(|c: u8| c.is_ascii_digit()), |s| {
+            String::from_utf8_lossy(s).parse::<i64>()
+        }),
+    )(input)?;
+    let (input, _) = crlf(input)?;
+
+    let (input, data) = take(length as usize)(input)?;
+    Ok((input, RespValue::Rdb(data.to_vec())))
+}
+
 pub fn parse_resp(input: &[u8]) -> IResult<&[u8], RespValue> {
     info!("Parsing resp: {:?}", input);
     alt((
@@ -101,5 +115,6 @@ pub fn parse_resp(input: &[u8]) -> IResult<&[u8], RespValue> {
         parse_integer,
         parse_bulk_string,
         parse_array,
+        parse_rdb,
     ))(input)
 }

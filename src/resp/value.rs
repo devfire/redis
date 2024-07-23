@@ -24,6 +24,8 @@ pub enum RespValue {
     // BufBulk(Vec<u8>),
     /// For Arrays the first byte of the reply is "*".
     Array(Vec<RespValue>),
+    /// $<length_of_file>\r\n<contents_of_file>
+    /// This is similar to how Bulk Strings are encoded, but without the trailing \r\n
     Rdb(Vec<u8>),
 }
 
