@@ -453,7 +453,11 @@ impl ProcessorActor {
                         }
                     }
                     RespValue::BulkString(_) => todo!(),
-                    RespValue::Rdb(_) => todo!(),
+                    RespValue::Rdb(rdb) => {
+                        info!("Received RDB file: {:?}", rdb);
+                        let _ = respond_to.send(None);
+
+                    },
                 }
             }
         }

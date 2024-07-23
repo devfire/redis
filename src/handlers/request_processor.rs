@@ -60,7 +60,7 @@ impl RequestProcessorActorHandle {
         // failure twice.
         let _ = self.sender.send(msg).await;
 
-        if let Some(value) = recv.await.expect("Actor task has been killed") {
+        if let Some(value) = recv.await.expect("Request processor actor task has been killed") {
             Some(value)
         } else {
             None
