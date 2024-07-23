@@ -39,7 +39,7 @@ use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
 // use log::{debug, info};
 // use resp::{encode_slice, Decoder};
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+// use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 use async_channel;
@@ -380,7 +380,7 @@ async fn handle_connection_from_clients(
     mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
     // Split the TCP stream into a reader and writer.
-    let (mut reader, mut writer) = stream.into_split();
+    let (reader, writer) = stream.into_split();
 
     let mut reader = FramedRead::new(reader, RespCodec::new());
     let mut writer = FramedWrite::new(writer, RespCodec::new());
@@ -396,7 +396,7 @@ async fn handle_connection_from_clients(
             Some(msg) = reader.next() => {
                 match msg {
                     Ok(request) => {
-                        // send the request to the request processor actor
+                        // send the request to the request processor actor.
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -412,7 +412,7 @@ async fn handle_connection_from_clients(
                         {
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
-                                let _ = writer.send(value).await?;
+                                let _ = writer.send(value.clone()).await?;
                             }
                         }
                     }
@@ -465,7 +465,7 @@ async fn handle_connection_to_master(
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
-    let (mut reader, mut writer) = stream.into_split();
+    let (reader, writer) = stream.into_split();
 
     let mut reader = FramedRead::new(reader, RespCodec::new());
     let mut writer = FramedWrite::new(writer, RespCodec::new());
@@ -492,7 +492,7 @@ async fn handle_connection_to_master(
                         {
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
-                                let _ = writer.send(value).await?;
+                                let _ = writer.send(value.clone()).await?;
                             }
                         }
                     }

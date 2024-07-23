@@ -93,6 +93,17 @@ impl Encoder<RespValue> for RespCodec {
                 dst.extend_from_slice(b"_\r\n");
             }
             RespValue::NullArray => todo!(),
+
+            // Not strictly speaking a RESP type, but we use it to send RDB files to replicas.
+            // The file is sent using the following format:
+            // $<length_of_file>\r\n<contents_of_file>
+            // (This is similar to how Bulk Strings are encoded, but without the trailing \r\n)
+            RespValue::Rdb(rdb) => {
+                dst.extend_from_slice(b"$");
+                dst.extend_from_slice(rdb.len().to_string().as_bytes());
+                dst.extend_from_slice(b"\r\n");
+                dst.extend_from_slice(&rdb);
+            }
         }
         Ok(())
     } // end of fn encode

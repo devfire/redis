@@ -2,6 +2,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::resp::value::RespValue;
 use crate::{
     handlers::{
         config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
@@ -100,17 +101,17 @@ pub enum InfoActorMessage {
 pub enum ProcessorActorMessage {
     // connection string to connect to master
     Process {
-        request: resp::Value,
+        request: RespValue,
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-        replica_tx: Option<broadcast::Sender<Vec<u8>>>,
+        replica_tx: Option<broadcast::Sender<RespValue>>,
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
         // NOTE: a single request like PSYNC can return multiple responses.
         // So, where a Vec<u8> is a single reponse, a Vec<Vec<u8>> is multiple responses.
-        respond_to: oneshot::Sender<Option<Vec<Vec<u8>>>>,
+        respond_to: oneshot::Sender<Option<Vec<RespValue>>>,
     },
 }
 

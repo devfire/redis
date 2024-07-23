@@ -26,7 +26,7 @@ impl RequestProcessorActorHandle {
         Self { sender }
     }
 
-    /// Processes RESP commands.
+    /// Takes RESP frames, parses them into Redis commands and returns proper replies back to the requestor.
     /// https://redis.io/commands/
     pub async fn process_request(
         &self,
@@ -36,9 +36,9 @@ impl RequestProcessorActorHandle {
         info_command_actor_handle: InfoCommandActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-        replica_tx: Option<broadcast::Sender<Vec<u8>>>, // we get this from master handler only
+        replica_tx: Option<broadcast::Sender<RespValue>>, // we get this from master handler only
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
-    ) -> Option<Vec<Vec<u8>>> {
+    ) -> Option<Vec<RespValue>> {
         info!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
         let (send, recv) = oneshot::channel();

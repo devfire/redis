@@ -1,5 +1,7 @@
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
+use std::io::{Error, ErrorKind};
 use tokio_util::codec::Encoder;
+use tracing::info;
 
 use super::codec::RespCodec;
 
@@ -22,9 +24,11 @@ pub enum RespValue {
     // BufBulk(Vec<u8>),
     /// For Arrays the first byte of the reply is "*".
     Array(Vec<RespValue>),
+    Rdb(Vec<u8>),
 }
 
 impl RespValue {
+    /// Used to create client requests.
     pub fn array_from_slice(slice: &[&str]) -> Self {
         RespValue::Array(
             slice
@@ -34,6 +38,7 @@ impl RespValue {
         )
     }
 
+    /// Encodes a RespValue into RESP protocol format.
     pub fn encode(&self) -> Vec<u8> {
         let mut buffer = BytesMut::new();
         let mut codec = RespCodec::new();
@@ -41,5 +46,17 @@ impl RespValue {
             .encode(self.clone(), &mut buffer)
             .expect("Encoding should not fail");
         buffer.to_vec()
+    }
+
+    pub fn to_encoded_string(&self) -> anyhow::Result<String> {
+        let bytes = self.encode();
+        let encoded_string = String::from_utf8(bytes);
+        match encoded_string {
+            Ok(s) => {
+                info!("Encoded string: {}", s);
+                Ok(s)
+            }
+            Err(e) => Err(Error::new(ErrorKind::InvalidData, e).into()),
+        }
     }
 }
