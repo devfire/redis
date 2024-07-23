@@ -1,4 +1,3 @@
-
 use crate::resp::value::RespValue;
 
 use anyhow::Result;
@@ -133,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
         config_command_actor_handle
             .import_config(
                 set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
-                None, // load from disk
+                None,                             // load from disk
                 expire_tx.clone(), // need to pass this to unlock expirations on config file load
             )
             .await;
@@ -396,6 +395,7 @@ async fn handle_connection_from_clients(
                 match msg {
                     Ok(request) => {
                         // send the request to the request processor actor.
+                        info!("Client reader returned RESP: {:?}", request);
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -411,6 +411,7 @@ async fn handle_connection_from_clients(
                         {
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
+                                info!("Sending response to client: {:?}", value);
                                 let _ = writer.send(value.clone()).await?;
                             }
                         }
