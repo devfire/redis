@@ -1,10 +1,11 @@
 use crate::{
     actors::{messages::ProcessorActorMessage, processor::ProcessorActor},
     handlers::set_command::SetCommandActorHandle,
-    protocol::SetCommandParameter, resp::value::RespValue,
+    protocol::SetCommandParameter,
+    resp::value::RespValue,
 };
 
-use tracing::info;
+use tracing::{debug, info};
 // use resp::Value;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
@@ -39,7 +40,7 @@ impl RequestProcessorActorHandle {
         replica_tx: Option<broadcast::Sender<RespValue>>, // we get this from master handler only
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
     ) -> Option<Vec<RespValue>> {
-        info!("Processing request: {:?}", request);
+        debug!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
         let (send, recv) = oneshot::channel();
 
@@ -60,11 +61,13 @@ impl RequestProcessorActorHandle {
         // failure twice.
         let _ = self.sender.send(msg).await;
 
-        if let Some(value) = recv.await.expect("Request processor actor task has been killed") {
+        if let Some(value) = recv
+            .await
+            .expect("Request processor actor task has been killed")
+        {
             Some(value)
         } else {
             None
         }
-
     }
 }
