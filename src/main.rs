@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(socket_address).await?;
 
-    debug!("Redis is running on port {}.", cli.port);
+    tracing::info!("Redis is running on port {}.", cli.port);
 
     // Get a handle to the set actor, one per redis. This starts the actor.
     let set_command_actor_handle = SetCommandActorHandle::new();
@@ -416,7 +416,7 @@ async fn handle_connection_from_clients(
                 match msg {
                     Ok(request) => {
                         // send the request to the request processor actor.
-                        debug!("Client reader returned RESP: {:?}", request);
+                        tracing::info!("Client reader returned RESP: {:?}", request);
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -430,7 +430,7 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            debug!("Sending replies to client: {:?}", processed_value);
+                            tracing::info!("Sending replies to client: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
                                 debug!("Sending response to client: {:?}", value);
@@ -448,7 +448,7 @@ async fn handle_connection_from_clients(
                 Ok(msg) => {
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
-                        debug!("Sending message to replica: {:?}", msg);
+                        tracing::info!("Sending message to replica: {:?}", msg);
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
@@ -498,7 +498,7 @@ async fn handle_connection_to_master(
             Some(msg) = reader.next() => {
                 match msg {
                     Ok(request) => {
-                        debug!("Master reader returned RESP: {:?}", request);
+                        tracing::info!("Master reader returned RESP: {:?}", request);
                         // send the request to the request processor actor
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
