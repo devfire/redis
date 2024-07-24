@@ -8,7 +8,7 @@ use crate::{actors::messages::ConfigActorMessage, protocol::ConfigCommandParamet
 // use futures_util::io::BufReader;
 
 use futures::StreamExt;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 // use resp::Value;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -89,7 +89,7 @@ impl ConfigCommandActor {
 
                 match import_from_memory {
                     Some(buffer) => {
-                        info!("Loading config from memory.");
+                        debug!("Loading config from memory.");
                         // Create a cursor over the Vec<u8>
                         let cursor = std::io::Cursor::new(buffer);
 
@@ -106,7 +106,7 @@ impl ConfigCommandActor {
                                     key,
                                     value,
                                 }) => {
-                                    info!(
+                                    debug!(
                                         "Loading {} {} {:?} from local db.",
                                         key, value, key_expiry_time
                                     );
@@ -134,13 +134,13 @@ impl ConfigCommandActor {
                                 }
                                 Err(e) => error!("Failure trying to load config: {}.", e),
                                 // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
-                                // Ok(_) => info!("Skipping over OpCodes"),
+                                // Ok(_) => debug!("Skipping over OpCodes"),
                                 // Err(_) => error!("{}",e),
                             }
                         }
                     }
                     None => {
-                        info!("Loading config from disk.");
+                        debug!("Loading config from disk.");
                         let dir = self.kv_hash.get(&ConfigCommandParameter::Dir).unwrap();
                         let dbfilename = self
                             .kv_hash
@@ -155,7 +155,7 @@ impl ConfigCommandActor {
                         } else {
                             // file exists, let's proceed.
                             // Log the attempt
-                            info!("Loading config {} from disk", fullpath);
+                            debug!("Loading config {} from disk", fullpath);
 
                             let rdb_file = File::open(fullpath)
                                 .await
@@ -174,7 +174,7 @@ impl ConfigCommandActor {
                                         key,
                                         value,
                                     }) => {
-                                        info!(
+                                        debug!(
                                             "Loading {} {} {:?} from local db.",
                                             key, value, key_expiry_time
                                         );
@@ -202,7 +202,7 @@ impl ConfigCommandActor {
                                     }
                                     Err(e) => error!("Failure trying to load config: {}.", e),
                                     // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
-                                    // Ok(_) => info!("Skipping over OpCodes"),
+                                    // Ok(_) => debug!("Skipping over OpCodes"),
                                     // Err(_) => error!("{}",e),
                                 }
                             }
@@ -249,7 +249,7 @@ impl ConfigCommandActor {
                 } else {
                     // file exists, let's proceed.
                     // Log the attempt
-                    info!("Loading config {} into memory.", fullpath);
+                    debug!("Loading config {} into memory.", fullpath);
 
                     let mut rdb_file = File::open(fullpath)
                         .await
