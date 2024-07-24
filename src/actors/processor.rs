@@ -37,7 +37,7 @@ impl ProcessorActor {
 
     // Handle a RespValue message, parse it into a RedisCommand, and reply back with the appropriate response.
     pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
-        debug!("Handling message: {:?}", msg);
+        info!("Handling message: {:?}", msg);
         // Match on the type of the message
         match msg {
             // Handle a Process message
@@ -73,53 +73,6 @@ impl ProcessorActor {
                                     repl_id, offset
                                 );
                                 let _ = respond_to.send(None);
-
-                                // let's see if we have an RDB file in the remaining bytes
-                                // match parse_command(&remaining_bytes) {
-                                //     Ok((_, RedisCommand::Rdb(rdb_file_data))) => {
-                                //         // let's load the RDB file into memory
-                                //         info!("Received RDB file: {:?}", rdb_file_data);
-
-                                //         // Initialize a random number generator based on the current thread.
-                                //         // let mut rng = rand::thread_rng();
-
-                                //         // generate a temp filename of alphanumeric characters
-                                //         // let temp_rdb_filename: String = iter::repeat(())
-                                //         //     // Map each iteration to a randomly chosen alphanumeric character.
-                                //         //     .map(|()| rng.sample(Alphanumeric))
-                                //         //     // Convert the sampled character into its char representation.
-                                //         //     .map(char::from)
-                                //         //     .take(40) // Take only the first 40 characters.
-                                //         //     .collect(); // Collect the characters into a String.
-
-                                //         // let temp_rdb_dir = ".";
-
-                                //         // // write the RDB file to disk
-                                //         // let rdb_file_path =
-                                //         //     format!("{}{}", temp_rdb_dir, temp_rdb_filename);
-
-                                //         // // write the RDB file to disk
-                                //         // let mut file = std::fs::File::create(&rdb_file_path)
-                                //         //     .expect("Failed to create temp RDB file.");
-
-                                //         // // write the RDB file to disk
-                                //         // file.write_all(&rdb_file_data)
-                                //         //     .expect("Failed to write temp RDB file.");
-
-                                //         // // tell the config actor to load the RDB file into memory
-                                //         // config_command_actor_handle
-                                //         //     .load_config(
-                                //         //         &temp_rdb_dir,
-                                //         //         &temp_rdb_filename,
-                                //         //         set_command_actor_handle.clone(), // need to pass this to get direct access to the redis db
-                                //         //         expire_tx.clone(), // need to pass this to unlock expirations on config file load
-                                //         //     )
-                                //         //     .await;
-                                //     }
-                                //     _ => {
-                                //         error!("Failed to parse RDB file.");
-                                //     }
-                                // }
                             }
                             _ => {
                                 info!(

@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
@@ -341,7 +341,7 @@ async fn handshake(
     // wait for a reply from the master before proceeding
     let reply = master_rx.recv().await;
 
-    debug!("Received reply {:?}", reply);
+    info!("Master replied {:?}", reply);
 
     for command in handshake.into_iter() {
         // Send the value.
@@ -404,11 +404,12 @@ async fn handle_connection_from_clients(
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                Some(replica_tx.clone()),
-                                Some(client_or_replica_tx.clone()),
+                                Some(replica_tx.clone()), // used to send replication messages to the replica
+                                Some(client_or_replica_tx.clone()), // used to update replica status
                             )
                             .await
                         {
+                            info!("Sending replies to client: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
                                 info!("Sending response to client: {:?}", value);
@@ -428,7 +429,7 @@ async fn handle_connection_from_clients(
                     if am_i_replica {
                         info!("Sending message to replica: {:?}", msg);
                         let _ = writer.send(msg).await?;
-                        writer.flush().await?;
+                        // writer.flush().await?;
                     } else {
                         info!("Not sending replication message to non-replica client.");
                     }
@@ -476,6 +477,7 @@ async fn handle_connection_to_master(
             Some(msg) = reader.next() => {
                 match msg {
                     Ok(request) => {
+                        info!("Master reader returned RESP: {:?}", request);
                         // send the request to the request processor actor
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
@@ -490,10 +492,11 @@ async fn handle_connection_to_master(
                             )
                             .await
                         {
+                            warn!("Replies to master are suppressed: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
-                            for value in processed_value.iter() {
-                                let _ = writer.send(value.clone()).await?;
-                            }
+                            // for value in processed_value.iter() {
+                            //     let _ = writer.send(value.clone()).await?;
+                            // }
                         }
                     }
                     Err(e) => {
@@ -508,9 +511,9 @@ async fn handle_connection_to_master(
          msg = tcp_msgs_rx.recv() => {
             match msg {
                 Ok(msg) => {
-                    debug!("Sending message to master: {:?}", msg);
+                    info!("Sending message to master: {:?}", msg);
                     let _ = writer.send(msg).await?;
-                    writer.flush().await?;
+                    // writer.flush().await?;
                 }
                 Err(e) => {
                     error!("Something unexpected happened: {e}");
