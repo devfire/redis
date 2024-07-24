@@ -36,7 +36,7 @@ impl Decoder for RespCodec {
         }
 
         // convert decimal ascii to string
-        tracing::info!("Decoding: {:?}", src);
+        tracing::debug!("Decoding: {:?}", src);
 
         match parse_resp(src) {
             Ok((remaining_bytes, parsed_message)) => {
@@ -62,7 +62,7 @@ impl Encoder<RespValue> for RespCodec {
     type Error = RedisError;
 
     fn encode(&mut self, item: RespValue, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        tracing::info!("Encoding: {:?}", item);
+        tracing::debug!("Encoding: {:?}", item);
         match item {
             RespValue::SimpleString(s) => {
                 dst.extend_from_slice(b"+");

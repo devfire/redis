@@ -5,7 +5,7 @@ use crate::{
     resp::value::RespValue,
 };
 
-use tracing::{debug, info};
+use tracing::{debug};
 // use resp::Value;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
@@ -40,7 +40,7 @@ impl RequestProcessorActorHandle {
         replica_tx: Option<broadcast::Sender<RespValue>>, // we get this from master handler only
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
     ) -> Option<Vec<RespValue>> {
-        info!("Processing request: {:?}", request);
+        debug!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
         let (send, recv) = oneshot::channel();
 

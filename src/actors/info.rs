@@ -51,7 +51,7 @@ impl InfoCommandActor {
                     let _ = respond_to.send(None);
                 }
                 // If the key exists in the hash map, send the value back
-                // info!("Processing {:?}", msg);
+                // debug!("Processing {:?}", msg);
             }
             InfoActorMessage::SetInfoValue {
                 info_key,
