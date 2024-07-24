@@ -1,6 +1,5 @@
 // Import necessary modules and types
 use crate::actors::messages::SetActorMessage;
-use tracing::info;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
@@ -55,7 +54,7 @@ impl SetCommandActor {
 
             // Handle a SetValue message
             SetActorMessage::SetValue { input } => {
-                info!("Inserting key: {} value: {}.", input.key, input.value);
+                tracing::debug!("Inserting key: {} value: {}.", input.key, input.value);
                 // Insert the key-value pair into the hash map
                 self.kv_hash.insert(input.key, input.value);
 
@@ -65,7 +64,7 @@ impl SetCommandActor {
             // Handle an ExpireValue message
             SetActorMessage::DeleteValue { value } => {
                 // Log the expiry
-                info!("Expiring {:?}", value);
+                tracing::debug!("Expiring {:?}", value);
 
                 // Remove the key-value pair from the hash map.
                 //
@@ -78,7 +77,7 @@ impl SetCommandActor {
                 respond_to,
             } => {
                 // check to see if there are keys in the hashmap
-                info!("Getting all the keys that match the pattern: {}", pattern);
+                tracing::debug!("Getting all the keys that match the pattern: {}", pattern);
 
                 if !self.kv_hash.is_empty() {
                     // Send the keys back
