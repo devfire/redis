@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use std::io::{Error, ErrorKind};
 use tokio_util::codec::Encoder;
-use tracing::info;
+use tracing::{debug};
 
 use super::codec::RespCodec;
 
@@ -55,7 +55,7 @@ impl RespValue {
         let encoded_string = String::from_utf8(bytes);
         match encoded_string {
             Ok(s) => {
-                info!("Encoded string: {}", s);
+                debug!("Encoded string: {}", s);
                 Ok(s)
             }
             Err(e) => Err(Error::new(ErrorKind::InvalidData, e).into()),

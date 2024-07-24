@@ -1,5 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use crate::{
     actors::{config::ConfigCommandActor, messages::ConfigActorMessage},
@@ -55,7 +55,7 @@ impl ConfigCommandActorHandle {
             config_value: config_value.to_string(),
         };
 
-        info!(
+        debug!(
             "Setting value for key: {:?}, value: {}",
             config_key, config_value
         );

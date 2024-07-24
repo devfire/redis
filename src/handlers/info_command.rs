@@ -1,4 +1,3 @@
-use tracing::info;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
@@ -25,7 +24,7 @@ impl InfoCommandActorHandle {
     /// Gets sections from INFO command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
     pub async fn get_value(&self, info_key: InfoCommandParameter) -> Option<InfoSectionData> {
-        info!("Getting info value for key: {:?}", info_key);
+        tracing::debug!("Getting info value for key: {:?}", info_key);
         let (send, recv) = oneshot::channel();
         let msg = InfoActorMessage::GetInfoValue {
             info_key,
@@ -54,7 +53,7 @@ impl InfoCommandActorHandle {
             info_value,
         };
 
-        // info!("Setting INFO key: {:?}, value: {}", info_key.clone(), info_value);
+        // debug!("Setting INFO key: {:?}, value: {}", info_key.clone(), info_value);
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }

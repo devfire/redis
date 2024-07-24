@@ -3,6 +3,7 @@ use tokio_util::codec::{Decoder, Encoder};
 
 use bytes::{Buf, BytesMut};
 use nom::{Err, Needed};
+use tracing::error;
 
 use crate::errors::RedisError;
 
@@ -34,6 +35,9 @@ impl Decoder for RespCodec {
             return Ok(None);
         }
 
+        // convert decimal ascii to string
+        tracing::debug!("Decoding: {:?}", src);
+
         match parse_resp(src) {
             Ok((remaining_bytes, parsed_message)) => {
                 // advance the cursor by the difference between what we read
@@ -45,7 +49,10 @@ impl Decoder for RespCodec {
             }
             Err(Err::Incomplete(Needed::Size(_))) => Ok(None),
 
-            Err(_) => Err(RedisError::ParseFailure),
+            Err(e) => {
+                error!("Error {} parsing RESP message: {:?}", e, src);
+                Err(RedisError::ParseFailure)
+            }
         }
     }
 } // end of impl Decoder for RespCodec
@@ -55,6 +62,7 @@ impl Encoder<RespValue> for RespCodec {
     type Error = RedisError;
 
     fn encode(&mut self, item: RespValue, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        tracing::debug!("Encoding: {:?}", item);
         match item {
             RespValue::SimpleString(s) => {
                 dst.extend_from_slice(b"+");
