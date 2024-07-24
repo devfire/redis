@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
 use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error};
 
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(socket_address).await?;
 
-    info!("Redis is running on port {}.", cli.port);
+    tracing::info!("Redis is running on port {}.", cli.port);
 
     // Get a handle to the set actor, one per redis. This starts the actor.
     let set_command_actor_handle = SetCommandActorHandle::new();
@@ -115,7 +115,7 @@ async fn main() -> anyhow::Result<()> {
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
             .await;
-        // tracing::info!("Config directory: {dir}");
+        // tracing::debug!("Config directory: {dir}");
         // config_dir = dir.to_string();
     }
 
@@ -126,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
                 &dbfilename.to_string_lossy(),
             )
             .await;
-        // info!("Config db filename: {}", dbfilename.display());
+        // debug!("Config db filename: {}", dbfilename.display());
         // let config_dbfilename = dbfilename.to_string_lossy().to_string();
 
         config_command_actor_handle
@@ -137,7 +137,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .await;
 
-        // info!(
+        // debug!(
         //     "Config db dir: {} filename: {}",
         //     config_dir, config_dbfilename
         // );
@@ -187,6 +187,10 @@ async fn main() -> anyhow::Result<()> {
 
         handshake(tcp_msgs_tx.clone(), master_rx, cli.port.to_string()).await?;
 
+        debug!(
+            "Handshake completed, connected to master at {}.",
+            master_host_port_combo
+        );
         // set the role to slave
         info_data = InfoSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -229,7 +233,7 @@ async fn main() -> anyhow::Result<()> {
 
                             // we sleep if this is NON negative
                             if !expiry_time < 0 {
-                                info!("Sleeping for {} seconds.", expiry_time);
+                                debug!("Sleeping for {} seconds.", expiry_time);
                                 sleep(Duration::from_secs(expiry_time as u64)).await;
                             }
 
@@ -256,11 +260,11 @@ async fn main() -> anyhow::Result<()> {
 
                             // we sleep if this is NON negative
                             if !expiry_time < 0 {
-                                info!("Sleeping for {} milliseconds.", expiry_time);
+                                debug!("Sleeping for {} milliseconds.", expiry_time);
                                 sleep(Duration::from_millis(expiry_time as u64)).await;
                             }
 
-                            info!("Expiring {:?}", msg);
+                            debug!("Expiring {:?}", msg);
 
                             // Fire off a command to the handler to remove the value immediately.
                             command_handler_expire_clone.delete_value(&msg.key).await;
@@ -330,30 +334,47 @@ async fn handshake(
     // initialize the empty array
     let repl_conf_capa = RespValue::array_from_slice(&["REPLCONF", "capa", "psync2"]);
 
-    // send the PSYNC ? -1
+    // STEP 4: send the PSYNC ? -1
     let psync = RespValue::array_from_slice(&["PSYNC", "?", "-1"]);
 
-    let handshake = vec![repl_conf_listening_port, repl_conf_capa, psync];
+    // let handshake_commands = vec![repl_conf_listening_port, repl_conf_capa, psync];
 
     // send the ping
     tcp_msgs_tx.send(ping).await?;
-
     // wait for a reply from the master before proceeding
     let reply = master_rx.recv().await;
+    debug!("HANDSHAKE: master replied to ping {:?}", reply);
 
-    info!("Master replied {:?}", reply);
+    // send the REPLCONF listening-port <PORT>
+    tcp_msgs_tx.send(repl_conf_listening_port).await?;
+    // wait for a reply from the master before proceeding
+    let reply = master_rx.recv().await;
+    debug!("HANDSHAKE: master replied {:?}", reply);
 
-    for command in handshake.into_iter() {
-        // Send the value.
-        // Encodes a slice of string to RESP binary buffer.
-        // It is used to create a request command on redis client.
-        // https://docs.rs/resp/latest/resp/fn.encode_slice.html
-        tcp_msgs_tx.send(command).await?;
+    // send the REPLCONF capa psync2
+    tcp_msgs_tx.send(repl_conf_capa).await?;
+    // wait for a reply from the master before proceeding
+    let reply = master_rx.recv().await;
+    debug!("HANDSHAKE: master replied {:?}", reply);
 
-        // wait for the +OK reply from the master before proceeding
-        let reply = master_rx.recv().await;
-        info!("Received reply from the master {:?}", reply);
-    }
+    // send the PSYNC ? -1
+    tcp_msgs_tx.send(psync).await?; 
+    // no waiting any more, we are done with the handshake
+
+
+    // for command in handshake_commands.into_iter() {
+    //     // Send the value.
+    //     // Encodes a slice of string to RESP binary buffer.
+    //     // It is used to create a request command on redis client.
+    //     // https://docs.rs/resp/latest/resp/fn.encode_slice.html
+    //     tcp_msgs_tx.send(command).await?;
+
+    //     // wait for the +OK reply from the master before proceeding
+    //     let reply = master_rx.recv().await;
+    //     debug!("HANDSHAKE: master replied {:?}", reply);
+    // }
+
+    debug!("Handshake completed.");
 
     Ok(())
 }
@@ -395,7 +416,7 @@ async fn handle_connection_from_clients(
                 match msg {
                     Ok(request) => {
                         // send the request to the request processor actor.
-                        info!("Client reader returned RESP: {:?}", request);
+                        tracing::info!("Client reader returned RESP: {:?}", request);
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -409,10 +430,10 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            info!("Sending replies to client: {:?}", processed_value);
+                            tracing::info!("Sending replies to client: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
-                                info!("Sending response to client: {:?}", value);
+                                debug!("Sending response to client: {:?}", value);
                                 let _ = writer.send(value.clone()).await?;
                             }
                         }
@@ -427,11 +448,11 @@ async fn handle_connection_from_clients(
                 Ok(msg) => {
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
-                        info!("Sending message to replica: {:?}", msg);
+                        tracing::info!("Sending message to replica: {:?}", msg);
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
-                        info!("Not sending replication message to non-replica client.");
+                        debug!("Not sending replication message to non-replica client.");
                     }
                 }
                 Err(e) => {
@@ -446,7 +467,7 @@ async fn handle_connection_from_clients(
             //     // we only want to send replication messages to replicas.
                 am_i_replica  = msg;
 
-                info!("Updated client replica status to {:?}", am_i_replica);
+                debug!("Updated client replica status to {:?}", am_i_replica);
             // // }
          }
         } // end tokio::select
@@ -477,7 +498,7 @@ async fn handle_connection_to_master(
             Some(msg) = reader.next() => {
                 match msg {
                     Ok(request) => {
-                        info!("Master reader returned RESP: {:?}", request);
+                        tracing::info!("Master reader returned RESP: {:?}", request);
                         // send the request to the request processor actor
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
@@ -492,7 +513,7 @@ async fn handle_connection_to_master(
                             )
                             .await
                         {
-                            warn!("Replies to master are suppressed: {:?}", processed_value);
+                            debug!("Replies to master are suppressed: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
                             // for value in processed_value.iter() {
                             //     let _ = writer.send(value.clone()).await?;
