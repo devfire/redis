@@ -40,7 +40,7 @@ impl RequestProcessorActorHandle {
         replica_tx: Option<broadcast::Sender<RespValue>>, // we get this from master handler only
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
     ) -> Option<Vec<RespValue>> {
-        debug!("Processing request: {:?}", request);
+        info!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
         let (send, recv) = oneshot::channel();
 
