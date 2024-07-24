@@ -3,7 +3,7 @@ use std::{
     usize,
 };
 
-use tracing::info;
+
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
@@ -185,7 +185,7 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
         get,
         expire,
     };
-    info!("Parsed SET: {:?}", set_params);
+    tracing::debug!("Parsed SET: {:?}", set_params);
 
     Ok((input, RedisCommand::Set(set_params)))
 }
