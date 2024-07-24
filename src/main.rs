@@ -532,7 +532,7 @@ async fn handle_connection_to_master(
          msg = tcp_msgs_rx.recv() => {
             match msg {
                 Ok(msg) => {
-                    info!("Sending message to master: {:?}", msg);
+                    tracing::info!("Sending message to master: {:?}", msg);
                     let _ = writer.send(msg).await?;
                     // writer.flush().await?;
                 }
