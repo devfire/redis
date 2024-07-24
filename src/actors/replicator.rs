@@ -43,7 +43,7 @@ impl ReplicatorActor {
 
                 // Add the connection to the hash map
                 self.master_stream = Some(stream);
-                info!("Connected to master: {}.", connection_string);
+                debug!("Connected to master: {}.", connection_string);
             }
             ReplicationActorMessage::SendCommand { command } => {
                 // Send the command to the master

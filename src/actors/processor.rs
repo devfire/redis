@@ -7,7 +7,7 @@ use crate::{
 };
 
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error};
 
 // use rand::distributions::Alphanumeric;
 // use rand::Rng;
@@ -37,7 +37,7 @@ impl ProcessorActor {
 
     // Handle a RespValue message, parse it into a RedisCommand, and reply back with the appropriate response.
     pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
-        info!("Handling message: {:?}", msg);
+        debug!("Handling message: {:?}", msg);
         // Match on the type of the message
         match msg {
             // Handle a Process message
@@ -63,19 +63,19 @@ impl ProcessorActor {
                             .to_encoded_string()
                             .expect("Failed to encode request as a string.");
 
-                        info!("RESP request: {:?}", request_as_encoded_string);
+                        debug!("RESP request: {:?}", request_as_encoded_string);
 
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Fullresync(repl_id, offset))) => {
                                 // we got RDB mem dump, time to load it
-                                info!(
+                                debug!(
                                     "Received FULLRESYNC repl_id: {} offset: {}.",
                                     repl_id, offset
                                 );
                                 let _ = respond_to.send(None);
                             }
                             _ => {
-                                info!(
+                                debug!(
                                     "Unknown string {}, forwarding to replica.",
                                     request_as_encoded_string
                                 );
@@ -102,7 +102,7 @@ impl ProcessorActor {
                             .to_encoded_string()
                             .expect("Failed to encode request as a string.");
 
-                        info!("RESP request: {:?}", request_as_encoded_string);
+                        debug!("RESP request: {:?}", request_as_encoded_string);
 
                         // OK, what we get back from the parser is a command with all of its parameters.
                         // Now we get to do stuff with the command.
@@ -133,7 +133,7 @@ impl ProcessorActor {
                                     .send(Some(vec![(RespValue::SimpleString("OK".to_string()))]));
                             }
                             Ok((_, RedisCommand::Set(set_parameters))) => {
-                                info!("Set command parameters: {:?}", set_parameters);
+                                debug!("Set command parameters: {:?}", set_parameters);
 
                                 // Sets the value for the key in the set parameters in the set command actor handle.
                                 // Awaits the result.
@@ -147,7 +147,7 @@ impl ProcessorActor {
 
                                 // forward this to the replicas
                                 if let Some(replica_tx_sender) = replica_tx {
-                                    info!(
+                                    debug!(
                                         "Forwarding {} command to replicas.",
                                         request_as_encoded_string
                                     );
@@ -301,7 +301,7 @@ impl ProcessorActor {
                                     keys_collection.push(response);
                                 }
 
-                                // info!("Returning keys: {:?}", keys_collection);
+                                // debug!("Returning keys: {:?}", keys_collection);
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::Array(keys_collection))]));
                             }
@@ -357,7 +357,7 @@ impl ProcessorActor {
                                     let new_offset = 0;
                                     // check if the replica is asking for a full resynch
                                     if offset == -1 {
-                                        info!("Full resync triggered with offset {}", new_offset);
+                                        debug!("Full resync triggered with offset {}", new_offset);
                                     }
 
                                     reply.push(RespValue::SimpleString(format!(
@@ -380,7 +380,7 @@ impl ProcessorActor {
                                         .await
                                         .expect("Unable to load RDB file into memory");
 
-                                    info!(
+                                    debug!(
                                         "Retrieved config file contents {:?}.",
                                         rdb_file_contents
                                     );
@@ -394,13 +394,13 @@ impl ProcessorActor {
                                 }
                             } // end of psync
                             _ => {
-                                warn!("Unsupported command: {:?}", request_as_encoded_string);
+                                debug!("Unsupported command: {:?}", request_as_encoded_string);
                             }
                         }
                     }
                     RespValue::BulkString(_) => todo!(),
                     RespValue::Rdb(rdb) => {
-                        info!("Received RDB file: {:?}", rdb);
+                        debug!("Received RDB file: {:?}", rdb);
 
                         // Import it into the config actor
                         config_command_actor_handle
