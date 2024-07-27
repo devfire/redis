@@ -168,7 +168,7 @@ async fn main() -> anyhow::Result<()> {
         let expire_tx_clone = expire_tx.clone();
         let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
-        // let replica_tx_clone = replica_tx.clone();
+        let replica_tx_clone = replica_tx.clone();
 
         tokio::spawn(async move {
             handle_connection_to_master(
@@ -180,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx_clone,
                 tcp_msgs_rx_clone,
                 master_tx_clone,
-                // replica_tx_clone, // used to send replication messages to the replica
+                replica_tx_clone, // used to send replication messages to the replica
             )
             .await
         });
@@ -358,9 +358,8 @@ async fn handshake(
     debug!("HANDSHAKE: master replied {:?}", reply);
 
     // send the PSYNC ? -1
-    tcp_msgs_tx.send(psync).await?; 
+    tcp_msgs_tx.send(psync).await?;
     // no waiting any more, we are done with the handshake
-
 
     // for command in handshake_commands.into_iter() {
     //     // Send the value.
@@ -485,6 +484,7 @@ async fn handle_connection_to_master(
     expire_tx: mpsc::Sender<SetCommandParameter>,
     tcp_msgs_rx: async_channel::Receiver<RespValue>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
+    replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
@@ -508,7 +508,7 @@ async fn handle_connection_to_master(
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                None, // connections to master cannot receive replication messages
+                                Some(replica_tx.clone()), // connections to master cannot receive replication messages
                                 None, // connections to master cannot update replica status
                             )
                             .await
