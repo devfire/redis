@@ -1,5 +1,6 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
+use clap::builder::Str;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::iter;
@@ -21,7 +22,7 @@ pub enum RedisCommand {
     Config(ConfigCommandParameter), // CONFIG GET
     Keys(String),
     Info(Option<InfoCommandParameter>),
-    ReplConf,
+    ReplConf(ReplConfCommandParameter),
     Psync(String, i16), // client (master_replid, master_repl_offset)
     Fullresync(String, i16), // master's (master_replid, master_repl_offset)
     Rdb(Vec<u8>), // RDB file in memory representation
@@ -36,6 +37,16 @@ pub enum RedisCommand {
 //     }
 // }
 
+// REPLCONF parameters
+// https://redis.io/commands/replconf
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum ReplConfCommandParameter {
+    Getack(String),
+    Ack(u32),
+    Capa(String),
+    ListeningPort(u16),
+}
+
 // INFO [section [section ...]]
 // The optional parameter can be used to select a specific section of information:
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -47,17 +58,21 @@ pub enum InfoCommandParameter {
 
 /// Replication section https://redis.io/docs/latest/commands/info/
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct InfoSectionData {
+pub struct ReplicationSectionData {
     // role: Value is "master" if the instance is replica of no one,
     // or "slave" if the instance is a replica of some master instance.
     // Note that a replica can be master of another replica (chained replication).
+    // NOTE: since Redis 4.0 replica writes are only local, 
+    // and are not propagated to sub-replicas attached to the instance. 
+    // Sub-replicas instead will always receive the replication stream identical 
+    // to the one sent by the top-level master to the intermediate replicas.
     pub role: ServerRole,
     pub master_replid: String,
     pub master_repl_offset: i16, // cannot be u16 because initial offset is -1
 }
 
 // return InfoSectionData as a string
-impl fmt::Display for InfoSectionData {
+impl fmt::Display for ReplicationSectionData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "role:{}:", &self.role)?;
         write!(f, "master_replid:{}:", &self.master_replid)?;
@@ -66,7 +81,7 @@ impl fmt::Display for InfoSectionData {
 }
 
 // implement new for InfoSectionData
-impl InfoSectionData {
+impl ReplicationSectionData {
     // Generates a random alphanumeric string of 40 characters to serve as a replication ID.
     // This method is useful for creating unique identifiers for replication purposes in Redis setups.
     pub fn generate_replication_id() -> String {

@@ -3,11 +3,13 @@ use std::{
     usize,
 };
 
-
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
-    character::{complete::{crlf, not_line_ending}, streaming::alphanumeric1},
+    character::{
+        complete::{crlf, not_line_ending},
+        streaming::alphanumeric1,
+    },
     combinator::{map, opt, value, verify},
     sequence::{terminated, tuple},
     IResult,
@@ -15,7 +17,7 @@ use nom::{
 
 use crate::protocol::{
     ConfigCommandParameter, ExpiryOption, InfoCommandParameter, RedisCommand,
-    SetCommandExpireOption, SetCommandParameter, SetCommandSetOption,
+    ReplConfCommandParameter, SetCommandExpireOption, SetCommandParameter, SetCommandSetOption,
 };
 
 fn length(input: &str) -> IResult<&str, usize> {
@@ -257,14 +259,53 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$8\r\nREPLCONF\r\n")(input)?;
 
-    // parameters as one string
-    let (input, _first) = (parse_resp_string)(input)?;
+    // REPLCONF listening-port <PORT>
+    // REPLCONF capa psync2 | *3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n
+    // REPLCONF getack <ACK>
+    // REPLCONF ack <ACK>
+    // alt: The alt combinator is used to try multiple parsers in order until one succeeds.
+    // In this case, it's used to parse the various REPLCONF parameters.
+    //
+    let (input, replconf_params) = alt((
+        // value: The value combinator is used to map the result of a parser to a specific value.
+        // In this case, it's used to map the result of the tag_no_case combinator to ReplConfCommandParameter::ListeningPort,
+        // ReplConfCommandParameter::Capa, ReplConfCommandParameter::Getack, ReplConfCommandParameter::Ack, or
+        // ReplConfCommandParameter::BacklogSize for the option.
+        //
+        map(
+            tuple((tag_no_case("$14\r\nlistening-port\r\n"), parse_resp_string)),
+            |(_, port)| {
+                ReplConfCommandParameter::ListeningPort(
+                    port.parse::<u16>()
+                        .expect("Listening port conversion failed."),
+                ) //
+            },
+        ),
+        map(
+            tuple((tag_no_case("$4\r\ncapa\r\n"), parse_resp_string)),
+            |(_, capabilities)| {
+                ReplConfCommandParameter::Capa(capabilities) //
+            },
+        ),
+        map(
+            tuple((tag_no_case("$6\r\ngetack\r\n"), parse_resp_string)),
+            |(_, ackvalue)| {
+                ReplConfCommandParameter::Getack(ackvalue) //
+            },
+        ),
+        map(
+            tuple((tag_no_case("$3\r\nack\r\n"), parse_resp_string)),
+            |(_, offset)| {
+                ReplConfCommandParameter::Ack(
+                    offset
+                        .parse::<u32>()
+                        .expect("Offset string to u32 conversion failed."),
+                )
+            },
+        ),
+    ))(input)?;
 
-    // second parameter
-    // this could be REPLCONF listening-port <PORT>
-    let (input, _second) = (parse_resp_string)(input)?;
-
-    Ok((input, RedisCommand::ReplConf))
+    Ok((input, RedisCommand::ReplConf(replconf_params)))
 }
 
 fn parse_psync(input: &str) -> IResult<&str, RedisCommand> {
@@ -336,7 +377,7 @@ fn parse_rdb(input: &str) -> IResult<&str, RedisCommand> {
 }
 
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
-    tracing::debug!("Parsing command: {}", input);
+    tracing::info!("Parsing command: {}", input);
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         map(tag_no_case("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {
@@ -355,6 +396,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_replconf,
         parse_psync,
         parse_fullresync,
-        parse_rdb
+        parse_rdb,
     ))(input)
 }
