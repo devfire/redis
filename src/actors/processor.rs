@@ -2,7 +2,7 @@ use crate::{
     actors::messages::ProcessorActorMessage,
     errors::RedisError,
     parsers::parse_command,
-    protocol::{InfoCommandParameter, RedisCommand, SetCommandParameter},
+    protocol::{InfoCommandParameter, RedisCommand, ReplConfCommandParameter, SetCommandParameter},
     resp::value::RespValue,
 };
 
@@ -330,6 +330,7 @@ impl ProcessorActor {
                             }
 
                             Ok((_, RedisCommand::ReplConf(replconf_params))) => {
+                                // we may or may not get a value for the supplied key.
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::SimpleString("OK".to_string()))]));
 
@@ -340,9 +341,61 @@ impl ProcessorActor {
                                         .await
                                         .expect("Unable to update replica client status.");
                                 }
+
+                                // Check what replconf parameter we have and act accordingly
+                                // https://redis.io/commands/replconf
+                                match replconf_params {
+                                    crate::protocol::ReplConfCommandParameter::Getack(ackvalue) => {
+                                        // typically this is *
+                                        debug!("Received GETACK: {}", ackvalue);
+
+                                        // check to make sure ackvalue is actually *
+                                        if ackvalue == "*" {
+                                            // We need to get the current offset value and send it back to the master.
+                                            //
+                                            // First, let's prepare the correct key message:
+                                            let info_key = InfoCommandParameter::Replication;
+
+                                            // get the current replication data.
+                                            let current_replication_data =
+                                                info_command_actor_handle
+                                                    .get_value(info_key)
+                                                    .await
+                                                    .expect(
+                                                        "Unable to get current replication data.",
+                                                    );
+
+                                            // extract the current offset value.
+                                            let current_offset =
+                                                current_replication_data.master_repl_offset;
+
+                                            let repl_conf_ack = RespValue::array_from_slice(&[
+                                                "REPLCONF",
+                                                "ACK",
+                                                &current_offset.to_string(),
+                                            ]);
+
+                                            // convert it to an encoded string
+                                            let repl_conf_ack_encoded = repl_conf_ack
+                                                .to_encoded_string()
+                                                .expect("Failed to encode repl_conf_ack");
+
+                                            // send the current offset value back to the master
+                                            let _ = master_tx
+                                                .send(repl_conf_ack_encoded)
+                                                .await
+                                                .expect("Unable to send ackvalue to master.");
+                                        }
+                                    }
+                                    crate::protocol::ReplConfCommandParameter::Ack(_) => todo!(),
+                                    crate::protocol::ReplConfCommandParameter::Capa(_) => todo!(),
+                                    crate::protocol::ReplConfCommandParameter::ListeningPort(_) => {
+                                        todo!()
+                                    }
+                                }
                             }
 
-                            Ok((_, RedisCommand::Psync(_replication_id, offset))) => {
+                            Ok((_, RedisCommand::Psync(_replication_id, mut offset))) => {
                                 // ignore the _replication_id coming from the replica since we will supply our own
                                 let info = info_command_actor_handle
                                     .get_value(InfoCommandParameter::Replication)
@@ -353,27 +406,30 @@ impl ProcessorActor {
                                     //
                                     let mut reply: Vec<RespValue> = Vec::new();
 
-                                    // initial fullresync reply
-                                    let new_offset = 0;
                                     // check if the replica is asking for a full resynch
                                     if offset == -1 {
-                                        debug!("Full resync triggered with offset {}", new_offset);
+                                        // initial fullresync reply, reset offset to 0
+                                        offset = 0;
                                     }
+
+                                    // persist the offset in the info section
+                                    info_command_actor_handle
+                                        .set_value(
+                                            InfoCommandParameter::Replication,
+                                            crate::protocol::ReplicationSectionData {
+                                                role: info_section.role,
+                                                master_replid: info_section.master_replid.clone(),
+                                                master_repl_offset: offset,
+                                            },
+                                        )
+                                        .await;
+
+                                    debug!("Full resync triggered with offset {}", offset);
 
                                     reply.push(RespValue::SimpleString(format!(
                                         "FULLRESYNC {} {}",
-                                        info_section.master_replid, new_offset
+                                        info_section.master_replid, offset
                                     )));
-
-                                    // append the file contents immediately after
-                                    // this is the format: $<length_of_file>\r\n<contents_of_file>
-
-                                    // let mut rdb_in_memory: Vec<u8> = Vec::new();
-
-                                    // let rdb_hex = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2";
-
-                                    // let rdb_file_contents =
-                                    //     hex::decode(rdb_hex).expect("Failed to decode hex");
 
                                     let rdb_file_contents = config_command_actor_handle
                                         .get_rdb()

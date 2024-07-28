@@ -7,7 +7,7 @@ use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
+use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
 use tracing::{debug, error};
 
 use tokio::sync::{broadcast, mpsc};
@@ -144,7 +144,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // initialize to being a master, override if we are a replica
-    let mut info_data: InfoSectionData = InfoSectionData::new(ServerRole::Master);
+    let mut info_data: ReplicationSectionData = ReplicationSectionData::new(ServerRole::Master);
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
@@ -192,7 +192,7 @@ async fn main() -> anyhow::Result<()> {
             master_host_port_combo
         );
         // set the role to slave
-        info_data = InfoSectionData::new(ServerRole::Slave);
+        info_data = ReplicationSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 

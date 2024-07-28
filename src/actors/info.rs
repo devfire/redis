@@ -1,6 +1,6 @@
 use crate::{
     actors::messages::InfoActorMessage,
-    protocol::{InfoCommandParameter, InfoSectionData},
+    protocol::{InfoCommandParameter, ReplicationSectionData},
 };
 
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ pub struct InfoCommandActor {
 
     // The section-key-value hash map for storing data.
     // There are multiple sections, each has multiple keys, each key with one value.
-    kv_hash: HashMap<InfoCommandParameter, InfoSectionData>,
+    kv_hash: HashMap<InfoCommandParameter, ReplicationSectionData>,
 }
 
 impl InfoCommandActor {

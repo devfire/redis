@@ -2,7 +2,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     actors::{info::InfoCommandActor, messages::InfoActorMessage},
-    protocol::{InfoCommandParameter, InfoSectionData},
+    protocol::{InfoCommandParameter, ReplicationSectionData},
 };
 
 #[derive(Clone, Debug)]
@@ -23,7 +23,7 @@ impl InfoCommandActorHandle {
 
     /// Gets sections from INFO command, taking a key as input and returning a value.
     /// https://redis.io/commands/config-get/
-    pub async fn get_value(&self, info_key: InfoCommandParameter) -> Option<InfoSectionData> {
+    pub async fn get_value(&self, info_key: InfoCommandParameter) -> Option<ReplicationSectionData> {
         tracing::debug!("Getting info value for key: {:?}", info_key);
         let (send, recv) = oneshot::channel();
         let msg = InfoActorMessage::GetInfoValue {
@@ -47,7 +47,7 @@ impl InfoCommandActorHandle {
 
     /// Stores sections for redis INFO command, taking a key, value pair as input. Returns nothing.
     /// https://redis.io/commands/info/
-    pub async fn set_value(&self, info_key: InfoCommandParameter, info_value: InfoSectionData) {
+    pub async fn set_value(&self, info_key: InfoCommandParameter, info_value: ReplicationSectionData) {
         let msg = InfoActorMessage::SetInfoValue {
             info_key,
             info_value,

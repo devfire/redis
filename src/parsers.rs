@@ -305,18 +305,6 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
         ),
     ))(input)?;
 
-    // we are getting length - 1 number of parameters (REPLCONF itself is one entry)
-    // so we can just take parse_resp_string length -1 times and collect the results
-    // let (input, replconf_params) = nom::multi::many1(parse_resp_string)(input)?;
-    // let (input, replconf_params) = nom::multi::many1(parse_resp_string)(input)?;
-
-    // // parameters as one string
-    // let (input, _first) = (parse_resp_string)(input)?;
-
-    // // second parameter
-    // // this could be REPLCONF listening-port <PORT>
-    // let (input, _second) = (parse_resp_string)(input)?;
-
     Ok((input, RedisCommand::ReplConf(replconf_params)))
 }
 
