@@ -331,7 +331,7 @@ impl ProcessorActor {
 
                             Ok((_, RedisCommand::ReplConf(replconf_params))) => {
                                 // initialize the reply of Vec<RespValue>
-                                let mut response: Vec<RespValue> = Vec::new();
+                                // let mut response: Vec<RespValue> = Vec::new();
 
                                 // a simple OK to start with.
                                 // response.push(RespValue::SimpleString("OK".to_string()));
@@ -377,7 +377,7 @@ impl ProcessorActor {
                                                 &current_offset.to_string(),
                                             ]);
 
-                                            // convert it to an encoded string for debugging purposes
+                                            // convert it to an encoded string purely for debugging purposes
                                             let repl_conf_ack_encoded = repl_conf_ack
                                                 .to_encoded_string()
                                                 .expect("Failed to encode repl_conf_ack");
@@ -387,18 +387,29 @@ impl ProcessorActor {
                                                 repl_conf_ack_encoded
                                             );
 
-                                            response.push(repl_conf_ack);
+                                            // response.push(repl_conf_ack);
 
                                             // send the current offset value back to the master
                                             // NOTE: this does NOT go over the master_tx channel, which is only for replies TO the master.
-                                            let _ = respond_to
-                                                .send(Some(response));
+                                            let _ = respond_to.send(Some(vec![repl_conf_ack]));
                                         }
                                     }
-                                    crate::protocol::ReplConfCommandParameter::Ack(_) => todo!(),
-                                    crate::protocol::ReplConfCommandParameter::Capa(_) => todo!(),
+                                    crate::protocol::ReplConfCommandParameter::Ack(ack) => {
+                                        tracing::info!("Received ACK: {}", ack);
+
+                                        // this is only ever received by the master, after REPLCONF GETACK *,
+                                        // so we don't need to do anything here.
+                                        let _ = respond_to.send(None);
+                                    },
+                                    crate::protocol::ReplConfCommandParameter::Capa => {
+                                        let _ = respond_to.send(Some(vec![
+                                            (RespValue::SimpleString("OK".to_string())),
+                                        ]));
+                                    },
                                     crate::protocol::ReplConfCommandParameter::ListeningPort(_) => {
-                                        todo!()
+                                        let _ = respond_to.send(Some(vec![
+                                            (RespValue::SimpleString("OK".to_string())),
+                                        ]));
                                     }
                                 }
                             }
