@@ -380,6 +380,8 @@ impl ProcessorActor {
                                                 .to_encoded_string()
                                                 .expect("Failed to encode repl_conf_ack");
 
+                                            tracing::info!("Sending REPLCONF ACK: {}", repl_conf_ack_encoded);
+
                                             // send the current offset value back to the master
                                             let _ = master_tx
                                                 .send(repl_conf_ack_encoded)
@@ -396,7 +398,10 @@ impl ProcessorActor {
                             }
 
                             Ok((_, RedisCommand::Psync(_replication_id, mut offset))) => {
-                                // ignore the _replication_id coming from the replica since we will supply our own
+                                // ignore the _replication_id for now. There are actually two of them:
+                                // https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#replication-id-explained
+
+                                // Let's get the current replication values.
                                 let info = info_command_actor_handle
                                     .get_value(InfoCommandParameter::Replication)
                                     .await;
