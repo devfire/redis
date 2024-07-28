@@ -1,6 +1,5 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
-use clap::builder::Str;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::iter;
@@ -43,7 +42,7 @@ pub enum RedisCommand {
 pub enum ReplConfCommandParameter {
     Getack(String),
     Ack(u32),
-    Capa(String),
+    Capa,
     ListeningPort(u16),
 }
 

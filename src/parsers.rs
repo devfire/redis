@@ -11,6 +11,7 @@ use nom::{
         streaming::alphanumeric1,
     },
     combinator::{map, opt, value, verify},
+    multi::count,
     sequence::{terminated, tuple},
     IResult,
 };
@@ -256,7 +257,7 @@ fn parse_info(input: &str) -> IResult<&str, RedisCommand> {
 
 fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
-    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$8\r\nREPLCONF\r\n")(input)?;
 
     // REPLCONF listening-port <PORT>
@@ -269,8 +270,7 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
     let (input, replconf_params) = alt((
         // value: The value combinator is used to map the result of a parser to a specific value.
         // In this case, it's used to map the result of the tag_no_case combinator to ReplConfCommandParameter::ListeningPort,
-        // ReplConfCommandParameter::Capa, ReplConfCommandParameter::Getack, ReplConfCommandParameter::Ack, or
-        // ReplConfCommandParameter::BacklogSize for the option.
+        // ReplConfCommandParameter::Capa, ReplConfCommandParameter::Getack, ReplConfCommandParameter::Ack for the option.
         //
         map(
             tuple((tag_no_case("$14\r\nlistening-port\r\n"), parse_resp_string)),
@@ -282,11 +282,15 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
             },
         ),
         map(
-            tuple((tag_no_case("$4\r\ncapa\r\n"), parse_resp_string)),
-            |(_, capabilities)| {
-                ReplConfCommandParameter::Capa(capabilities) //
+            tuple((
+                tag_no_case("$4\r\ncapa\r\n"),
+                count(parse_resp_string, len - 2), // Run parse_resp_string LEN - 1 (replconf) - 1 (capa) times.
+            )),
+            |(_, _capabilities)| {
+                ReplConfCommandParameter::Capa //
             },
         ),
+        // tuple with a tag_no_case "foo" and 5 parse_resp_string
         map(
             tuple((tag_no_case("$6\r\ngetack\r\n"), parse_resp_string)),
             |(_, ackvalue)| {
