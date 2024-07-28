@@ -21,7 +21,7 @@ pub enum RedisCommand {
     Config(ConfigCommandParameter), // CONFIG GET
     Keys(String),
     Info(Option<InfoCommandParameter>),
-    ReplConf,
+    ReplConf(ReplConfCommandParameter),
     Psync(String, i16), // client (master_replid, master_repl_offset)
     Fullresync(String, i16), // master's (master_replid, master_repl_offset)
     Rdb(Vec<u8>), // RDB file in memory representation
@@ -35,6 +35,16 @@ pub enum RedisCommand {
 //         todo!()
 //     }
 // }
+
+// REPLCONF parameters
+// https://redis.io/commands/replconf
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum ReplConfCommandParameter {
+    Getack(u32),
+    Ack(u32),
+    Capa(String),
+    ListeningPort(u16),
+}
 
 // INFO [section [section ...]]
 // The optional parameter can be used to select a specific section of information:

@@ -329,7 +329,7 @@ impl ProcessorActor {
                                 }
                             }
 
-                            Ok((_, RedisCommand::ReplConf)) => {
+                            Ok((_, RedisCommand::ReplConf(replconf_params))) => {
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::SimpleString("OK".to_string()))]));
 

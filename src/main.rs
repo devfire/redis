@@ -416,7 +416,7 @@ async fn handle_connection_from_clients(
                     Ok(request) => {
                         // send the request to the request processor actor.
                         tracing::info!("Client reader returned RESP: {:?}", request);
-                        if let Some(processed_value) = request_processor_actor_handle
+                        if let Some(processed_values) = request_processor_actor_handle
                             .process_request(
                                 request,
                                 set_command_actor_handle.clone(),
@@ -429,9 +429,9 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            tracing::info!("Sending replies to client: {:?}", processed_value);
+                            tracing::info!("Sending replies to client: {:?}", processed_values);
                             // iterate over processed_value and send each one to the client
-                            for value in processed_value.iter() {
+                            for value in processed_values.iter() {
                                 debug!("Sending response to client: {:?}", value);
                                 let _ = writer.send(value.clone()).await?;
                             }
@@ -508,7 +508,7 @@ async fn handle_connection_to_master(
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                Some(replica_tx.clone()), // connections to master cannot receive replication messages
+                                Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
                                 None, // connections to master cannot update replica status
                             )
                             .await
