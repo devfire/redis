@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
 use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
@@ -513,11 +513,12 @@ async fn handle_connection_to_master(
                             )
                             .await
                         {
-                            debug!("Replies to master are suppressed: {:?}", processed_value);
+                            debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
-                            // for value in processed_value.iter() {
-                            //     let _ = writer.send(value.clone()).await?;
-                            // }
+                            for value in processed_value.iter() {
+                                info!("Sending response to master: {:?}", value);
+                                let _ = writer.send(value.clone()).await?;
+                            }
                         }
                     }
                     Err(e) => {
