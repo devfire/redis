@@ -263,7 +263,6 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
     // REPLCONF capa psync2 | *3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n
     // REPLCONF getack <ACK>
     // REPLCONF ack <ACK>
-    // REPLCONF backlog-size <bytes>
     // alt: The alt combinator is used to try multiple parsers in order until one succeeds.
     // In this case, it's used to parse the various REPLCONF parameters.
     //
@@ -283,12 +282,25 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
             },
         ),
         map(
-            tuple((
-                tag_no_case("$4\r\ncapa\r\n"),
-                parse_resp_string,
-            )),
+            tuple((tag_no_case("$4\r\ncapa\r\n"), parse_resp_string)),
             |(_, capabilities)| {
                 ReplConfCommandParameter::Capa(capabilities) //
+            },
+        ),
+        map(
+            tuple((tag_no_case("$6\r\ngetack\r\n"), parse_resp_string)),
+            |(_, ackvalue)| {
+                ReplConfCommandParameter::Getack(ackvalue) //
+            },
+        ),
+        map(
+            tuple((tag_no_case("$3\r\nack\r\n"), parse_resp_string)),
+            |(_, offset)| {
+                ReplConfCommandParameter::Ack(
+                    offset
+                        .parse::<u32>()
+                        .expect("Offset string to u32 conversion failed."),
+                )
             },
         ),
     ))(input)?;
