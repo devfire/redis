@@ -5,7 +5,7 @@ use crate::{
     resp::value::RespValue,
 };
 
-use tracing::{debug};
+use tracing::debug;
 // use resp::Value;
 use tokio::sync::{broadcast, mpsc, oneshot};
 

@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use std::io::{Error, ErrorKind};
 use tokio_util::codec::Encoder;
-use tracing::{debug};
+use tracing::debug;
 
 use super::codec::RespCodec;
 

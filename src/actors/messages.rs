@@ -2,6 +2,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::protocol::ReplConfCommandParameter;
 use crate::resp::value::RespValue;
 use crate::{
     handlers::{
@@ -9,7 +10,7 @@ use crate::{
         set_command::SetCommandActorHandle,
     },
     protocol::{
-        ConfigCommandParameter, InfoCommandParameter, InfoSectionData, SetCommandParameter,
+        ConfigCommandParameter, InfoCommandParameter, ReplicationSectionData, SetCommandParameter,
     },
 };
 
@@ -76,14 +77,28 @@ pub enum InfoActorMessage {
     // Example: Replication -> role -> master.
     GetInfoValue {
         info_key: InfoCommandParameter, // defined in protocol.rs
-        respond_to: oneshot::Sender<Option<InfoSectionData>>,
+        respond_to: oneshot::Sender<Option<ReplicationSectionData>>,
     },
 
     SetInfoValue {
         info_key: InfoCommandParameter, // defined in protocol.rs
-        info_value: InfoSectionData,
+        info_value: ReplicationSectionData,
     },
 }
+
+// #[derive(Debug)]
+// pub enum ReplicationActorMessage {
+//     // Primarily stores the current offset value.
+//     GetReplicationValue {
+//         info_key: ReplConfCommandParameter, // defined in protocol.rs
+//         respond_to: oneshot::Sender<Option<u16>>,
+//     },
+
+//     SetReplicationValue {
+//         info_key: ReplConfCommandParameter, // defined in protocol.rs
+//         info_value: u16,
+//     },
+// }
 
 // #[derive(Debug)]
 // pub enum ReplicationActorMessage {
