@@ -7,7 +7,7 @@ use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use protocol::{InfoSectionData, ServerRole, SetCommandParameter};
+use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
 use tracing::{debug, error};
 
 use tokio::sync::{broadcast, mpsc};
@@ -144,7 +144,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // initialize to being a master, override if we are a replica
-    let mut info_data: InfoSectionData = InfoSectionData::new(ServerRole::Master);
+    let mut info_data: ReplicationSectionData = ReplicationSectionData::new(ServerRole::Master);
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
@@ -168,7 +168,7 @@ async fn main() -> anyhow::Result<()> {
         let expire_tx_clone = expire_tx.clone();
         let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
-        // let replica_tx_clone = replica_tx.clone();
+        let replica_tx_clone = replica_tx.clone();
 
         tokio::spawn(async move {
             handle_connection_to_master(
@@ -180,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx_clone,
                 tcp_msgs_rx_clone,
                 master_tx_clone,
-                // replica_tx_clone, // used to send replication messages to the replica
+                replica_tx_clone, // used to send replication messages to the replica
             )
             .await
         });
@@ -192,7 +192,7 @@ async fn main() -> anyhow::Result<()> {
             master_host_port_combo
         );
         // set the role to slave
-        info_data = InfoSectionData::new(ServerRole::Slave);
+        info_data = ReplicationSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
@@ -358,9 +358,8 @@ async fn handshake(
     debug!("HANDSHAKE: master replied {:?}", reply);
 
     // send the PSYNC ? -1
-    tcp_msgs_tx.send(psync).await?; 
+    tcp_msgs_tx.send(psync).await?;
     // no waiting any more, we are done with the handshake
-
 
     // for command in handshake_commands.into_iter() {
     //     // Send the value.
@@ -417,7 +416,7 @@ async fn handle_connection_from_clients(
                     Ok(request) => {
                         // send the request to the request processor actor.
                         tracing::info!("Client reader returned RESP: {:?}", request);
-                        if let Some(processed_value) = request_processor_actor_handle
+                        if let Some(processed_values) = request_processor_actor_handle
                             .process_request(
                                 request,
                                 set_command_actor_handle.clone(),
@@ -430,9 +429,9 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            tracing::info!("Sending replies to client: {:?}", processed_value);
+                            tracing::info!("Sending replies to client: {:?}", processed_values);
                             // iterate over processed_value and send each one to the client
-                            for value in processed_value.iter() {
+                            for value in processed_values.iter() {
                                 debug!("Sending response to client: {:?}", value);
                                 let _ = writer.send(value.clone()).await?;
                             }
@@ -485,6 +484,7 @@ async fn handle_connection_to_master(
     expire_tx: mpsc::Sender<SetCommandParameter>,
     tcp_msgs_rx: async_channel::Receiver<RespValue>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
+    replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
 ) -> Result<()> {
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
@@ -508,7 +508,7 @@ async fn handle_connection_to_master(
                                 info_command_actor_handle.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                None, // connections to master cannot receive replication messages
+                                Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
                                 None, // connections to master cannot update replica status
                             )
                             .await
