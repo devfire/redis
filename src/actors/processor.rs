@@ -2,7 +2,7 @@ use crate::{
     actors::messages::ProcessorActorMessage,
     errors::RedisError,
     parsers::parse_command,
-    protocol::{InfoCommandParameter, RedisCommand, ReplConfCommandParameter, SetCommandParameter},
+    protocol::{InfoCommandParameter, RedisCommand, SetCommandParameter},
     resp::value::RespValue,
 };
 
@@ -334,7 +334,7 @@ impl ProcessorActor {
                                 let mut response: Vec<RespValue> = Vec::new();
 
                                 // a simple OK to start with.
-                                response.push(RespValue::SimpleString("OK".to_string()));
+                                // response.push(RespValue::SimpleString("OK".to_string()));
 
                                 // inform the handler_client that this is a replica
                                 if let Some(client_or_replica_tx_sender) = client_or_replica_tx {
