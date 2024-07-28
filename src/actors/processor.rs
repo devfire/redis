@@ -330,9 +330,11 @@ impl ProcessorActor {
                             }
 
                             Ok((_, RedisCommand::ReplConf(replconf_params))) => {
-                                // we may or may not get a value for the supplied key.
-                                let _ = respond_to
-                                    .send(Some(vec![(RespValue::SimpleString("OK".to_string()))]));
+                                // initialize the reply of Vec<RespValue>
+                                let mut response: Vec<RespValue> = Vec::new();
+
+                                // a simple OK to start with.
+                                response.push(RespValue::SimpleString("OK".to_string()));
 
                                 // inform the handler_client that this is a replica
                                 if let Some(client_or_replica_tx_sender) = client_or_replica_tx {
@@ -375,18 +377,22 @@ impl ProcessorActor {
                                                 &current_offset.to_string(),
                                             ]);
 
-                                            // convert it to an encoded string
+                                            // convert it to an encoded string for debugging purposes
                                             let repl_conf_ack_encoded = repl_conf_ack
                                                 .to_encoded_string()
                                                 .expect("Failed to encode repl_conf_ack");
 
-                                            tracing::info!("Sending REPLCONF ACK: {}", repl_conf_ack_encoded);
+                                            tracing::info!(
+                                                "Sending REPLCONF ACK: {}",
+                                                repl_conf_ack_encoded
+                                            );
+
+                                            response.push(repl_conf_ack);
 
                                             // send the current offset value back to the master
-                                            let _ = master_tx
-                                                .send(repl_conf_ack_encoded)
-                                                .await
-                                                .expect("Unable to send ackvalue to master.");
+                                            // NOTE: this does NOT go over the master_tx channel, which is only for replies TO the master.
+                                            let _ = respond_to
+                                                .send(Some(vec![(RespValue::Array(response))]));
                                         }
                                     }
                                     crate::protocol::ReplConfCommandParameter::Ack(_) => todo!(),
