@@ -392,7 +392,7 @@ impl ProcessorActor {
                                             // send the current offset value back to the master
                                             // NOTE: this does NOT go over the master_tx channel, which is only for replies TO the master.
                                             let _ = respond_to
-                                                .send(Some(vec![(RespValue::Array(response))]));
+                                                .send(Some(response));
                                         }
                                     }
                                     crate::protocol::ReplConfCommandParameter::Ack(_) => todo!(),
