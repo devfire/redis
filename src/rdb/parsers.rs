@@ -1,4 +1,3 @@
-use tracing::{debug, error};
 use nom::{
     branch::alt,
     bytes::{complete::tag, streaming::take},
@@ -7,6 +6,7 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+use tracing::{debug, error};
 
 use crate::protocol::SetCommandExpireOption;
 
@@ -234,7 +234,7 @@ fn parse_rdb_key_value_without_expiry(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, (value_type, key, value)) =
         tuple((parse_value_type, parse_string, parse_string))(input)?;
 
-        debug!(
+    debug!(
         "Parsed kv pair type: {:?} key: {} value: {}",
         value_type, key, value
     );
