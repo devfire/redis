@@ -348,7 +348,10 @@ impl ProcessorActor {
                                 // https://redis.io/commands/replconf
                                 match replconf_params {
                                     crate::protocol::ReplConfCommandParameter::Getack(ackvalue) => {
-                                        // typically this is *
+                                        // typically this is FROM the master, and is received by the replica.
+                                        // So, if we are processing this, we are a replica.
+                                        // Replies to this will go back over the OUTBOUND tcp connection to the master.
+                                        // TODO: Most replies are suppressed but these we need to send back to the master.
                                         debug!("Received GETACK: {}", ackvalue);
 
                                         // check to make sure ackvalue is actually *
@@ -400,12 +403,12 @@ impl ProcessorActor {
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
                                         let _ = respond_to.send(None);
-                                    },
+                                    }
                                     crate::protocol::ReplConfCommandParameter::Capa => {
                                         let _ = respond_to.send(Some(vec![
                                             (RespValue::SimpleString("OK".to_string())),
                                         ]));
-                                    },
+                                    }
                                     crate::protocol::ReplConfCommandParameter::ListeningPort(_) => {
                                         let _ = respond_to.send(Some(vec![
                                             (RespValue::SimpleString("OK".to_string())),
