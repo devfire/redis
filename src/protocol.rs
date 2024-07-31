@@ -22,9 +22,9 @@ pub enum RedisCommand {
     Keys(String),
     Info(Option<InfoCommandParameter>),
     ReplConf(ReplConfCommandParameter),
-    Psync(String, i16), // client (master_replid, master_repl_offset)
+    Psync(String, i16),      // client (master_replid, master_repl_offset)
     Fullresync(String, i16), // master's (master_replid, master_repl_offset)
-    Rdb(Vec<u8>), // RDB file in memory representation
+    Rdb(Vec<u8>),            // RDB file in memory representation
 }
 
 // implement Encoder for RedisCommand
@@ -61,9 +61,9 @@ pub struct ReplicationSectionData {
     // role: Value is "master" if the instance is replica of no one,
     // or "slave" if the instance is a replica of some master instance.
     // Note that a replica can be master of another replica (chained replication).
-    // NOTE: since Redis 4.0 replica writes are only local, 
-    // and are not propagated to sub-replicas attached to the instance. 
-    // Sub-replicas instead will always receive the replication stream identical 
+    // NOTE: since Redis 4.0 replica writes are only local,
+    // and are not propagated to sub-replicas attached to the instance.
+    // Sub-replicas instead will always receive the replication stream identical
     // to the one sent by the top-level master to the intermediate replicas.
     pub role: ServerRole,
     pub master_replid: String,
