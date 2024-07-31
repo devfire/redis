@@ -502,7 +502,7 @@ async fn handle_connection_to_master(
                         // send the request to the request processor actor
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
-                                request,
+                                request.clone(),
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
                                 info_command_actor_handle.clone(),
@@ -513,6 +513,35 @@ async fn handle_connection_to_master(
                             )
                             .await
                         {
+                             // get the current replication data.
+                             let mut current_replication_data =
+                             info_command_actor_handle
+                                 .get_value(InfoCommandParameter::Replication)
+                                 .await
+                                 .expect(
+                                     "Unable to get current replication data.",
+                                 );
+
+                             // we need to convert the request to a RESP string to count the bytes.
+                             let value_as_string = request.to_encoded_string().expect("Failed to encode request as a string.");
+
+                             // calculate how many bytes are in the value_as_string
+                             let value_as_string_bytes = value_as_string.len() as i16;
+
+                             // extract the current offset value.
+                             let current_offset = current_replication_data.master_repl_offset;
+
+                             // update the offset value.
+                             current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
+
+                             // update the offset value in the info actor.
+                             info_command_actor_handle
+                                 .set_value(
+                                     InfoCommandParameter::Replication,
+                                     current_replication_data,
+                                 )
+                                 .await;
+
                             debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
