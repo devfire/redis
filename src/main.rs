@@ -523,16 +523,18 @@ async fn handle_connection_to_master(
                                  );
 
                              // we need to convert the request to a RESP string to count the bytes.
-                             let value_as_string = request.to_encoded_string().expect("Failed to encode request as a string.");
+                             let request_as_encoded_string = request.to_encoded_string().expect("Failed to encode request as a string.");
 
                              // calculate how many bytes are in the value_as_string
-                             let value_as_string_bytes = value_as_string.len() as i16;
+                             let request_bytes = request_as_encoded_string.len() as i16;
+
+                             tracing::info!("Encoded string: {:?} has {} bytes", request_as_encoded_string, request_bytes);
 
                              // extract the current offset value.
                              let current_offset = current_replication_data.master_repl_offset;
 
                              // update the offset value.
-                             current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
+                             current_replication_data.master_repl_offset = current_offset + request_bytes;
 
                              // update the offset value in the info actor.
                              info_command_actor_handle
