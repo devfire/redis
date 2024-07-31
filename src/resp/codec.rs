@@ -102,7 +102,7 @@ impl Encoder<RespValue> for RespCodec {
             }
             RespValue::NullArray => {
                 dst.extend_from_slice(b"*-1\r\n");
-            },
+            }
 
             // Not strictly speaking a RESP type, but we use it to send RDB files to replicas.
             // The file is sent using the following format:
