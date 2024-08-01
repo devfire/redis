@@ -415,7 +415,7 @@ async fn handle_connection_from_clients(
                 match msg {
                     Ok(request) => {
                         // send the request to the request processor actor.
-                        tracing::info!("Client reader returned RESP: {:?}", request);
+                        tracing::info!("Received from client: {:?}", request.to_encoded_string().expect("Failed to encode request as a string."));
                         if let Some(processed_values) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -498,7 +498,6 @@ async fn handle_connection_to_master(
             Some(msg) = reader.next() => {
                 match msg {
                     Ok(request) => {
-                        tracing::info!("Master reader returned RESP: {:?}", request);
                         // send the request to the request processor actor
                         if let Some(processed_value) = request_processor_actor_handle
                             .process_request(
@@ -515,12 +514,7 @@ async fn handle_connection_to_master(
                         {
                              // get the current replication data.
                              let mut current_replication_data =
-                             info_command_actor_handle
-                                 .get_value(InfoCommandParameter::Replication)
-                                 .await
-                                 .expect(
-                                     "Unable to get current replication data.",
-                                 );
+                             info_command_actor_handle.get_value(InfoCommandParameter::Replication).await.expect("Unable to get current replication data.",);
 
                              // we need to convert the request to a RESP string to count the bytes.
                              let value_as_string = request.to_encoded_string().expect("Failed to encode request as a string.");
@@ -535,18 +529,19 @@ async fn handle_connection_to_master(
                              current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
 
                              // update the offset value in the info actor.
-                             info_command_actor_handle
-                                 .set_value(
-                                     InfoCommandParameter::Replication,
-                                     current_replication_data,
-                                 )
-                                 .await;
+                             info_command_actor_handle.set_value(InfoCommandParameter::Replication,current_replication_data,).await;
 
                             debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
                             for value in processed_value.iter() {
-                                info!("Sending response to master: {:?}", value);
-                                let _ = writer.send(value.clone()).await?;
+                                // check to see if processed_value contains REPLCONF in the encoded string
+                                let strings_to_reply = "REPLCONF";
+
+                                if value.to_encoded_string()?.contains(strings_to_reply) {
+                                    info!("Sending response to master: {:?}", value);
+                                    let _ = writer.send(value.clone()).await?;
+                                }
+
                             }
                         }
                     }
