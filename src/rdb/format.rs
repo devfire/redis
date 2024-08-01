@@ -71,14 +71,3 @@ pub enum RdbOpCode {
     },
     Aux,
 }
-
-// impl RdbOpCode {
-//     fn from_u8(value: u8) -> Option<Self> {
-//         match value {
-//             0xFF => Some(RdbOpCode::Eof),
-//             0xFE => Some(RdbOpCode::Selectdb),
-//             // Add other opcodes and their corresponding values here
-//             _ => None,
-//         }
-//     }
-// }
