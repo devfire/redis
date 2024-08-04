@@ -6,6 +6,7 @@
 
 use crate::protocol::SetCommandExpireOption;
 
+#[allow(unused)]
 #[derive(Debug)]
 pub enum Rdb {
     RdbHeader {
@@ -59,9 +60,10 @@ impl ValueType {
     }
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 pub enum RdbOpCode {
-    Eof(u64), //checksum
+    Eof(), //checksum
     Selectdb,
     // Expiretime(u32),
     // ExpiretimeMs(u64),

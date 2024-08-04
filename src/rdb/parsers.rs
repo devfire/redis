@@ -30,20 +30,17 @@ fn parse_rdb_header(input: &[u8]) -> IResult<&[u8], Rdb> {
 // https://rdb.fnordig.de/file_format.html#op-codes
 fn parse_eof(input: &[u8]) -> IResult<&[u8], Rdb> {
     let (input, _eof_marker) = tag([0xFF])(input)?;
-    let (input, checksum) = le_u64(input)?;
+    let (input, _checksum) = le_u64(input)?;
     // let (input, checksum) = map_opt(take(8usize), |bytes: &[u8]| {
     //     bytes.try_into().ok().map(u32::from_le_bytes)
     // })(input)?;
     // let checksum = String::from_utf8_lossy(checksum).to_string();
 
+    let opcode = RdbOpCode::Eof();
+
     debug!("EOF detected.");
 
-    Ok((
-        input,
-        Rdb::OpCode {
-            opcode: RdbOpCode::Eof(checksum),
-        },
-    ))
+    Ok((input, Rdb::OpCode { opcode }))
 }
 
 // A Redis instance can have multiple databases.
@@ -319,17 +316,12 @@ fn parse_resize_db(input: &[u8]) -> IResult<&[u8], Rdb> {
     // value next
     // let (input, _expiry_hash_table_size) = take(expiry_hash_table_length)(input)?;
 
-    debug!("Resize db 0xFB detected.");
+    let opcode = RdbOpCode::ResizeDb {
+        db_hash_table_length,
+        expiry_hash_table_length,
+    };
 
-    Ok((
-        input,
-        Rdb::OpCode {
-            opcode: RdbOpCode::ResizeDb {
-                db_hash_table_length,
-                expiry_hash_table_length,
-            },
-        },
-    ))
+    Ok((input, Rdb::OpCode { opcode }))
 }
 
 pub fn parse_rdb_file(input: &[u8]) -> IResult<&[u8], Rdb> {
