@@ -25,7 +25,7 @@ pub enum RedisCommand {
     Psync(String, i16),      // client (master_replid, master_repl_offset)
     Fullresync(String, i16), // master's (master_replid, master_repl_offset)
     Rdb(Vec<u8>),            // RDB file in memory representation
-    Wait(u16, u16),
+    Wait(u16, i16),
 }
 
 // implement Encoder for RedisCommand

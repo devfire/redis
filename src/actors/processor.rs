@@ -1,5 +1,3 @@
-use core::num;
-
 use crate::{
     actors::messages::ProcessorActorMessage,
     errors::RedisError,
