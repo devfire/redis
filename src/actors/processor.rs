@@ -1,3 +1,5 @@
+use core::num;
+
 use crate::{
     actors::messages::ProcessorActorMessage,
     errors::RedisError,
@@ -474,6 +476,12 @@ impl ProcessorActor {
                                     error!("Failed to retrieve replication information");
                                 }
                             } // end of psync
+                            Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
+                                debug!("Processing WAIT {} {}", numreplicas, timeout);
+
+                                let _ = respond_to
+                                    .send(Some(vec![(RespValue::Integer(numreplicas as i64))]));
+                            }
                             _ => {
                                 debug!("Unsupported command: {:?}", request_as_encoded_string);
                             }
