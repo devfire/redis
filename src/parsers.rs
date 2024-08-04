@@ -380,6 +380,25 @@ fn parse_rdb(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Rdb(rdb_contents.bytes().collect())))
 }
 
+/// Parse https://redis.io/docs/latest/commands/wait/
+fn parse_wait(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$4\r\nWAIT\r\n")(input)?;
+
+    let (input, numreplicas_as_string) = (parse_resp_string)(input)?;
+
+    let (input, timeout_as_string) = (parse_resp_string)(input)?;
+
+    let numreplicas = numreplicas_as_string
+        .parse()
+        .expect("Unable to parse numreplicas in WAIT as u16");
+    let timeout = timeout_as_string
+        .parse()
+        .expect("Unable to parse timeout in WAIT as u16");
+
+    Ok((input, RedisCommand::Wait(numreplicas, timeout)))
+}
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     tracing::info!("Parsing command: {}", input);
     alt((
@@ -401,5 +420,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_psync,
         parse_fullresync,
         parse_rdb,
+        parse_wait,
     ))(input)
 }
