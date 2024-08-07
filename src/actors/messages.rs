@@ -2,6 +2,8 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::protocol::ReplicationDataStore;
+use crate::protocol::ReplicationParameter;
 use crate::resp::value::RespValue;
 use crate::{
     handlers::{
@@ -85,26 +87,19 @@ pub enum InfoActorMessage {
     },
 }
 
-// #[derive(Debug)]
-// pub enum ReplicationActorMessage {
-//     // Primarily stores the current offset value.
-//     GetReplicationValue {
-//         info_key: ReplConfCommandParameter, // defined in protocol.rs
-//         respond_to: oneshot::Sender<Option<u16>>,
-//     },
+#[derive(Debug)]
+pub enum ReplicationActorMessage {
+    // Primarily stores the current offset value.
+    GetReplicationValue {
+        replication_key: ReplicationParameter, // defined in protocol.rs
+        respond_to: oneshot::Sender<Option<ReplicationDataStore>>,
+    },
 
-//     SetReplicationValue {
-//         info_key: ReplConfCommandParameter, // defined in protocol.rs
-//         info_value: u16,
-//     },
-// }
-
-// #[derive(Debug)]
-// pub enum ReplicationActorMessage {
-//     // connection string to connect to master
-//     ConnectToMaster { connection_string: String },
-//     SendCommand { command: resp::Value },
-// }
+    SetReplicationValue {
+        replication_key: ReplicationParameter, // defined in protocol.rs
+        replication_value: ReplicationDataStore,
+    },
+}
 
 // #[derive(Debug)]
 pub enum ProcessorActorMessage {

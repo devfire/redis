@@ -2,6 +2,7 @@
 use core::fmt;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
+use tokio::net::unix::SocketAddr;
 use std::iter;
 // use tokio_util::codec::{Decoder, Encoder};
 
@@ -55,6 +56,17 @@ pub enum InfoCommandParameter {
     Default,
     Replication,
 }
+
+
+/// Used to store & retrieve replication values.
+/// It's a tuple combo of ServerIP:Port + Replication field
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct ReplicationParameter {
+    server_id: String,
+    parameter: ReplicationDataStore,
+}
+
+
 
 /// Replication section https://redis.io/docs/latest/commands/info/
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -111,6 +123,28 @@ impl ReplicationSectionData {
             master_repl_offset: 0,
         }
     }
+}
+
+/// Replication section https://redis.io/docs/latest/commands/info/
+// NOTE: This is a refactoring replacement for ReplicationSectionData
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum ReplicationDataStore {
+    // role: Value is "master" if the instance is replica of no one,
+    // or "slave" if the instance is a replica of some master instance.
+    // Note that a replica can be master of another replica (chained replication).
+    // NOTE: since Redis 4.0 replica writes are only local,
+    // and are not propagated to sub-replicas attached to the instance.
+    // Sub-replicas instead will always receive the replication stream identical
+    // to the one sent by the top-level master to the intermediate replicas.
+    Role(ServerRole),
+    MasterReplid(String),
+    MasterReplOffset(i16), // cannot be u16 because initial offset is -1
+                                 // FUTURE FIELDS:
+                                 // second_repl_offset: The offset up to which replication IDs are accepted
+                                 // repl_backlog_active: Flag indicating replication backlog is active
+                                 // repl_backlog_size: Total size in bytes of the replication backlog buffer
+                                 // repl_backlog_first_byte_offset: The master offset of the replication backlog buffer
+                                 // repl_backlog_histlen: Size in bytes of the data in the replication backlog buffer
 }
 
 /// Master or slave.
