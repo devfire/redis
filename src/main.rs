@@ -216,7 +216,9 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         // Asynchronously wait for an inbound TcpStream.
-        let (stream, _) = listener.accept().await?;
+        let (stream, socket_address) = listener.accept().await?;
+
+        info!("Received connection from {}", socket_address);
 
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
@@ -225,12 +227,10 @@ async fn main() -> anyhow::Result<()> {
         let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
-        // let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
 
         let replica_tx_clone = replica_tx.clone();
         let replica_rx_subscriber = replica_tx.subscribe();
-        //tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
