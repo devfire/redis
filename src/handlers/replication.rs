@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     actors::{messages::ReplicationActorMessage, replicator::ReplicatorActor},
-    protocol::{ReplicationDataStore, ReplicationParameter},
+    protocol::ReplicationDataStoreKey,
 };
 
 #[derive(Clone)]
@@ -23,7 +23,7 @@ impl ReplicationActorHandle {
 
     /// Stores replication settings, taking a (String of serverIP:Port, value) pair as key. Returns nothing.
     /// https://redis.io/commands/info/
-    pub async fn set_value(&self, replication_key: ReplicationParameter, replication_value: ReplicationDataStore) {
+    pub async fn set_value<T>(&self, replication_key: ReplicationDataStoreKey, replication_value: T) {
         let msg = ReplicationActorMessage::SetReplicationValue {
             replication_key,
             replication_value,

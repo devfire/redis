@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 // use tracing::{debug, info};
 
-use crate::protocol::{ReplicationDataStore, ReplicationParameter};
+use crate::protocol::{ReplicationDataStoreKey, ReplicationParameter};
 
 use super::messages::ReplicationActorMessage;
 
@@ -13,7 +13,7 @@ pub struct ReplicatorActor {
 
     // The section-key-value hash map for storing data.
     // There are multiple sections, each has multiple keys, each key with one value.
-    kv_hash: HashMap<ReplicationParameter, ReplicationDataStore>,
+    kv_hash: HashMap<ReplicationParameter, ReplicationDataStoreKey>,
 }
 
 impl ReplicatorActor {

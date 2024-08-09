@@ -2,7 +2,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::protocol::ReplicationDataStore;
+use crate::protocol::ReplicationDataStoreKey;
 use crate::protocol::ReplicationParameter;
 use crate::resp::value::RespValue;
 use crate::{
@@ -92,12 +92,12 @@ pub enum ReplicationActorMessage {
     // Primarily stores the current offset value.
     GetReplicationValue {
         replication_key: ReplicationParameter, // defined in protocol.rs
-        respond_to: oneshot::Sender<Option<ReplicationDataStore>>,
+        respond_to: oneshot::Sender<Option<ReplicationDataStoreKey>>,
     },
 
     SetReplicationValue {
         replication_key: ReplicationParameter, // defined in protocol.rs
-        replication_value: ReplicationDataStore,
+        replication_value: ReplicationDataStoreKey,
     },
 }
 

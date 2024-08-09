@@ -1,13 +1,15 @@
 use crate::resp::value::RespValue;
 
+use actors::messages::ReplicationActorMessage;
 use anyhow::Result;
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
+use handlers::replication::ReplicationActorHandle;
 use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
+use protocol::{ReplicationParameter, ReplicationSectionData, ServerRole, SetCommandParameter};
 use tracing::{debug, error, info};
 
 use tokio::sync::{broadcast, mpsc};
@@ -76,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
     let config_command_actor_handle = ConfigCommandActorHandle::new();
 
     // Get a handle to the replication actor, one per redis. This starts the actor.
-    // let _replication_actor_handle = ReplicationActorHandle::new();
+    let replication_actor_handle = ReplicationActorHandle::new();
 
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
@@ -126,8 +128,7 @@ async fn main() -> anyhow::Result<()> {
                 &dbfilename.to_string_lossy(),
             )
             .await;
-        // debug!("Config db filename: {}", dbfilename.display());
-        // let config_dbfilename = dbfilename.to_string_lossy().to_string();
+        debug!("Config db filename: {}", dbfilename.display());
 
         config_command_actor_handle
             .import_config(
@@ -136,15 +137,25 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx.clone(), // need to pass this to unlock expirations on config file load
             )
             .await;
-
-        // debug!(
-        //     "Config db dir: {} filename: {}",
-        //     config_dir, config_dbfilename
-        // );
     }
 
     // initialize to being a master, override if we are a replica
     let mut info_data: ReplicationSectionData = ReplicationSectionData::new(ServerRole::Master);
+
+    // initialize the replication parameter to store our data. This works for both masters and future replicas.
+    // NOTE: if we are a replica, we only have 1 offset to keep track of: our own.
+    // If we are a master, then we track offset PER replica, so this will have additional values, one for each replica.
+    // So, for a master, setting its own offset is unnecessary but we don't know yet.
+
+    // first let's convert our own IP:PORT combo to string
+    let server_id = socket_address.to_string();
+
+    let replication_key = ReplicationParameter {
+        server_id,
+        parameter: protocol::ReplicationDataStoreKey::Role,
+    };
+
+    replication_actor_handle.set_value(replication_key, ServerRole::Master).await;
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
@@ -216,9 +227,9 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         // Asynchronously wait for an inbound TcpStream.
-        let (stream, socket_address) = listener.accept().await?;
+        let (stream, client_address) = listener.accept().await?;
 
-        info!("Received connection from {}", socket_address);
+        info!("Received connection from {}", client_address);
 
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
