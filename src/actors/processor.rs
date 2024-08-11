@@ -45,7 +45,8 @@ impl ProcessorActor {
                 request,
                 set_command_actor_handle,
                 config_command_actor_handle,
-                info_command_actor_handle: replication_actor_handle,
+                replication_actor_handle,
+                host_id,
                 expire_tx,
                 master_tx,
                 replica_tx,
@@ -312,7 +313,8 @@ impl ProcessorActor {
                                 // first, let's see if this INFO section exists.
                                 // For now, we are assuming it's a Replication query but there may be others.
                                 if let Some(param) = info_parameter {
-                                    let info = replication_actor_handle.get_value(param).await;
+                                    let info =
+                                        replication_actor_handle.get_value(param, host_id).await;
 
                                     debug!("Retrieved INFO RespValue: {:?}", info);
 
@@ -363,13 +365,10 @@ impl ProcessorActor {
                                             let info_key = InfoCommandParameter::Replication;
 
                                             // get the current replication data.
-                                            let current_replication_data =
-                                                replication_actor_handle
-                                                    .get_value(info_key)
-                                                    .await
-                                                    .expect(
-                                                        "Unable to get current replication data.",
-                                                    );
+                                            let current_replication_data = replication_actor_handle
+                                                .get_value(info_key, host_id.clone())
+                                                .await
+                                                .expect("Unable to get current replication data.");
 
                                             // extract the current offset value.
                                             let current_offset =
@@ -424,7 +423,7 @@ impl ProcessorActor {
 
                                 // Let's get the current replication values.
                                 let info = replication_actor_handle
-                                    .get_value(InfoCommandParameter::Replication)
+                                    .get_value(InfoCommandParameter::Replication, host_id.clone())
                                     .await;
 
                                 if let Some(info_section) = info {
@@ -442,6 +441,7 @@ impl ProcessorActor {
                                     replication_actor_handle
                                         .set_value(
                                             InfoCommandParameter::Replication,
+                                            host_id.clone(),
                                             crate::protocol::ReplicationSectionData {
                                                 role: info_section.role,
                                                 master_replid: info_section.master_replid.clone(),

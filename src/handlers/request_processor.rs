@@ -1,5 +1,5 @@
 use crate::{
-    actors::{messages::ProcessorActorMessage, processor::ProcessorActor},
+    actors::{messages::{HostId, ProcessorActorMessage}, processor::ProcessorActor},
     handlers::set_command::SetCommandActorHandle,
     protocol::SetCommandParameter,
     resp::value::RespValue,
@@ -34,7 +34,8 @@ impl RequestProcessorActorHandle {
         request: RespValue,
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
-        info_command_actor_handle: ReplicationActorHandle,
+        replication_actor_handle: ReplicationActorHandle,
+        host_id: HostId,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
         replica_tx: Option<broadcast::Sender<RespValue>>, // we get this from master handler only
@@ -48,7 +49,8 @@ impl RequestProcessorActorHandle {
             request,
             set_command_actor_handle,
             config_command_actor_handle,
-            info_command_actor_handle,
+            replication_actor_handle,
+            host_id,
             expire_tx,
             master_tx,
             replica_tx,

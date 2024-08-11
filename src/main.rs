@@ -1,5 +1,6 @@
 use crate::resp::value::RespValue;
 
+use actors::messages::HostId;
 use anyhow::Result;
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
@@ -25,11 +26,8 @@ pub mod resp;
 use crate::cli::Cli;
 
 use crate::handlers::{
-    config_command::ConfigCommandActorHandle,
-    replication::ReplicationActorHandle,
-    // replication::ReplicationActorHandle,
-    request_processor::RequestProcessorActorHandle,
-    set_command::SetCommandActorHandle,
+    config_command::ConfigCommandActorHandle, replication::ReplicationActorHandle,
+    request_processor::RequestProcessorActorHandle, set_command::SetCommandActorHandle,
 };
 
 use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
@@ -194,7 +192,7 @@ async fn main() -> anyhow::Result<()> {
     replication_actor_handle
         .set_value(
             InfoCommandParameter::Replication,
-            socket_address.to_string(),
+            HostId::Myself,
             replication_data,
         )
         .await;
@@ -390,13 +388,23 @@ async fn handle_connection_from_clients(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
-    info_command_actor_handle: ReplicationActorHandle,
+    replication_actor_handle: ReplicationActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
     mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
+    let client_address = stream.local_addr()?;
+
+    let client_ip = client_address.ip().to_string();
+    let client_port = client_address.port();
+
+    let host_id = HostId::Host {
+        ip: client_ip,
+        port: client_port,
+    };
+
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
 
@@ -421,7 +429,8 @@ async fn handle_connection_from_clients(
                                 request,
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
-                                info_command_actor_handle.clone(),
+                                replication_actor_handle.clone(),
+                                host_id.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()), // used to send replication messages to the replica
@@ -486,14 +495,6 @@ async fn handle_connection_to_master(
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
 ) -> Result<()> {
-    // get some details about our own IP:PORT
-    let addr = stream.local_addr()?;
-    let ip = addr.ip().to_string();
-    let port = addr.port().to_string();
-
-    //join the two
-    let host_id = format!("{}:{}", ip, port);
-
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
 
@@ -513,6 +514,7 @@ async fn handle_connection_to_master(
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
                                 replication_actor_handle.clone(),
+                                HostId::Myself,
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
@@ -521,36 +523,36 @@ async fn handle_connection_to_master(
                             .await
                         {
                              // get the current replication data.
-                             let mut current_replication_data =
-                             replication_actor_handle.get_value(InfoCommandParameter::Replication,&host_id).await.expect("Unable to get current replication data.",);
+                            if let Some(mut current_replication_data) = replication_actor_handle.get_value(InfoCommandParameter::Replication,HostId::Myself).await {
+                                // we need to convert the request to a RESP string to count the bytes.
+                                let value_as_string = request.to_encoded_string()?;
 
-                             // we need to convert the request to a RESP string to count the bytes.
-                             let value_as_string = request.to_encoded_string().expect("Failed to encode request as a string.");
+                                // calculate how many bytes are in the value_as_string
+                                let value_as_string_bytes = value_as_string.len() as i16;
 
-                             // calculate how many bytes are in the value_as_string
-                             let value_as_string_bytes = value_as_string.len() as i16;
+                                // extract the current offset value.
+                                let current_offset = current_replication_data.master_repl_offset;
 
-                             // extract the current offset value.
-                             let current_offset = current_replication_data.master_repl_offset;
+                                // update the offset value.
+                                current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
 
-                             // update the offset value.
-                             current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
+                                // update the offset value in the replication actor.
+                                replication_actor_handle.set_value(InfoCommandParameter::Replication,HostId::Myself,current_replication_data).await;
 
-                             // update the offset value in the replication actor.
-                             replication_actor_handle.set_value(InfoCommandParameter::Replication,&host_id,current_replication_data,).await;
+                                debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
+                                // iterate over processed_value and send each one to the client
+                                for value in processed_value.iter() {
+                                    // check to see if processed_value contains REPLCONF in the encoded string
+                                    let strings_to_reply = "REPLCONF";
 
-                            debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
-                            // iterate over processed_value and send each one to the client
-                            for value in processed_value.iter() {
-                                // check to see if processed_value contains REPLCONF in the encoded string
-                                let strings_to_reply = "REPLCONF";
-
-                                if value.to_encoded_string()?.contains(strings_to_reply) {
-                                    info!("Sending response to master: {:?}", value);
-                                    let _ = writer.send(value.clone()).await?;
+                                    if value.to_encoded_string()?.contains(strings_to_reply) {
+                                        info!("Sending response to master: {:?}", value);
+                                        let _ = writer.send(value.clone()).await?;
+                                    }
                                 }
-
                             }
+
+
                         }
                     }
                     Err(e) => {
