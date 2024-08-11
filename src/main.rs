@@ -26,7 +26,7 @@ use crate::cli::Cli;
 
 use crate::handlers::{
     config_command::ConfigCommandActorHandle,
-    info_command::InfoCommandActorHandle,
+    replication::ReplicationActorHandle,
     // replication::ReplicationActorHandle,
     request_processor::RequestProcessorActorHandle,
     set_command::SetCommandActorHandle,
@@ -70,13 +70,10 @@ async fn main() -> anyhow::Result<()> {
     let set_command_actor_handle = SetCommandActorHandle::new();
 
     // Get a handle to the info actor, one per redis. This starts the actor.
-    let info_command_actor_handle = InfoCommandActorHandle::new();
+    let replication_actor_handle = ReplicationActorHandle::new();
 
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
-
-    // Get a handle to the replication actor, one per redis. This starts the actor.
-    // let _replication_actor_handle = ReplicationActorHandle::new();
 
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
@@ -144,17 +141,14 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // initialize to being a master, override if we are a replica
-    let mut info_data: ReplicationSectionData = ReplicationSectionData::new(ServerRole::Master);
+    let mut replication_data: ReplicationSectionData =
+        ReplicationSectionData::new(ServerRole::Master);
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
         let master_host_port_combo = replica.replace(" ", ":");
 
         // We can pass a string to TcpStream::connect, so no need to create SocketAddr
-        // replication_actor_handle
-        //     .connect_to_master(master_host_port_combo)
-        //     .await;
-
         let stream = TcpStream::connect(&master_host_port_combo)
             .await
             .expect("Failed to establish connection to master.");
@@ -162,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
-        let info_command_actor_handle_clone = info_command_actor_handle.clone();
+        let replication_actor_handle_clone = replication_actor_handle.clone();
         let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
@@ -175,7 +169,7 @@ async fn main() -> anyhow::Result<()> {
                 stream,
                 set_command_handler_clone,
                 config_command_handler_clone,
-                info_command_actor_handle_clone,
+                replication_actor_handle_clone,
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
                 tcp_msgs_rx_clone,
@@ -192,12 +186,17 @@ async fn main() -> anyhow::Result<()> {
             master_host_port_combo
         );
         // set the role to slave
-        info_data = ReplicationSectionData::new(ServerRole::Slave);
+        replication_data = ReplicationSectionData::new(ServerRole::Slave);
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
-    info_command_actor_handle
-        .set_value(InfoCommandParameter::Replication, info_data)
+    // these are local 0.0.0.0 details
+    replication_actor_handle
+        .set_value(
+            InfoCommandParameter::Replication,
+            socket_address.to_string(),
+            replication_data,
+        )
         .await;
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
@@ -223,7 +222,7 @@ async fn main() -> anyhow::Result<()> {
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
-        let info_command_actor_handle_clone = info_command_actor_handle.clone();
+        let info_command_actor_handle_clone = replication_actor_handle.clone();
         let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
@@ -391,7 +390,7 @@ async fn handle_connection_from_clients(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
-    info_command_actor_handle: InfoCommandActorHandle,
+    info_command_actor_handle: ReplicationActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
@@ -480,13 +479,21 @@ async fn handle_connection_to_master(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
-    info_command_actor_handle: InfoCommandActorHandle,
+    replication_actor_handle: ReplicationActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     tcp_msgs_rx: async_channel::Receiver<RespValue>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
 ) -> Result<()> {
+    // get some details about our own IP:PORT
+    let addr = stream.local_addr()?;
+    let ip = addr.ip().to_string();
+    let port = addr.port().to_string();
+
+    //join the two
+    let host_id = format!("{}:{}", ip, port);
+
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
 
@@ -505,7 +512,7 @@ async fn handle_connection_to_master(
                                 request.clone(),
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
-                                info_command_actor_handle.clone(),
+                                replication_actor_handle.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
@@ -515,7 +522,7 @@ async fn handle_connection_to_master(
                         {
                              // get the current replication data.
                              let mut current_replication_data =
-                             info_command_actor_handle.get_value(InfoCommandParameter::Replication).await.expect("Unable to get current replication data.",);
+                             replication_actor_handle.get_value(InfoCommandParameter::Replication,&host_id).await.expect("Unable to get current replication data.",);
 
                              // we need to convert the request to a RESP string to count the bytes.
                              let value_as_string = request.to_encoded_string().expect("Failed to encode request as a string.");
@@ -529,8 +536,8 @@ async fn handle_connection_to_master(
                              // update the offset value.
                              current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
 
-                             // update the offset value in the info actor.
-                             info_command_actor_handle.set_value(InfoCommandParameter::Replication,current_replication_data,).await;
+                             // update the offset value in the replication actor.
+                             replication_actor_handle.set_value(InfoCommandParameter::Replication,&host_id,current_replication_data,).await;
 
                             debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                             // iterate over processed_value and send each one to the client
