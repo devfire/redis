@@ -37,7 +37,7 @@ impl ProcessorActor {
 
     // Handle a RespValue message, parse it into a RedisCommand, and reply back with the appropriate response.
     pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
-        debug!("Handling message: {:?}", msg);
+        tracing::info!("Handling message: {:?}", msg);
         // Match on the type of the message
         match msg {
             // Handle a Process message
@@ -313,13 +313,13 @@ impl ProcessorActor {
                                 // first, let's see if this INFO section exists.
                                 // For now, we are assuming it's a Replication query but there may be others.
                                 if let Some(param) = info_parameter {
-                                    let info =
+                                    let replication_data =
                                         replication_actor_handle.get_value(param, host_id).await;
 
-                                    debug!("Retrieved INFO RespValue: {:?}", info);
+                                    tracing::info!("Retrieved INFO RespValue: {:?}", replication_data);
 
                                     // then, let's see if the section contains data.
-                                    if let Some(replication_section) = info {
+                                    if let Some(replication_section) = replication_data {
                                         let _ =
                                             respond_to.send(Some(vec![RespValue::SimpleString(
                                                 replication_section.to_string(),
