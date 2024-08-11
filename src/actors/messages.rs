@@ -5,7 +5,7 @@ use tokio::sync::oneshot;
 use crate::resp::value::RespValue;
 use crate::{
     handlers::{
-        config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
+        config_command::ConfigCommandActorHandle, replication::ReplicationActorHandle,
         set_command::SetCommandActorHandle,
     },
     protocol::{
@@ -66,7 +66,7 @@ pub enum ConfigActorMessage {
 }
 
 #[derive(Debug)]
-pub enum InfoActorMessage {
+pub enum ReplicatorActorMessage<'a> {
     // the idea here is that values are stored in a HashMap.
     // So, to get a INFO value back the client must supply a String key.
     // NOTE: https://redis.io/docs/latest/commands/info/ has a ton of parameters,
@@ -76,44 +76,25 @@ pub enum InfoActorMessage {
     // Example: Replication -> role -> master.
     GetInfoValue {
         info_key: InfoCommandParameter, // defined in protocol.rs
+        host_details: &'a str,
         respond_to: oneshot::Sender<Option<ReplicationSectionData>>,
     },
 
     SetInfoValue {
         info_key: InfoCommandParameter, // defined in protocol.rs
+        host_details: &'a str,
         info_value: ReplicationSectionData,
     },
 }
 
 // #[derive(Debug)]
-// pub enum ReplicationActorMessage {
-//     // Primarily stores the current offset value.
-//     GetReplicationValue {
-//         info_key: ReplConfCommandParameter, // defined in protocol.rs
-//         respond_to: oneshot::Sender<Option<u16>>,
-//     },
-
-//     SetReplicationValue {
-//         info_key: ReplConfCommandParameter, // defined in protocol.rs
-//         info_value: u16,
-//     },
-// }
-
-// #[derive(Debug)]
-// pub enum ReplicationActorMessage {
-//     // connection string to connect to master
-//     ConnectToMaster { connection_string: String },
-//     SendCommand { command: resp::Value },
-// }
-
-// #[derive(Debug)]
-pub enum ProcessorActorMessage {
+pub enum ProcessorActorMessage<'a> {
     // connection string to connect to master
     Process {
         request: RespValue,
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
-        info_command_actor_handle: InfoCommandActorHandle,
+        info_command_actor_handle: ReplicationActorHandle<'a>,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
         replica_tx: Option<broadcast::Sender<RespValue>>,
@@ -125,7 +106,7 @@ pub enum ProcessorActorMessage {
 }
 
 // implement the debug trait for the ProcessorActorMessage enum
-impl std::fmt::Debug for ProcessorActorMessage {
+impl<'a> std::fmt::Debug for ProcessorActorMessage<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProcessorActorMessage::Process {
