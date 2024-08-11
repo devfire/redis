@@ -316,7 +316,7 @@ impl ProcessorActor {
                                     let replication_data =
                                         replication_actor_handle.get_value(param, host_id).await;
 
-                                    tracing::info!("Retrieved INFO RespValue: {:?}", replication_data);
+                                    tracing::debug!("Retrieved INFO RespValue: {:?}", replication_data);
 
                                     // then, let's see if the section contains data.
                                     if let Some(replication_section) = replication_data {
@@ -385,7 +385,7 @@ impl ProcessorActor {
                                                 .to_encoded_string()
                                                 .expect("Failed to encode repl_conf_ack");
 
-                                            tracing::info!(
+                                            tracing::debug!(
                                                 "Sending REPLCONF ACK: {}",
                                                 repl_conf_ack_encoded
                                             );
@@ -398,7 +398,7 @@ impl ProcessorActor {
                                         }
                                     }
                                     crate::protocol::ReplConfCommandParameter::Ack(ack) => {
-                                        tracing::info!("Received ACK: {}", ack);
+                                        tracing::debug!("Received ACK: {}", ack);
 
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.

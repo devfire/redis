@@ -516,7 +516,7 @@ async fn handle_connection_to_master(
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
                                 replication_actor_handle.clone(),
-                                host_id.clone(),
+                                host_id.clone(), // we are a replica, so we are supplying our own IP:PORT
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
