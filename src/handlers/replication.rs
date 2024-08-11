@@ -1,17 +1,17 @@
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    actors::{messages::ReplicatorActorMessage, replicator::ReplicatorActor},
+    actors::{messages::{HostId, ReplicatorActorMessage}, replicator::ReplicatorActor},
     protocol::{InfoCommandParameter, ReplicationSectionData},
 };
 
 #[derive(Clone, Debug)]
-pub struct ReplicationActorHandle<'a> {
-    sender: mpsc::Sender<ReplicatorActorMessage<'a>>,
+pub struct ReplicationActorHandle {
+    sender: mpsc::Sender<ReplicatorActorMessage>,
 }
 
 // Gives you access to the underlying actor.
-impl <'a>ReplicationActorHandle<'a> {
+impl ReplicationActorHandle {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(8);
         let mut actor = ReplicatorActor::new(receiver);
@@ -26,13 +26,13 @@ impl <'a>ReplicationActorHandle<'a> {
     pub async fn get_value(
         &self,
         info_key: InfoCommandParameter,
-        host_details: &'a str, //hostIP:port combo
+        host_id: HostId, //hostIP:port combo
     ) -> Option<ReplicationSectionData> {
         tracing::debug!("Getting info value for key: {:?}", info_key);
         let (send, recv) = oneshot::channel();
         let msg = ReplicatorActorMessage::GetInfoValue {
             info_key,
-            host_details,
+            host_id,
             respond_to: send,
         };
 
@@ -55,7 +55,7 @@ impl <'a>ReplicationActorHandle<'a> {
     pub async fn set_value(
         &self,
         info_key: InfoCommandParameter,
-        host_id: &'a str,
+        host_id: HostId,
         info_value: ReplicationSectionData,
     ) {
         let msg = ReplicatorActorMessage::SetInfoValue {

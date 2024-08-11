@@ -66,7 +66,7 @@ pub enum ConfigActorMessage {
 }
 
 #[derive(Debug)]
-pub enum ReplicatorActorMessage<'a> {
+pub enum ReplicatorActorMessage {
     // the idea here is that values are stored in a HashMap.
     // So, to get a INFO value back the client must supply a String key.
     // NOTE: https://redis.io/docs/latest/commands/info/ has a ton of parameters,
@@ -76,25 +76,35 @@ pub enum ReplicatorActorMessage<'a> {
     // Example: Replication -> role -> master.
     GetInfoValue {
         info_key: InfoCommandParameter, // defined in protocol.rs
-        host_details: &'a str,
+        host_id: HostId, // this is HOSTIP:PORT format
         respond_to: oneshot::Sender<Option<ReplicationSectionData>>,
     },
 
     SetInfoValue {
         info_key: InfoCommandParameter, // defined in protocol.rs
-        host_details: &'a str,
+        host_id: HostId,
         info_value: ReplicationSectionData,
     },
 }
 
-// #[derive(Debug)]
-pub enum ProcessorActorMessage<'a> {
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum HostId {
+    Host {
+        ip: String,
+        port: u16
+    },
+    Myself, // this is used to store this redis' instance own metadata, like its offset, etc.
+}
+
+
+pub enum ProcessorActorMessage {
     // connection string to connect to master
     Process {
         request: RespValue,
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
-        info_command_actor_handle: ReplicationActorHandle<'a>,
+        replication_actor_handle: ReplicationActorHandle,
+        host_id: HostId,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
         replica_tx: Option<broadcast::Sender<RespValue>>,
@@ -106,14 +116,15 @@ pub enum ProcessorActorMessage<'a> {
 }
 
 // implement the debug trait for the ProcessorActorMessage enum
-impl<'a> std::fmt::Debug for ProcessorActorMessage<'a> {
+impl std::fmt::Debug for ProcessorActorMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProcessorActorMessage::Process {
                 request,
                 set_command_actor_handle: _,
                 config_command_actor_handle: _,
-                info_command_actor_handle: _,
+                replication_actor_handle: _,
+                host_id: _,
                 expire_tx: _,
                 master_tx: _,
                 replica_tx,

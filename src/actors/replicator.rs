@@ -6,6 +6,8 @@ use crate::{
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
+use super::messages::HostId;
+
 /// Handles INFO command. Receives message from the InfoCommandActorHandle and processes them accordingly.
 pub struct ReplicatorActor {
     // The receiver for incoming messages
@@ -14,7 +16,8 @@ pub struct ReplicatorActor {
     // The section-key-value hash map for storing data.
     // There are multiple sections, each has multiple keys, each key with one value.
     // Here is a Hash of Hashes. Replication -> Hash<ServerIP:Port,Offset> for example.
-    kv_hash: HashMap<InfoCommandParameter, HashMap<String, ReplicationSectionData>>,
+    // Note the special value of HostId::Myself that stores server's own data.
+    kv_hash: HashMap<InfoCommandParameter, HashMap<HostId, ReplicationSectionData>>,
 }
 
 impl ReplicatorActor {
@@ -42,12 +45,12 @@ impl ReplicatorActor {
             // Handle a GetValue message
             ReplicatorActorMessage::GetInfoValue {
                 info_key,
-                host_details: server_details,
+                host_id,
                 respond_to,
             } => {
                 // If the key exists in the hash map, send the value back
                 if let Some(value) = self.kv_hash.get(&info_key) {
-                    if let Some(value) = value.get(&server_details) {
+                    if let Some(value) = value.get(&host_id) {
                         let _ = respond_to.send(Some(value.clone()));
                     }
                 } else {
@@ -59,14 +62,14 @@ impl ReplicatorActor {
             }
             ReplicatorActorMessage::SetInfoValue {
                 info_key,
-                server_details,
+                host_id,
                 info_value,
             } =>
             // Insert the key-value pair into the hash map
             {
                 // this is a temp var to store the Hash
                 let mut server_replication_data = HashMap::new();
-                server_replication_data.insert(server_details, info_value);
+                server_replication_data.insert(host_id, info_value);
                 self.kv_hash.insert(info_key, server_replication_data);
             }
         }
