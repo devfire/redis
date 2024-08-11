@@ -40,6 +40,8 @@ impl ReplicatorActor {
 
     // Handle a message.
     pub fn handle_message(&mut self, msg: ReplicatorActorMessage) {
+        tracing::info!("Handling message: {:?}", msg);
+
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
@@ -52,6 +54,8 @@ impl ReplicatorActor {
                 if let Some(value) = self.kv_hash.get(&info_key) {
                     if let Some(value) = value.get(&host_id) {
                         let _ = respond_to.send(Some(value.clone()));
+                    } else {
+                        let _ = respond_to.send(None);
                     }
                 } else {
                     // If the key does not exist in the hash map, send None

@@ -28,7 +28,7 @@ impl ReplicationActorHandle {
         info_key: InfoCommandParameter,
         host_id: HostId, //hostIP:port combo
     ) -> Option<ReplicationSectionData> {
-        tracing::debug!("Getting info value for key: {:?}", info_key);
+        tracing::info!("Getting info value for key: {:?}, {:?}", info_key, host_id);
         let (send, recv) = oneshot::channel();
         let msg = ReplicatorActorMessage::GetInfoValue {
             info_key,

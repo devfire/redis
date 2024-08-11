@@ -395,15 +395,7 @@ async fn handle_connection_from_clients(
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
     mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
-    let client_address = stream.local_addr()?;
 
-    let client_ip = client_address.ip().to_string();
-    let client_port = client_address.port();
-
-    let host_id = HostId::Host {
-        ip: client_ip,
-        port: client_port,
-    };
 
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
@@ -430,7 +422,7 @@ async fn handle_connection_from_clients(
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
                                 replication_actor_handle.clone(),
-                                host_id.clone(),
+                                HostId::Myself,
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()), // used to send replication messages to the replica
@@ -495,6 +487,16 @@ async fn handle_connection_to_master(
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
 ) -> Result<()> {
+    let client_address = stream.local_addr()?;
+
+    let client_ip = client_address.ip().to_string();
+    let client_port = client_address.port();
+
+    let host_id = HostId::Host {
+        ip: client_ip,
+        port: client_port,
+    };
+
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
 
@@ -514,7 +516,7 @@ async fn handle_connection_to_master(
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
                                 replication_actor_handle.clone(),
-                                HostId::Myself,
+                                host_id.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
