@@ -45,7 +45,7 @@ impl ProcessorActor {
                 request,
                 set_command_actor_handle,
                 config_command_actor_handle,
-                info_command_actor_handle,
+                info_command_actor_handle: replication_actor_handle,
                 expire_tx,
                 master_tx,
                 replica_tx,
@@ -309,17 +309,18 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::Info(info_parameter))) => {
                                 // we may or may not get a value for the INFO command.
 
-                                // first, let's see if this INFO section exists
+                                // first, let's see if this INFO section exists.
+                                // For now, we are assuming it's a Replication query but there may be others.
                                 if let Some(param) = info_parameter {
-                                    let info = info_command_actor_handle.get_value(param).await;
+                                    let info = replication_actor_handle.get_value(param).await;
 
                                     debug!("Retrieved INFO RespValue: {:?}", info);
 
                                     // then, let's see if the section contains data.
-                                    if let Some(info_section) = info {
+                                    if let Some(replication_section) = info {
                                         let _ =
                                             respond_to.send(Some(vec![RespValue::SimpleString(
-                                                info_section.to_string(),
+                                                replication_section.to_string(),
                                             )]));
                                     } else {
                                         let _ = respond_to.send(Some(vec![RespValue::Null]));
@@ -363,7 +364,7 @@ impl ProcessorActor {
 
                                             // get the current replication data.
                                             let current_replication_data =
-                                                info_command_actor_handle
+                                                replication_actor_handle
                                                     .get_value(info_key)
                                                     .await
                                                     .expect(
@@ -422,7 +423,7 @@ impl ProcessorActor {
                                 // https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#replication-id-explained
 
                                 // Let's get the current replication values.
-                                let info = info_command_actor_handle
+                                let info = replication_actor_handle
                                     .get_value(InfoCommandParameter::Replication)
                                     .await;
 
@@ -438,7 +439,7 @@ impl ProcessorActor {
                                     }
 
                                     // persist the offset in the info section
-                                    info_command_actor_handle
+                                    replication_actor_handle
                                         .set_value(
                                             InfoCommandParameter::Replication,
                                             crate::protocol::ReplicationSectionData {

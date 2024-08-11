@@ -9,7 +9,7 @@ use tracing::debug;
 // use resp::Value;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use super::{config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle};
+use super::{config_command::ConfigCommandActorHandle, replication::ReplicationActorHandle};
 
 #[derive(Clone, Debug)]
 pub struct RequestProcessorActorHandle {
@@ -34,7 +34,7 @@ impl RequestProcessorActorHandle {
         request: RespValue,
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
-        info_command_actor_handle: InfoCommandActorHandle,
+        info_command_actor_handle: ReplicationActorHandle,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
         replica_tx: Option<broadcast::Sender<RespValue>>, // we get this from master handler only
