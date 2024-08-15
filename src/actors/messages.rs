@@ -87,7 +87,7 @@ pub enum ReplicatorActorMessage {
         info_value: ReplicationSectionData,
     },
     GetReplicaCount {
-        respond_to: oneshot::Sender<Option<u32>>, // total number of connected, synced up replicas
+        respond_to: oneshot::Sender<usize>, // total number of connected, synced up replicas
     },
 }
 

@@ -1,7 +1,4 @@
-use crate::{
-    actors::messages::ReplicatorActorMessage,
-    protocol::ReplicationSectionData,
-};
+use crate::{actors::messages::ReplicatorActorMessage, protocol::ReplicationSectionData};
 
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -72,7 +69,9 @@ impl ReplicatorActor {
                 // server_replication_data.insert(host_id, info_value);
                 self.kv_hash.insert(host_id, info_value);
             }
-            ReplicatorActorMessage::GetReplicaCount { respond_to } => todo!(),
+            ReplicatorActorMessage::GetReplicaCount { respond_to } => {
+                let _ = respond_to.send(self.kv_hash.len());
+            }
         }
     }
 }
