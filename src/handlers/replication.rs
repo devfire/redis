@@ -73,7 +73,7 @@ impl ReplicationActorHandle {
     }
 
     /// Implements the WAIT command
-    pub async fn get_connected_replica_count(&self) -> Option<u32> {
+    pub async fn get_connected_replica_count(&self) -> usize {
         let (send, recv) = oneshot::channel();
         let msg = ReplicatorActorMessage::GetReplicaCount { respond_to: send };
 
@@ -84,10 +84,6 @@ impl ReplicationActorHandle {
 
         // this is going back once the msg comes back from the actor.
         // NOTE: we might get None back, i.e. no value for the given key.
-        if let Some(value) = recv.await.expect("Actor task has been killed") {
-            Some(value)
-        } else {
-            None
-        }
+        recv.await.expect("Actor task has been killed")
     }
 }

@@ -480,8 +480,11 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
                                 debug!("Processing WAIT {} {}", numreplicas, timeout);
 
+                                // get the replica count
+                                let replica_count =
+                                    replication_actor_handle.get_connected_replica_count().await;
                                 let _ = respond_to
-                                    .send(Some(vec![(RespValue::Integer(numreplicas as i64))]));
+                                    .send(Some(vec![(RespValue::Integer(replica_count as i64))]));
                             }
                             _ => {
                                 debug!("Unsupported command: {:?}", request_as_encoded_string);
