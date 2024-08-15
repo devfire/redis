@@ -316,7 +316,10 @@ impl ProcessorActor {
                                     let replication_data =
                                         replication_actor_handle.get_value(param, host_id).await;
 
-                                    tracing::debug!("Retrieved INFO RespValue: {:?}", replication_data);
+                                    tracing::debug!(
+                                        "Retrieved INFO RespValue: {:?}",
+                                        replication_data
+                                    );
 
                                     // then, let's see if the section contains data.
                                     if let Some(replication_section) = replication_data {
@@ -440,7 +443,6 @@ impl ProcessorActor {
                                     // persist the offset in the info section
                                     replication_actor_handle
                                         .set_value(
-                                            InfoCommandParameter::Replication,
                                             host_id.clone(),
                                             crate::protocol::ReplicationSectionData {
                                                 role: info_section.role,
