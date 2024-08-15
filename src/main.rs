@@ -8,7 +8,7 @@ use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use protocol::{ReplicationSectionData,ServerRole, SetCommandParameter};
+use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
 use tracing::{debug, error, info};
 
 use tokio::sync::{broadcast, mpsc};
@@ -190,11 +190,7 @@ async fn main() -> anyhow::Result<()> {
 
     // these are local 0.0.0.0 details
     replication_actor_handle
-        .set_value(
-            InfoCommandParameter::Replication,
-            HostId::Myself,
-            replication_data,
-        )
+        .set_value(HostId::Myself, replication_data)
         .await;
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
@@ -395,8 +391,6 @@ async fn handle_connection_from_clients(
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
     mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
-
-
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
 
@@ -539,7 +533,7 @@ async fn handle_connection_to_master(
                                 current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
 
                                 // update the offset value in the replication actor.
-                                replication_actor_handle.set_value(InfoCommandParameter::Replication,HostId::Myself,current_replication_data).await;
+                                replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
 
                                 debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                                 // iterate over processed_value and send each one to the client
