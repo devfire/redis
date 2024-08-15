@@ -2,6 +2,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::protocol::WaitCommandParameter;
 use crate::resp::value::RespValue;
 use crate::{
     handlers::{
@@ -75,15 +76,18 @@ pub enum ReplicatorActorMessage {
     // Info values are 2 dimensional:
     // Example: Replication -> role -> master.
     GetInfoValue {
-        info_key: InfoCommandParameter, // defined in protocol.rs
+        // info_key: InfoCommandParameter, // defined in protocol.rs
         host_id: HostId, // this is HOSTIP:PORT format
         respond_to: oneshot::Sender<Option<ReplicationSectionData>>,
     },
 
     SetInfoValue {
-        info_key: InfoCommandParameter, // defined in protocol.rs
+        // info_key: InfoCommandParameter, // defined in protocol.rs
         host_id: HostId,
         info_value: ReplicationSectionData,
+    },
+    GetReplicaCount {
+        respond_to: oneshot::Sender<Option<u32>>, // total number of connected, synced up replicas
     },
 }
 
@@ -96,6 +100,16 @@ pub enum HostId {
     Myself, // this is used to store this redis' instance own metadata, like its offset, etc.
 }
 
+#[derive(Debug)]
+pub enum WaitActorMessage {
+    // the idea here is that values are stored in a HashMap.
+    // So, to get a CONFIG Value back the client must supply a String key.
+    // NOTE: Only dir and dbfilename keys are supported.
+    GetReplicas {
+        key: WaitCommandParameter,
+        respond_to: oneshot::Sender<u16>,
+    },
+}
 
 pub enum ProcessorActorMessage {
     // connection string to connect to master

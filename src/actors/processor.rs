@@ -37,7 +37,7 @@ impl ProcessorActor {
 
     // Handle a RespValue message, parse it into a RedisCommand, and reply back with the appropriate response.
     pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
-        tracing::info!("Handling message: {:?}", msg);
+        tracing::debug!("Handling message: {:?}", msg);
         // Match on the type of the message
         match msg {
             // Handle a Process message
@@ -354,7 +354,7 @@ impl ProcessorActor {
                                         // typically this is FROM the master, and is received by the replica.
                                         // So, if we are processing this, we are a replica.
                                         // Replies to this will go back over the OUTBOUND tcp connection to the master.
-                                        // TODO: Most replies are suppressed but these we need to send back to the master.
+                                        // NOTE: Most replies are suppressed but these we need to send back to the master.
                                         debug!("Received GETACK: {}", ackvalue);
 
                                         // check to make sure ackvalue is actually *
