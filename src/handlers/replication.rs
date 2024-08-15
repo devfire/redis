@@ -1,7 +1,10 @@
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    actors::{messages::{HostId, ReplicatorActorMessage}, replicator::ReplicatorActor},
+    actors::{
+        messages::{HostId, ReplicatorActorMessage},
+        replicator::ReplicatorActor,
+    },
     protocol::{InfoCommandParameter, ReplicationSectionData},
 };
 
@@ -31,7 +34,7 @@ impl ReplicationActorHandle {
         tracing::debug!("Getting info value for key: {:?}, {:?}", info_key, host_id);
         let (send, recv) = oneshot::channel();
         let msg = ReplicatorActorMessage::GetInfoValue {
-            info_key,
+            // info_key,
             host_id,
             respond_to: send,
         };
@@ -54,12 +57,12 @@ impl ReplicationActorHandle {
     /// https://redis.io/commands/info/
     pub async fn set_value(
         &self,
-        info_key: InfoCommandParameter,
+        // info_key: InfoCommandParameter,
         host_id: HostId,
         info_value: ReplicationSectionData,
     ) {
         let msg = ReplicatorActorMessage::SetInfoValue {
-            info_key,
+            // info_key,
             host_id,
             info_value,
         };
@@ -67,5 +70,24 @@ impl ReplicationActorHandle {
         // debug!("Setting INFO key: {:?}, value: {}", info_key.clone(), info_value);
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
+    }
+
+    /// Implements the WAIT command
+    pub async fn get_connected_replica_count(&self) -> Option<u32> {
+        let (send, recv) = oneshot::channel();
+        let msg = ReplicatorActorMessage::GetReplicaCount { respond_to: send };
+
+        // Ignore send errors. If this send fails, so does the
+        // recv.await below. There's no reason to check the
+        // failure twice.
+        let _ = self.sender.send(msg).await;
+
+        // this is going back once the msg comes back from the actor.
+        // NOTE: we might get None back, i.e. no value for the given key.
+        if let Some(value) = recv.await.expect("Actor task has been killed") {
+            Some(value)
+        } else {
+            None
+        }
     }
 }

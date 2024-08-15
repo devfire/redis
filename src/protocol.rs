@@ -25,7 +25,7 @@ pub enum RedisCommand {
     Psync(String, i16),      // client (master_replid, master_repl_offset)
     Fullresync(String, i16), // master's (master_replid, master_repl_offset)
     Rdb(Vec<u8>),            // RDB file in memory representation
-    Wait(u16, i16),
+    Wait(u16, u16),
 }
 
 // implement Encoder for RedisCommand
@@ -71,7 +71,6 @@ pub struct ReplicationSectionData {
     pub master_repl_offset: i16, // cannot be u16 because initial offset is -1
 }
 
-// return InfoSectionData as a string
 impl fmt::Display for ReplicationSectionData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "role:{}:", &self.role)?;
@@ -143,6 +142,12 @@ pub struct SetCommandParameter {
     // An error is returned and SET aborted if the value stored at key is not a string.
     pub get: Option<bool>,
     pub expire: Option<SetCommandExpireOption>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct WaitCommandParameter {
+    pub numreplicas: u16,
+    pub timeout: u16,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -8,7 +8,7 @@ use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
+use protocol::{ReplicationSectionData,ServerRole, SetCommandParameter};
 use tracing::{debug, error, info};
 
 use tokio::sync::{broadcast, mpsc};
