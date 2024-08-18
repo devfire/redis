@@ -71,14 +71,19 @@ impl ProcessorActor {
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Fullresync(repl_id, offset))) => {
                                 // we got RDB mem dump, time to load it
-                                debug!(
+                                tracing::info!(
                                     "Received FULLRESYNC repl_id: {} offset: {}.",
-                                    repl_id, offset
+                                    repl_id,
+                                    offset
                                 );
+                                let _ = master_tx
+                                    .send(request_as_encoded_string)
+                                    .await
+                                    .expect("Unable to send master replies.");
                                 let _ = respond_to.send(None);
                             }
                             _ => {
-                                debug!(
+                                tracing::info!(
                                     "Unknown string {}, forwarding to replica.",
                                     request_as_encoded_string
                                 );
@@ -151,12 +156,12 @@ impl ProcessorActor {
                                 // forward this to the replicas
                                 if let Some(replica_tx_sender) = replica_tx {
                                     tracing::info!(
-                                        "Forwarding {} command to replicas.",
+                                        "Forwarding {:?} command to all connected replicas.",
                                         request_as_encoded_string
                                     );
                                     let _ = replica_tx_sender
                                         .send(request)
-                                        .expect("Unable to send replica replies.");
+                                        .expect("Unable to forward commands to replicas.");
                                 }
                             }
                             Ok((_, RedisCommand::Get(key))) => {
