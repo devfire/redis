@@ -426,6 +426,7 @@ async fn handle_connection_from_clients(
         ip: client_ip,
         port: client_port,
     };
+    tracing::info!("Handling connection from {:?}", host_id);
 
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
@@ -474,6 +475,7 @@ async fn handle_connection_from_clients(
                 }
             }
          msg = replica_rx.recv() => {
+            tracing::info!("replica_rx channel received {:?} for {:?}", msg.clone()?.to_encoded_string()?, host_id);
             match msg {
                 Ok(msg) => {
                     // Send replication messages only to replicas, not to other clients.
@@ -482,7 +484,7 @@ async fn handle_connection_from_clients(
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
-                        debug!("Not sending replication message to non-replica client.");
+                        tracing::info!("Not forwarding message to non-replica client {:?}.", host_id);
                     }
                 }
                 Err(e) => {
@@ -497,7 +499,7 @@ async fn handle_connection_from_clients(
             //     // we only want to send replication messages to replicas.
                 am_i_replica  = msg;
 
-                debug!("Updated client replica status to {:?}", am_i_replica);
+                tracing::info!("Updated client {:?} replica status to {}", host_id, am_i_replica);
             // // }
          }
         } // end tokio::select
