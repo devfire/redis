@@ -60,7 +60,7 @@ impl ReplicatorActor {
             }
             ReplicatorActorMessage::SetInfoValue {
                 host_id,
-                info_value,
+                replication_value: info_value,
             } =>
             // Insert the key-value pair into the hash map
             {

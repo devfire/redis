@@ -3,6 +3,7 @@ use crate::resp::value::RespValue;
 use actors::messages::HostId;
 use anyhow::Result;
 use clap::Parser;
+use errors::RedisError;
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -30,7 +31,7 @@ use crate::handlers::{
     request_processor::RequestProcessorActorHandle, set_command::SetCommandActorHandle,
 };
 
-use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
+use crate::protocol::ConfigCommandParameter;
 
 // use env_logger::Env;
 // use log::{debug, info};
@@ -56,6 +57,8 @@ async fn main() -> anyhow::Result<()> {
     // env_logger::init_from_env(env);
 
     let cli = Cli::parse();
+
+    // let ip_listen = "0.0.0.0".to_string();
 
     // cli.port comes from cli.rs; default is 6379
     let socket_address = std::net::SocketAddr::from(([0, 0, 0, 0], cli.port));
@@ -177,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
             .await
         });
 
-        handshake(tcp_msgs_tx.clone(), master_rx, cli.port.to_string()).await?;
+        let repl_id = handshake(tcp_msgs_tx.clone(), master_rx, cli.port.to_string()).await?;
 
         debug!(
             "Handshake completed, connected to master at {}.",
@@ -189,6 +192,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // these are local 0.0.0.0 details
+    tracing::info!("Setting {:?} for Myself", replication_data);
+
     replication_actor_handle
         .set_value(HostId::Myself, replication_data)
         .await;
@@ -314,7 +319,7 @@ async fn handshake(
     tcp_msgs_tx: async_channel::Sender<RespValue>,
     mut master_rx: mpsc::Receiver<String>,
     port: String,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<String> {
     // begin the replication handshake
     // STEP 1: PING
     let ping = RespValue::array_from_slice(&["PING"]);
@@ -336,40 +341,31 @@ async fn handshake(
     // send the ping
     tcp_msgs_tx.send(ping).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await;
+    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
     debug!("HANDSHAKE: master replied to ping {:?}", reply);
 
     // send the REPLCONF listening-port <PORT>
     tcp_msgs_tx.send(repl_conf_listening_port).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await;
+    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
     debug!("HANDSHAKE: master replied {:?}", reply);
 
     // send the REPLCONF capa psync2
     tcp_msgs_tx.send(repl_conf_capa).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await;
+    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
     debug!("HANDSHAKE: master replied {:?}", reply);
 
     // send the PSYNC ? -1
     tcp_msgs_tx.send(psync).await?;
-    // no waiting any more, we are done with the handshake
+    // wait for a reply from the master before proceeding
+    let replication_id = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    debug!("HANDSHAKE: master replied {:?}", reply);
 
-    // for command in handshake_commands.into_iter() {
-    //     // Send the value.
-    //     // Encodes a slice of string to RESP binary buffer.
-    //     // It is used to create a request command on redis client.
-    //     // https://docs.rs/resp/latest/resp/fn.encode_slice.html
-    //     tcp_msgs_tx.send(command).await?;
+    // We are done with the handshake!
+    tracing::info!("Handshake completed.");
 
-    //     // wait for the +OK reply from the master before proceeding
-    //     let reply = master_rx.recv().await;
-    //     debug!("HANDSHAKE: master replied {:?}", reply);
-    // }
-
-    debug!("Handshake completed.");
-
-    Ok(())
+    Ok(replication_id)
 }
 
 // This function will handle the connection from the client.
@@ -391,6 +387,16 @@ async fn handle_connection_from_clients(
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
     mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
+    let client_address = stream.peer_addr().map(|addr| addr)?;
+
+    let client_ip = client_address.ip().to_string();
+    let client_port = client_address.port();
+
+    let host_id = HostId::Host {
+        ip: client_ip,
+        port: client_port,
+    };
+
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
 
@@ -409,14 +415,14 @@ async fn handle_connection_from_clients(
                 match msg {
                     Ok(request) => {
                         // send the request to the request processor actor.
-                        tracing::info!("Received from client: {:?}", request.to_encoded_string().expect("Failed to encode request as a string."));
+                        tracing::info!("Received {:?} from client: {:?}", request.to_encoded_string()?, host_id);
                         if let Some(processed_values) = request_processor_actor_handle
                             .process_request(
                                 request,
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
                                 replication_actor_handle.clone(),
-                                HostId::Myself,
+                                host_id.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()), // used to send replication messages to the replica
@@ -424,10 +430,10 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            tracing::info!("Sending replies to client: {:?}", processed_values);
+                            // tracing::info!("Sending replies to client: {:?}", processed_values);
                             // iterate over processed_value and send each one to the client
                             for value in processed_values.iter() {
-                                debug!("Sending response to client: {:?}", value);
+                                tracing::info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
                                 let _ = writer.send(value.clone()).await?;
                             }
                         }
@@ -442,7 +448,7 @@ async fn handle_connection_from_clients(
                 Ok(msg) => {
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
-                        tracing::info!("Sending message to replica: {:?}", msg);
+                        tracing::info!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
@@ -481,15 +487,15 @@ async fn handle_connection_to_master(
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
 ) -> Result<()> {
-    let client_address = stream.local_addr()?;
+    // let client_address = stream.local_addr()?; // our own, i.e. replica's address
 
-    let client_ip = client_address.ip().to_string();
-    let client_port = client_address.port();
+    // let client_ip = client_address.ip().to_string();
+    // let client_port = client_address.port();
 
-    let host_id = HostId::Host {
-        ip: client_ip,
-        port: client_port,
-    };
+    // let host_id = HostId::Host {
+    //     ip: client_ip,
+    //     port: client_port,
+    // };
 
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
@@ -510,7 +516,7 @@ async fn handle_connection_to_master(
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
                                 replication_actor_handle.clone(),
-                                host_id.clone(), // we are a replica, so we are supplying our own IP:PORT
+                                HostId::Myself, // we are a replica, creating outbound connections, so we are Myself
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
@@ -518,8 +524,9 @@ async fn handle_connection_to_master(
                             )
                             .await
                         {
-                             // get the current replication data.
-                            if let Some(mut current_replication_data) = replication_actor_handle.get_value(InfoCommandParameter::Replication,HostId::Myself).await {
+                             // This is replica's own offset calculations.
+                             // First, let's get our current replication data from replica's POV.
+                            if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
                                 // we need to convert the request to a RESP string to count the bytes.
                                 let value_as_string = request.to_encoded_string()?;
 
@@ -537,12 +544,12 @@ async fn handle_connection_to_master(
 
                                 debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                                 // iterate over processed_value and send each one to the client
+
+                                let strings_to_reply = "REPLCONF";
                                 for value in processed_value.iter() {
                                     // check to see if processed_value contains REPLCONF in the encoded string
-                                    let strings_to_reply = "REPLCONF";
-
                                     if value.to_encoded_string()?.contains(strings_to_reply) {
-                                        info!("Sending response to master: {:?}", value);
+                                        info!("Sending response to master: {:?}", value.to_encoded_string()?);
                                         let _ = writer.send(value.clone()).await?;
                                     }
                                 }
@@ -563,7 +570,7 @@ async fn handle_connection_to_master(
          msg = tcp_msgs_rx.recv() => {
             match msg {
                 Ok(msg) => {
-                    tracing::info!("Sending message to master: {:?}", msg);
+                    tracing::info!("Sending message to master: {:?}", msg.to_encoded_string()?);
                     let _ = writer.send(msg).await?;
                     // writer.flush().await?;
                 }
