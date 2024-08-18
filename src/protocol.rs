@@ -3,9 +3,6 @@ use core::fmt;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::iter;
-// use tokio_util::codec::{Decoder, Encoder};
-
-// use crate::errors::RedisError;
 
 #[derive(Debug)]
 pub enum RedisCommand {

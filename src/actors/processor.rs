@@ -1,8 +1,10 @@
 use crate::{
-    actors::messages::ProcessorActorMessage,
+    actors::messages::{HostId, ProcessorActorMessage},
     errors::RedisError,
     parsers::parse_command,
-    protocol::{InfoCommandParameter, RedisCommand, SetCommandParameter},
+    protocol::{
+        RedisCommand, ReplConfCommandParameter, ReplicationSectionData, SetCommandParameter,
+    },
     resp::value::RespValue,
 };
 
@@ -148,7 +150,7 @@ impl ProcessorActor {
 
                                 // forward this to the replicas
                                 if let Some(replica_tx_sender) = replica_tx {
-                                    debug!(
+                                    tracing::info!(
                                         "Forwarding {} command to replicas.",
                                         request_as_encoded_string
                                     );
@@ -312,9 +314,10 @@ impl ProcessorActor {
 
                                 // first, let's see if this INFO section exists.
                                 // For now, we are assuming it's a Replication query but there may be others.
-                                if let Some(param) = info_parameter {
+                                if let Some(_param) = info_parameter {
+                                    // TODO: match on param
                                     let replication_data =
-                                        replication_actor_handle.get_value(param, host_id).await;
+                                        replication_actor_handle.get_value(host_id).await;
 
                                     tracing::debug!(
                                         "Retrieved INFO RespValue: {:?}",
@@ -353,7 +356,7 @@ impl ProcessorActor {
                                 // Check what replconf parameter we have and act accordingly
                                 // https://redis.io/commands/replconf
                                 match replconf_params {
-                                    crate::protocol::ReplConfCommandParameter::Getack(ackvalue) => {
+                                    ReplConfCommandParameter::Getack(ackvalue) => {
                                         // typically this is FROM the master, and is received by the replica.
                                         // So, if we are processing this, we are a replica.
                                         // Replies to this will go back over the OUTBOUND tcp connection to the master.
@@ -365,13 +368,19 @@ impl ProcessorActor {
                                             // We need to get the current offset value and send it back to the master.
                                             //
                                             // First, let's prepare the correct key message:
-                                            let info_key = InfoCommandParameter::Replication;
+                                            // let info_key = InfoCommandParameter::Replication;
 
                                             // get the current replication data.
                                             let current_replication_data = replication_actor_handle
-                                                .get_value(info_key, host_id.clone())
+                                                .get_value(host_id.clone())
                                                 .await
                                                 .expect("Unable to get current replication data.");
+
+                                            tracing::info!(
+                                                "Retrieving replication data {:?} for {:?}",
+                                                current_replication_data,
+                                                host_id
+                                            );
 
                                             // extract the current offset value.
                                             let current_offset =
@@ -400,22 +409,76 @@ impl ProcessorActor {
                                             let _ = respond_to.send(Some(vec![repl_conf_ack]));
                                         }
                                     }
-                                    crate::protocol::ReplConfCommandParameter::Ack(ack) => {
-                                        tracing::debug!("Received ACK: {}", ack);
+                                    ReplConfCommandParameter::Ack(ack) => {
+                                        tracing::info!("Received ACK: {} from {:?}", ack, host_id);
 
+                                        // get the current replica's replication data.
+                                        // This is master's POV into this specific replica's offset.
+                                        if let Some(mut current_replication_data) =
+                                            replication_actor_handle
+                                                .get_value(host_id.clone())
+                                                .await
+                                        {
+                                            // we need to convert the request to a RESP string to count the bytes.
+                                            let value_as_string =
+                                                request.to_encoded_string().expect(
+                                                    "Failed to encode request to encoded string",
+                                                );
+
+                                            // calculate how many bytes are in the value_as_string
+                                            let value_as_string_bytes =
+                                                value_as_string.len() as i16;
+
+                                            // extract the current offset value.
+                                            let current_offset =
+                                                current_replication_data.master_repl_offset;
+
+                                            // update the offset value.
+                                            current_replication_data.master_repl_offset =
+                                                current_offset + value_as_string_bytes;
+
+                                            // update the offset value in the replication actor.
+                                            replication_actor_handle
+                                                .set_value(
+                                                    host_id.clone(),
+                                                    current_replication_data,
+                                                )
+                                                .await;
+                                        }
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
                                         let _ = respond_to.send(None);
                                     }
-                                    crate::protocol::ReplConfCommandParameter::Capa => {
+                                    ReplConfCommandParameter::Capa => {
                                         let _ = respond_to.send(Some(vec![
                                             (RespValue::SimpleString("OK".to_string())),
                                         ]));
                                     }
-                                    crate::protocol::ReplConfCommandParameter::ListeningPort(_) => {
-                                        let _ = respond_to.send(Some(vec![
-                                            (RespValue::SimpleString("OK".to_string())),
-                                        ]));
+                                    ReplConfCommandParameter::ListeningPort(_port) => {
+                                        // create a new record for a new replica, under the current master's repl ID.
+                                        tracing::info!(
+                                            "Creating a new replication record for {:?}.",
+                                            host_id
+                                        );
+
+                                        if let Some(replication_data) =
+                                            replication_actor_handle.get_value(HostId::Myself).await
+                                        {
+                                            replication_actor_handle
+                                                .set_value(
+                                                    host_id.clone(), // assuming the port we got and the port supplied are the same!
+                                                    ReplicationSectionData {
+                                                        role: crate::protocol::ServerRole::Slave, // msg comes from a replica, so it's a slave
+                                                        master_replid: replication_data
+                                                            .master_replid,
+                                                        master_repl_offset: 0,
+                                                    },
+                                                )
+                                                .await;
+                                            let _ = respond_to.send(Some(vec![
+                                                (RespValue::SimpleString("OK".to_string())),
+                                            ]));
+                                        }
                                     }
                                 }
                             }
@@ -424,12 +487,15 @@ impl ProcessorActor {
                                 // ignore the _replication_id for now. There are actually two of them:
                                 // https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#replication-id-explained
 
-                                // Let's get the current replication values.
-                                let info = replication_actor_handle
-                                    .get_value(InfoCommandParameter::Replication, host_id.clone())
-                                    .await;
+                                tracing::info!("Getting replication data for {:?}", host_id);
 
-                                if let Some(info_section) = info {
+                                // Let's get the current replication values.
+                                // let replication_data =
+                                //     replication_actor_handle.get_value(host_id.clone()).await;
+
+                                if let Some(replication_section_data) =
+                                    replication_actor_handle.get_value(host_id.clone()).await
+                                {
                                     // initialize the reply of Vec<Vec<u8>>
                                     //
                                     let mut reply: Vec<RespValue> = Vec::new();
@@ -440,13 +506,21 @@ impl ProcessorActor {
                                         offset = 0;
                                     }
 
-                                    // persist the offset in the info section
+                                    tracing::info!(
+                                        "For client {:?} storing offset {}",
+                                        host_id,
+                                        offset
+                                    );
+
+                                    // persist the offset in the replication actor
                                     replication_actor_handle
                                         .set_value(
                                             host_id.clone(),
                                             crate::protocol::ReplicationSectionData {
-                                                role: info_section.role,
-                                                master_replid: info_section.master_replid.clone(),
+                                                role: replication_section_data.role,
+                                                master_replid: replication_section_data
+                                                    .master_replid
+                                                    .clone(),
                                                 master_repl_offset: offset,
                                             },
                                         )
@@ -456,7 +530,7 @@ impl ProcessorActor {
 
                                     reply.push(RespValue::SimpleString(format!(
                                         "FULLRESYNC {} {}",
-                                        info_section.master_replid, offset
+                                        replication_section_data.master_replid, offset
                                     )));
 
                                     let rdb_file_contents = config_command_actor_handle
@@ -475,6 +549,7 @@ impl ProcessorActor {
                                     let _ = respond_to.send(Some(reply));
                                 } else {
                                     error!("Failed to retrieve replication information");
+                                    let _ = respond_to.send(None);
                                 }
                             } // end of psync
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {

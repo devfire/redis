@@ -2,16 +2,14 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::protocol::WaitCommandParameter;
+// use crate::protocol::WaitCommandParameter;
 use crate::resp::value::RespValue;
 use crate::{
     handlers::{
         config_command::ConfigCommandActorHandle, replication::ReplicationActorHandle,
         set_command::SetCommandActorHandle,
     },
-    protocol::{
-        ConfigCommandParameter, InfoCommandParameter, ReplicationSectionData, SetCommandParameter,
-    },
+    protocol::{ConfigCommandParameter, ReplicationSectionData, SetCommandParameter},
 };
 
 /// The ActorMessage enum defines the kind of messages we can send to the actor.
@@ -84,7 +82,7 @@ pub enum ReplicatorActorMessage {
     SetInfoValue {
         // info_key: InfoCommandParameter, // defined in protocol.rs
         host_id: HostId,
-        info_value: ReplicationSectionData,
+        replication_value: ReplicationSectionData,
     },
     GetReplicaCount {
         respond_to: oneshot::Sender<usize>, // total number of connected, synced up replicas
@@ -93,23 +91,20 @@ pub enum ReplicatorActorMessage {
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum HostId {
-    Host {
-        ip: String,
-        port: u16
-    },
+    Host { ip: String, port: u16 },
     Myself, // this is used to store this redis' instance own metadata, like its offset, etc.
 }
 
-#[derive(Debug)]
-pub enum WaitActorMessage {
-    // the idea here is that values are stored in a HashMap.
-    // So, to get a CONFIG Value back the client must supply a String key.
-    // NOTE: Only dir and dbfilename keys are supported.
-    GetReplicas {
-        key: WaitCommandParameter,
-        respond_to: oneshot::Sender<u16>,
-    },
-}
+// #[derive(Debug)]
+// pub enum WaitActorMessage {
+//     // the idea here is that values are stored in a HashMap.
+//     // So, to get a CONFIG Value back the client must supply a String key.
+//     // NOTE: Only dir and dbfilename keys are supported.
+//     GetReplicas {
+//         key: WaitCommandParameter,
+//         respond_to: oneshot::Sender<u16>,
+//     },
+// }
 
 pub enum ProcessorActorMessage {
     // connection string to connect to master
