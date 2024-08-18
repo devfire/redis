@@ -322,7 +322,7 @@ impl ProcessorActor {
                                 if let Some(_param) = info_parameter {
                                     // TODO: match on param
                                     let replication_data =
-                                        replication_actor_handle.get_value(host_id).await;
+                                        replication_actor_handle.get_value(HostId::Myself).await;
 
                                     tracing::debug!(
                                         "Retrieved INFO RespValue: {:?}",
