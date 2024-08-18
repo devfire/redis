@@ -17,6 +17,11 @@ pub enum RedisError {
     #[error("Invalid key passed")]
     KeyNotFound,
 
+    /// Handshake did not complete
+    #[error("Master failed to reply to handshake")]
+    HandshakeError,
+
+
     /// Represents all other cases of `ParseIntError`.
     #[error("Invalid digit parsing")]
     ParseIntError(#[from] ParseIntError),

@@ -5,7 +5,7 @@ use crate::{
         messages::{HostId, ReplicatorActorMessage},
         replicator::ReplicatorActor,
     },
-    protocol::{InfoCommandParameter, ReplicationSectionData},
+    protocol::ReplicationSectionData,
 };
 
 #[derive(Clone, Debug)]
@@ -28,10 +28,9 @@ impl ReplicationActorHandle {
     /// https://redis.io/commands/info/
     pub async fn get_value(
         &self,
-        info_key: InfoCommandParameter,
         host_id: HostId, //hostIP:port combo
     ) -> Option<ReplicationSectionData> {
-        tracing::debug!("Getting info value for key: {:?}, {:?}", info_key, host_id);
+        tracing::debug!("Getting info value for key: {:?}",host_id);
         let (send, recv) = oneshot::channel();
         let msg = ReplicatorActorMessage::GetInfoValue {
             // info_key,
@@ -59,12 +58,12 @@ impl ReplicationActorHandle {
         &self,
         // info_key: InfoCommandParameter,
         host_id: HostId,
-        info_value: ReplicationSectionData,
+        replication_value: ReplicationSectionData,
     ) {
         let msg = ReplicatorActorMessage::SetInfoValue {
             // info_key,
             host_id,
-            info_value,
+            replication_value,
         };
 
         // debug!("Setting INFO key: {:?}, value: {}", info_key.clone(), info_value);
