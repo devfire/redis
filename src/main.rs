@@ -96,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create a multi-producer, single-consumer channel to recv messages from the master.
     // NOTE: these messages are replies coming back from the master, not commands to the master.
-    // Used by handshake() to receive replies from the master, they are forwarded within the replica.
+    // Used by handshake() to forward replies from the master, from replica to itself.
     // Typically, these are +OK and FULLRESYNC messages.
     let (master_tx, master_rx) = mpsc::channel::<String>(9600);
 
@@ -193,7 +193,7 @@ async fn main() -> anyhow::Result<()> {
 
         // now we know we are a replica, we get our replid from the master
         replication_data.master_replid =
-            handshake(tcp_msgs_tx.clone(), master_rx, cli.port.to_string()).await?;
+            handshake(tcp_msgs_tx.clone(), master_rx, cli.port).await?;
 
         debug!(
             "Handshake completed, connected to master at {}.",
@@ -348,7 +348,7 @@ async fn expire_value(msg: SetCommandParameter, set_command_actor_handle: SetCom
 async fn handshake(
     tcp_msgs_tx: async_channel::Sender<RespValue>,
     mut master_rx: mpsc::Receiver<String>,
-    port: String,
+    port: u16,
 ) -> anyhow::Result<String> {
     // begin the replication handshake
     // STEP 1: PING
@@ -357,7 +357,7 @@ async fn handshake(
     // STEP 2: REPLCONF listening-port <PORT>
     // initialize the empty array
     let repl_conf_listening_port =
-        RespValue::array_from_slice(&["REPLCONF", "listening-port", &port]);
+        RespValue::array_from_slice(&["REPLCONF", "listening-port", &port.to_string()]);
 
     // STEP 3: REPLCONF capa psync2
     // initialize the empty array
