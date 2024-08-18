@@ -1,8 +1,6 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use std::iter;
+
 
 #[derive(Debug)]
 pub enum RedisCommand {
@@ -77,37 +75,38 @@ impl fmt::Display for ReplicationSectionData {
 }
 
 // implement new for InfoSectionData
-impl ReplicationSectionData {
-    // Generates a random alphanumeric string of 40 characters to serve as a replication ID.
-    // This method is useful for creating unique identifiers for replication purposes in Redis setups.
-    pub fn generate_replication_id() -> String {
-        // Initialize a random number generator based on the current thread.
-        let mut rng = thread_rng();
+// impl ReplicationSectionData {
+//     // Generates a random alphanumeric string of 40 characters to serve as a replication ID.
+//     // This method is useful for creating unique identifiers for replication purposes in Redis setups.
+//     pub fn generate_replication_id() -> String {
+//         // Initialize a random number generator based on the current thread.
+//         let mut rng = thread_rng();
 
-        // Create a sequence of 40 random alphanumeric characters.
-        let repl_id: String = iter::repeat(())
-            // Map each iteration to a randomly chosen alphanumeric character.
-            .map(|()| rng.sample(Alphanumeric))
-            // Convert the sampled character into its char representation.
-            .map(char::from)
-            .take(40) // Take only the first 40 characters.
-            .collect(); // Collect the characters into a String.
+//         // Create a sequence of 40 random alphanumeric characters.
+//         let repl_id: String = iter::repeat(())
+//             // Map each iteration to a randomly chosen alphanumeric character.
+//             .map(|()| rng.sample(Alphanumeric))
+//             // Convert the sampled character into its char representation.
+//             .map(char::from)
+//             .take(40) // Take only the first 40 characters.
+//             .collect(); // Collect the characters into a String.
 
-        repl_id
-    }
+//         repl_id
+//     }
 
-    pub fn new(role: ServerRole) -> Self {
-        Self {
-            // role: Value is "master" if the instance is replica of no one
-            role,
-            // master_replid: The ID of the master instance
-            master_replid: Self::generate_replication_id(),
-            // Each master also maintains a "replication offset" corresponding to how many bytes of commands
-            // have been added to the replication stream
-            master_repl_offset: 0,
-        }
-    }
-}
+//     // pub fn new() -> Self {
+//     //     Self {
+//     //         // role: Value is "master" if the instance is replica of no one
+//     //         role,
+//     //         // master_replid: The ID of the master instance
+//     //         master_replid: "".to_string(),
+//     //         // Each master also maintains a "replication offset" corresponding to how many bytes of commands
+//     //         // have been added to the replication stream. 
+//     //         // This is tracked in replicator actor Hash PER REPLICA.
+//     //         master_repl_offset: 0,
+//     //     }
+//     // }
+// }
 
 /// Master or slave.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]

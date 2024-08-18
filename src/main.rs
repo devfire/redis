@@ -15,6 +15,11 @@ use tracing::{debug, error, info};
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
 
+// for master repl id generation
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use std::iter;
+// ----------
 pub mod actors;
 pub mod cli;
 pub mod errors;
@@ -91,7 +96,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Create a multi-producer, single-consumer channel to recv messages from the master.
     // NOTE: these messages are replies coming back from the master, not commands to the master.
-    // Used by handshake() to receive ack +OK replies from the master.
+    // Used by handshake() to receive replies from the master, they are forwarded within the replica.
+    // Typically, these are +OK and FULLRESYNC messages.
     let (master_tx, master_rx) = mpsc::channel::<String>(9600);
 
     // Setup a tokio broadcast channel to communicate all writeable updates to all the replicas.
@@ -141,9 +147,14 @@ async fn main() -> anyhow::Result<()> {
         // );
     }
 
-    // initialize to being a master, override if we are a replica
-    let mut replication_data: ReplicationSectionData =
-        ReplicationSectionData::new(ServerRole::Master);
+    // initialize to being a master, override if we are a replica.
+    // PROBLEM: master_repl_id gets created as part of new() but only masters get to create one.
+    // We need to modify this to allow empty ReplicationSectionData, without a new repl_id being created.
+    let mut replication_data: ReplicationSectionData = ReplicationSectionData {
+        role: ServerRole::Master,
+        master_replid: generate_replication_id(),
+        master_repl_offset: -1,
+    };
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
@@ -180,14 +191,17 @@ async fn main() -> anyhow::Result<()> {
             .await
         });
 
-        let repl_id = handshake(tcp_msgs_tx.clone(), master_rx, cli.port.to_string()).await?;
+        // now we know we are a replica, we get our replid from the master
+        replication_data.master_replid =
+            handshake(tcp_msgs_tx.clone(), master_rx, cli.port.to_string()).await?;
 
         debug!(
             "Handshake completed, connected to master at {}.",
             master_host_port_combo
         );
         // set the role to slave
-        replication_data = ReplicationSectionData::new(ServerRole::Slave);
+        replication_data.role = ServerRole::Slave;
+
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
@@ -247,6 +261,22 @@ async fn main() -> anyhow::Result<()> {
             .await
         });
     }
+}
+
+fn generate_replication_id() -> String {
+    // Initialize a random number generator based on the current thread.
+    let mut rng = thread_rng();
+
+    // Create a sequence of 40 random alphanumeric characters.
+    let repl_id: String = iter::repeat(())
+        // Map each iteration to a randomly chosen alphanumeric character.
+        .map(|()| rng.sample(Alphanumeric))
+        // Convert the sampled character into its char representation.
+        .map(char::from)
+        .take(40) // Take only the first 40 characters.
+        .collect(); // Collect the characters into a String.
+
+    repl_id
 }
 
 async fn expire_value(msg: SetCommandParameter, set_command_actor_handle: SetCommandActorHandle) {
