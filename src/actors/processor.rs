@@ -9,7 +9,7 @@ use crate::{
 };
 
 use tokio::sync::mpsc;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 // use rand::distributions::Alphanumeric;
 // use rand::Rng;
@@ -66,7 +66,15 @@ impl ProcessorActor {
                             .to_encoded_string()
                             .expect("Failed to encode request as a string.");
 
-                        debug!("RESP request: {:?}", request_as_encoded_string);
+                        tracing::info!("From master: {:?}", request_as_encoded_string);
+
+                        // let _ = master_tx
+                        //     .send(request)
+                        //     .await
+                        //     .expect("Unable to send master replies.");
+
+                        // // replicas to do not reply back to masters
+                        // let _ = respond_to.send(None);
 
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Fullresync(repl_id, offset))) => {
@@ -77,7 +85,7 @@ impl ProcessorActor {
                                     offset
                                 );
                                 let _ = master_tx
-                                    .send(request_as_encoded_string)
+                                    .send(repl_id)
                                     .await
                                     .expect("Unable to send master replies.");
                                 let _ = respond_to.send(None);
@@ -154,15 +162,21 @@ impl ProcessorActor {
                                     .send(Some(vec![(RespValue::SimpleString("OK".to_string()))]));
 
                                 // forward this to the replicas
-                                if let Some(replica_tx_sender) = replica_tx {
-                                    tracing::info!(
-                                        "Forwarding {:?} command to all connected replicas.",
-                                        request_as_encoded_string
-                                    );
-                                    let _ = replica_tx_sender
-                                        .send(request)
-                                        .expect("Unable to forward commands to replicas.");
-                                }
+
+                                tracing::info!(
+                                    "Current subscriber count: {}",
+                                    replica_tx.receiver_count()
+                                );
+
+                                let subscriber_count = replica_tx
+                                    .send(request)
+                                    .expect("Unable to forward commands to replicas.");
+
+                                tracing::info!(
+                                    "Forwarding {:?} command to {} clients.",
+                                    request_as_encoded_string,
+                                    subscriber_count
+                                );
                             }
                             Ok((_, RedisCommand::Get(key))) => {
                                 // we may or may not get a value for the supplied key.
@@ -498,7 +512,7 @@ impl ProcessorActor {
                                 // let replication_data =
                                 //     replication_actor_handle.get_value(host_id.clone()).await;
 
-                                if let Some(replication_section_data) =
+                                if let Some(mut replication_section_data) =
                                     replication_actor_handle.get_value(host_id.clone()).await
                                 {
                                     // initialize the reply of Vec<Vec<u8>>
@@ -517,17 +531,14 @@ impl ProcessorActor {
                                         offset
                                     );
 
+                                    // update the offset
+                                    replication_section_data.master_repl_offset = offset;
+
                                     // persist the offset in the replication actor
                                     replication_actor_handle
                                         .set_value(
                                             host_id.clone(),
-                                            crate::protocol::ReplicationSectionData {
-                                                role: replication_section_data.role,
-                                                master_replid: replication_section_data
-                                                    .master_replid
-                                                    .clone(),
-                                                master_repl_offset: offset,
-                                            },
+                                            replication_section_data.clone(),
                                         )
                                         .await;
 
@@ -535,7 +546,7 @@ impl ProcessorActor {
 
                                     reply.push(RespValue::SimpleString(format!(
                                         "FULLRESYNC {} {}",
-                                        replication_section_data.master_replid, offset
+                                        replication_section_data.master_replid, replication_section_data.master_repl_offset
                                     )));
 
                                     let rdb_file_contents = config_command_actor_handle
@@ -543,7 +554,7 @@ impl ProcessorActor {
                                         .await
                                         .expect("Unable to load RDB file into memory");
 
-                                    debug!(
+                                    tracing::info!(
                                         "Retrieved config file contents {:?}.",
                                         rdb_file_contents
                                     );
@@ -573,7 +584,7 @@ impl ProcessorActor {
                     }
                     RespValue::BulkString(_) => todo!(),
                     RespValue::Rdb(rdb) => {
-                        debug!("Received RDB file: {:?}", rdb);
+                        info!("Received RDB file: {:?}", rdb);
 
                         // Import it into the config actor
                         config_command_actor_handle

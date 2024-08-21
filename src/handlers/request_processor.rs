@@ -40,7 +40,7 @@ impl RequestProcessorActorHandle {
         host_id: HostId,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-        replica_tx: Option<broadcast::Sender<RespValue>>, // we get this from master handler only
+        replica_tx: broadcast::Sender<RespValue>, // we get this from master handler only
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
     ) -> Option<Vec<RespValue>> {
         tracing::debug!("Processing request: {:?}", request);

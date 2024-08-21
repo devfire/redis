@@ -102,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Setup a tokio broadcast channel to communicate all writeable updates to all the replicas.
     // This is a multi-producer, multi-consumer channel.
-    // Both the replica_tx Sender and replica_rx Receiver are cloned and passed to the client handler.
+    // The replica_tx Sender is cloned and passed to the client handler.
     // The replica_tx is given to request_processor_actor_handle.process_request() to send writeable updates to the replica,
     // via the same initial connection that the replica used to connect to the master.
     //
@@ -192,13 +192,9 @@ async fn main() -> anyhow::Result<()> {
         });
 
         // now we know we are a replica, we get our replid from the master
-        replication_data.master_replid =
-            handshake(tcp_msgs_tx.clone(), master_rx, cli.port).await?;
+        // replication_data.master_replid =
+        handshake(tcp_msgs_tx.clone(), master_rx, cli.port).await?;
 
-        debug!(
-            "Handshake completed, connected to master at {}.",
-            master_host_port_combo
-        );
         // set the role to slave
         replication_data.role = ServerRole::Slave;
 
@@ -242,7 +238,7 @@ async fn main() -> anyhow::Result<()> {
         let master_tx_clone = master_tx.clone();
 
         let replica_tx_clone = replica_tx.clone();
-        let replica_rx_subscriber = replica_tx.subscribe();
+        // let replica_rx_subscriber = replica_tx.subscribe();
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
@@ -256,7 +252,7 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx_clone,
                 master_tx_clone,
                 replica_tx_clone,
-                replica_rx_subscriber,
+                // replica_rx_subscriber,
             )
             .await
         });
@@ -349,7 +345,7 @@ async fn handshake(
     tcp_msgs_tx: async_channel::Sender<RespValue>,
     mut master_rx: mpsc::Receiver<String>,
     port: u16,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<()> {
     // begin the replication handshake
     // STEP 1: PING
     let ping = RespValue::array_from_slice(&["PING"]);
@@ -366,36 +362,50 @@ async fn handshake(
     // STEP 4: send the PSYNC ? -1
     let psync = RespValue::array_from_slice(&["PSYNC", "?", "-1"]);
 
-    // let handshake_commands = vec![repl_conf_listening_port, repl_conf_capa, psync];
+    // // let handshake_commands = vec![repl_conf_listening_port, repl_conf_capa, psync];
 
     // send the ping
     tcp_msgs_tx.send(ping).await?;
     // wait for a reply from the master before proceeding
     let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
-    debug!("HANDSHAKE: master replied to ping {:?}", reply);
+    info!("HANDSHAKE PING: master replied to ping {:?}", reply);
 
     // send the REPLCONF listening-port <PORT>
     tcp_msgs_tx.send(repl_conf_listening_port).await?;
     // wait for a reply from the master before proceeding
     let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
-    debug!("HANDSHAKE: master replied {:?}", reply);
+    info!(
+        "HANDSHAKE REPLCONF listening-port <PORT>: master replied {:?}",
+        reply
+    );
 
     // send the REPLCONF capa psync2
     tcp_msgs_tx.send(repl_conf_capa).await?;
     // wait for a reply from the master before proceeding
     let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
-    debug!("HANDSHAKE: master replied {:?}", reply);
+    info!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
 
     // send the PSYNC ? -1
+    /*
+        When a replica connects to a master for the first time, it sends a PSYNC ? -1 command. 
+        This is the replica's way of telling the master that it doesn't have any data yet, and needs to be fully resynchronized.
+
+        The master acknowledges this by sending a FULLRESYNC response to the replica.
+        After sending the FULLRESYNC response, the master will then send a RDB file of its current state to the replica. 
+        The replica is expected to load the file into memory, replacing its current state. 
+    */
     tcp_msgs_tx.send(psync).await?;
+
     // wait for a reply from the master before proceeding
-    let replication_id = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
-    debug!("HANDSHAKE: master replied {:?}", reply);
+    master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    // info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
 
-    // We are done with the handshake!
-    tracing::info!("Handshake completed.");
+    // // We are done with the handshake!
+    // tracing::info!("Handshake completed.");
 
-    Ok(replication_id)
+    Ok(())
+
+    // Ok(replication_id)
 }
 
 // This function will handle the connection from the client.
@@ -415,7 +425,7 @@ async fn handle_connection_from_clients(
     expire_tx: mpsc::Sender<SetCommandParameter>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
-    mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
+                                     // mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
     let client_address = stream.peer_addr().map(|addr| addr)?;
 
@@ -427,6 +437,10 @@ async fn handle_connection_from_clients(
         port: client_port,
     };
     tracing::info!("Handling connection from {:?}", host_id);
+
+    let mut replica_rx = replica_tx.subscribe();
+
+    info!("Subscribed to replica updates {:?}", replica_rx);
 
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
@@ -456,7 +470,7 @@ async fn handle_connection_from_clients(
                                 host_id.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                Some(replica_tx.clone()), // used to send replication messages to the replica
+                                replica_tx.clone(), // used to send replication messages to the replica
                                 Some(client_or_replica_tx.clone()), // used to update replica status
                             )
                             .await
@@ -494,9 +508,9 @@ async fn handle_connection_from_clients(
          }
          Some(msg) = client_or_replica_rx.recv() => {
             // // if let Some(client_type) = msg {
-            //     // check to make sure this client is a replica, not a redis-cli client.
-            //     // if it is a redis-cli client, we don't want to send replication messages to it.
-            //     // we only want to send replication messages to replicas.
+                // check to make sure this client is a replica, not a redis-cli client.
+                // if it is a redis-cli client, we don't want to send replication messages to it.
+                // we only want to send replication messages to replicas.
                 am_i_replica  = msg;
 
                 tracing::info!("Updated client {:?} replica status to {}", host_id, am_i_replica);
@@ -519,16 +533,6 @@ async fn handle_connection_to_master(
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
 ) -> Result<()> {
-    // let client_address = stream.local_addr()?; // our own, i.e. replica's address
-
-    // let client_ip = client_address.ip().to_string();
-    // let client_port = client_address.port();
-
-    // let host_id = HostId::Host {
-    //     ip: client_ip,
-    //     port: client_port,
-    // };
-
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
 
@@ -551,7 +555,7 @@ async fn handle_connection_to_master(
                                 HostId::Myself, // we are a replica, creating outbound connections, so we are Myself
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
+                                replica_tx.clone(), // this enables daisy chaining of replicas to other replicas
                                 None, // connections to master cannot update replica status
                             )
                             .await
