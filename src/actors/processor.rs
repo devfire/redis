@@ -66,7 +66,7 @@ impl ProcessorActor {
                             .to_encoded_string()
                             .expect("Failed to encode request as a string.");
 
-                        tracing::info!("From master: {:?}", request_as_encoded_string);
+                        tracing::info!("Simple string from master: {:?}", request_as_encoded_string);
 
                         // let _ = master_tx
                         //     .send(request)
@@ -80,7 +80,7 @@ impl ProcessorActor {
                             Ok((_remaining_bytes, RedisCommand::Fullresync(repl_id, offset))) => {
                                 // we got RDB mem dump, time to load it
                                 tracing::info!(
-                                    "Received FULLRESYNC repl_id: {} offset: {}.",
+                                    "Received FULLRESYNC repl_id: {} offset: {} from master.",
                                     repl_id,
                                     offset
                                 );
@@ -506,7 +506,7 @@ impl ProcessorActor {
                                 // ignore the _replication_id for now. There are actually two of them:
                                 // https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#replication-id-explained
 
-                                tracing::info!("Getting replication data for {:?}", host_id);
+                                tracing::info!("PSYNC: Getting replication data for {:?}", host_id);
 
                                 // Let's get the current replication values.
                                 // let replication_data =
@@ -542,7 +542,7 @@ impl ProcessorActor {
                                         )
                                         .await;
 
-                                    debug!("Full resync triggered with offset {}", offset);
+                                    info!("Full resync triggered with offset {}", offset);
 
                                     reply.push(RespValue::SimpleString(format!(
                                         "FULLRESYNC {} {}",
