@@ -6,11 +6,13 @@ use clap::Parser;
 use errors::RedisError;
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
+use tracing::level_filters::LevelFilter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 
 use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
 use tracing::{debug, error, info};
+use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
@@ -49,10 +51,26 @@ use async_channel;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+      // Create an EnvFilter builder and set a default directive.
+    // Here, LevelFilter::INFO is used as the default level.
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into()) // Set default logging level to INFO
+        .from_env_lossy(); // Attempt to parse RUST_LOG, ignore invalid directives
+
+        
+    // Initialize a tracing subscriber suitable for async applications
+    let _subscriber = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::Layer::new())
+        .with(filter)
+        .init();
+
+    // Set the subscriber as the default for the application
+    // subscriber.init();
+
     // construct a subscriber that prints formatted traces to stdout
-    let subscriber = tracing_subscriber::FmtSubscriber::new();
+    // let subscriber = tracing_subscriber::FmtSubscriber::new();
     // use that subscriber to process traces emitted after this point
-    tracing::subscriber::set_global_default(subscriber)?;
+    // tracing::subscriber::set_global_default(subscriber)?;
 
     // Setup the logging framework
     // let env = Env::default()
@@ -387,12 +405,12 @@ async fn handshake(
 
     // send the PSYNC ? -1
     /*
-        When a replica connects to a master for the first time, it sends a PSYNC ? -1 command. 
+        When a replica connects to a master for the first time, it sends a PSYNC ? -1 command.
         This is the replica's way of telling the master that it doesn't have any data yet, and needs to be fully resynchronized.
 
         The master acknowledges this by sending a FULLRESYNC response to the replica.
-        After sending the FULLRESYNC response, the master will then send a RDB file of its current state to the replica. 
-        The replica is expected to load the file into memory, replacing its current state. 
+        After sending the FULLRESYNC response, the master will then send a RDB file of its current state to the replica.
+        The replica is expected to load the file into memory, replacing its current state.
     */
     tcp_msgs_tx.send(psync).await?;
 
@@ -475,11 +493,14 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            // tracing::info!("Sending replies to client: {:?}", processed_values);
+                            tracing::info!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
+
                             // iterate over processed_value and send each one to the client
-                            for value in processed_values.iter() {
-                                tracing::info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
-                                let _ = writer.send(value.clone()).await?;
+                            for value in &processed_values {
+                                // tracing::info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
+                                let _ = writer.send(value.clone()).await.expect("Failed to send to client");
+
+                                // tracing::info!("Done sending, moving to the next value.");
                             }
                         }
                     }
