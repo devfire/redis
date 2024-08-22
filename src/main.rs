@@ -6,9 +6,9 @@ use clap::Parser;
 use errors::RedisError;
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
-use tracing::level_filters::LevelFilter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
+use tracing::level_filters::LevelFilter;
 
 use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
 use tracing::{debug, error, info};
@@ -51,13 +51,12 @@ use async_channel;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-      // Create an EnvFilter builder and set a default directive.
+    // Create an EnvFilter builder and set a default directive.
     // Here, LevelFilter::INFO is used as the default level.
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into()) // Set default logging level to INFO
         .from_env_lossy(); // Attempt to parse RUST_LOG, ignore invalid directives
 
-        
     // Initialize a tracing subscriber suitable for async applications
     let _subscriber = tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::Layer::new())
@@ -210,8 +209,8 @@ async fn main() -> anyhow::Result<()> {
         });
 
         // now we know we are a replica, we get our replid from the master
-        // replication_data.master_replid =
-        handshake(tcp_msgs_tx.clone(), master_rx, cli.port).await?;
+        replication_data.master_replid =
+            handshake(tcp_msgs_tx.clone(), master_rx, cli.port).await?;
 
         // set the role to slave
         replication_data.role = ServerRole::Slave;
@@ -363,7 +362,7 @@ async fn handshake(
     tcp_msgs_tx: async_channel::Sender<RespValue>,
     mut master_rx: mpsc::Receiver<String>,
     port: u16,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<String> {
     // begin the replication handshake
     // STEP 1: PING
     let ping = RespValue::array_from_slice(&["PING"]);
@@ -415,15 +414,15 @@ async fn handshake(
     tcp_msgs_tx.send(psync).await?;
 
     // wait for a reply from the master before proceeding
-    master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
-    // info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
+    let replication_id = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
 
-    // // We are done with the handshake!
-    // tracing::info!("Handshake completed.");
+    // We are done with the handshake!
+    tracing::info!("Handshake completed.");
 
-    Ok(())
+    // Ok(())
 
-    // Ok(replication_id)
+    Ok(replication_id)
 }
 
 // This function will handle the connection from the client.
@@ -497,10 +496,10 @@ async fn handle_connection_from_clients(
 
                             // iterate over processed_value and send each one to the client
                             for value in &processed_values {
-                                // tracing::info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
-                                let _ = writer.send(value.clone()).await.expect("Failed to send to client");
+                                // info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
+                                let _ = writer.send(value.clone()).await?;
 
-                                // tracing::info!("Done sending, moving to the next value.");
+                                tracing::debug!("Done sending, moving to the next value.");
                             }
                         }
                     }
