@@ -2,15 +2,14 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+// use crate::protocol::WaitCommandParameter;
 use crate::resp::value::RespValue;
 use crate::{
     handlers::{
-        config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle,
+        config_command::ConfigCommandActorHandle, replication::ReplicationActorHandle,
         set_command::SetCommandActorHandle,
     },
-    protocol::{
-        ConfigCommandParameter, InfoCommandParameter, ReplicationSectionData, SetCommandParameter,
-    },
+    protocol::{ConfigCommandParameter, ReplicationSectionData, SetCommandParameter},
 };
 
 /// The ActorMessage enum defines the kind of messages we can send to the actor.
@@ -66,7 +65,7 @@ pub enum ConfigActorMessage {
 }
 
 #[derive(Debug)]
-pub enum InfoActorMessage {
+pub enum ReplicatorActorMessage {
     // the idea here is that values are stored in a HashMap.
     // So, to get a INFO value back the client must supply a String key.
     // NOTE: https://redis.io/docs/latest/commands/info/ has a ton of parameters,
@@ -75,48 +74,49 @@ pub enum InfoActorMessage {
     // Info values are 2 dimensional:
     // Example: Replication -> role -> master.
     GetInfoValue {
-        info_key: InfoCommandParameter, // defined in protocol.rs
+        // info_key: InfoCommandParameter, // defined in protocol.rs
+        host_id: HostId, // this is HOSTIP:PORT format
         respond_to: oneshot::Sender<Option<ReplicationSectionData>>,
     },
 
     SetInfoValue {
-        info_key: InfoCommandParameter, // defined in protocol.rs
-        info_value: ReplicationSectionData,
+        // info_key: InfoCommandParameter, // defined in protocol.rs
+        host_id: HostId,
+        replication_value: ReplicationSectionData,
+    },
+    GetReplicaCount {
+        respond_to: oneshot::Sender<usize>, // total number of connected, synced up replicas
     },
 }
 
-// #[derive(Debug)]
-// pub enum ReplicationActorMessage {
-//     // Primarily stores the current offset value.
-//     GetReplicationValue {
-//         info_key: ReplConfCommandParameter, // defined in protocol.rs
-//         respond_to: oneshot::Sender<Option<u16>>,
-//     },
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum HostId {
+    Host { ip: String, port: u16 },
+    Myself, // this is used to store this redis' instance own metadata, like its offset, etc.
+}
 
-//     SetReplicationValue {
-//         info_key: ReplConfCommandParameter, // defined in protocol.rs
-//         info_value: u16,
+// #[derive(Debug)]
+// pub enum WaitActorMessage {
+//     // the idea here is that values are stored in a HashMap.
+//     // So, to get a CONFIG Value back the client must supply a String key.
+//     // NOTE: Only dir and dbfilename keys are supported.
+//     GetReplicas {
+//         key: WaitCommandParameter,
+//         respond_to: oneshot::Sender<u16>,
 //     },
 // }
 
-// #[derive(Debug)]
-// pub enum ReplicationActorMessage {
-//     // connection string to connect to master
-//     ConnectToMaster { connection_string: String },
-//     SendCommand { command: resp::Value },
-// }
-
-// #[derive(Debug)]
 pub enum ProcessorActorMessage {
     // connection string to connect to master
     Process {
         request: RespValue,
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
-        info_command_actor_handle: InfoCommandActorHandle,
+        replication_actor_handle: ReplicationActorHandle,
+        host_id: HostId,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-        replica_tx: Option<broadcast::Sender<RespValue>>,
+        replica_tx: broadcast::Sender<RespValue>, // typically this is either +OK or offset
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
         // NOTE: a single request like PSYNC can return multiple responses.
         // So, where a Vec<u8> is a single reponse, a Vec<Vec<u8>> is multiple responses.
@@ -132,7 +132,8 @@ impl std::fmt::Debug for ProcessorActorMessage {
                 request,
                 set_command_actor_handle: _,
                 config_command_actor_handle: _,
-                info_command_actor_handle: _,
+                replication_actor_handle: _,
+                host_id: _,
                 expire_tx: _,
                 master_tx: _,
                 replica_tx,

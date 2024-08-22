@@ -1,18 +1,27 @@
 use crate::resp::value::RespValue;
 
+use actors::messages::HostId;
 use anyhow::Result;
 use clap::Parser;
+use errors::RedisError;
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
+use tracing::level_filters::LevelFilter;
 
 use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
 use tracing::{debug, error, info};
+use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
 
+// for master repl id generation
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use std::iter;
+// ----------
 pub mod actors;
 pub mod cli;
 pub mod errors;
@@ -25,14 +34,11 @@ pub mod resp;
 use crate::cli::Cli;
 
 use crate::handlers::{
-    config_command::ConfigCommandActorHandle,
-    info_command::InfoCommandActorHandle,
-    // replication::ReplicationActorHandle,
-    request_processor::RequestProcessorActorHandle,
-    set_command::SetCommandActorHandle,
+    config_command::ConfigCommandActorHandle, replication::ReplicationActorHandle,
+    request_processor::RequestProcessorActorHandle, set_command::SetCommandActorHandle,
 };
 
-use crate::protocol::{ConfigCommandParameter, InfoCommandParameter};
+use crate::protocol::ConfigCommandParameter;
 
 // use env_logger::Env;
 // use log::{debug, info};
@@ -45,10 +51,25 @@ use async_channel;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Create an EnvFilter builder and set a default directive.
+    // Here, LevelFilter::INFO is used as the default level.
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into()) // Set default logging level to INFO
+        .from_env_lossy(); // Attempt to parse RUST_LOG, ignore invalid directives
+
+    // Initialize a tracing subscriber suitable for async applications
+    let _subscriber = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::Layer::new())
+        .with(filter)
+        .init();
+
+    // Set the subscriber as the default for the application
+    // subscriber.init();
+
     // construct a subscriber that prints formatted traces to stdout
-    let subscriber = tracing_subscriber::FmtSubscriber::new();
+    // let subscriber = tracing_subscriber::FmtSubscriber::new();
     // use that subscriber to process traces emitted after this point
-    tracing::subscriber::set_global_default(subscriber)?;
+    // tracing::subscriber::set_global_default(subscriber)?;
 
     // Setup the logging framework
     // let env = Env::default()
@@ -58,6 +79,8 @@ async fn main() -> anyhow::Result<()> {
     // env_logger::init_from_env(env);
 
     let cli = Cli::parse();
+
+    // let ip_listen = "0.0.0.0".to_string();
 
     // cli.port comes from cli.rs; default is 6379
     let socket_address = std::net::SocketAddr::from(([0, 0, 0, 0], cli.port));
@@ -70,13 +93,10 @@ async fn main() -> anyhow::Result<()> {
     let set_command_actor_handle = SetCommandActorHandle::new();
 
     // Get a handle to the info actor, one per redis. This starts the actor.
-    let info_command_actor_handle = InfoCommandActorHandle::new();
+    let replication_actor_handle = ReplicationActorHandle::new();
 
     // Get a handle to the config actor, one per redis. This starts the actor.
     let config_command_actor_handle = ConfigCommandActorHandle::new();
-
-    // Get a handle to the replication actor, one per redis. This starts the actor.
-    // let _replication_actor_handle = ReplicationActorHandle::new();
 
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
@@ -93,12 +113,13 @@ async fn main() -> anyhow::Result<()> {
 
     // Create a multi-producer, single-consumer channel to recv messages from the master.
     // NOTE: these messages are replies coming back from the master, not commands to the master.
-    // Used by handshake() to receive ack +OK replies from the master.
+    // Used by handshake() to forward replies from the master, from replica to itself.
+    // Typically, these are +OK and FULLRESYNC messages.
     let (master_tx, master_rx) = mpsc::channel::<String>(9600);
 
     // Setup a tokio broadcast channel to communicate all writeable updates to all the replicas.
     // This is a multi-producer, multi-consumer channel.
-    // Both the replica_tx Sender and replica_rx Receiver are cloned and passed to the client handler.
+    // The replica_tx Sender is cloned and passed to the client handler.
     // The replica_tx is given to request_processor_actor_handle.process_request() to send writeable updates to the replica,
     // via the same initial connection that the replica used to connect to the master.
     //
@@ -143,18 +164,20 @@ async fn main() -> anyhow::Result<()> {
         // );
     }
 
-    // initialize to being a master, override if we are a replica
-    let mut info_data: ReplicationSectionData = ReplicationSectionData::new(ServerRole::Master);
+    // initialize to being a master, override if we are a replica.
+    // PROBLEM: master_repl_id gets created as part of new() but only masters get to create one.
+    // We need to modify this to allow empty ReplicationSectionData, without a new repl_id being created.
+    let mut replication_data: ReplicationSectionData = ReplicationSectionData {
+        role: ServerRole::Master,
+        master_replid: generate_replication_id(),
+        master_repl_offset: -1,
+    };
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
         let master_host_port_combo = replica.replace(" ", ":");
 
         // We can pass a string to TcpStream::connect, so no need to create SocketAddr
-        // replication_actor_handle
-        //     .connect_to_master(master_host_port_combo)
-        //     .await;
-
         let stream = TcpStream::connect(&master_host_port_combo)
             .await
             .expect("Failed to establish connection to master.");
@@ -162,7 +185,7 @@ async fn main() -> anyhow::Result<()> {
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
-        let info_command_actor_handle_clone = info_command_actor_handle.clone();
+        let replication_actor_handle_clone = replication_actor_handle.clone();
         let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
@@ -175,7 +198,7 @@ async fn main() -> anyhow::Result<()> {
                 stream,
                 set_command_handler_clone,
                 config_command_handler_clone,
-                info_command_actor_handle_clone,
+                replication_actor_handle_clone,
                 request_processor_actor_handle_clone,
                 expire_tx_clone,
                 tcp_msgs_rx_clone,
@@ -185,23 +208,25 @@ async fn main() -> anyhow::Result<()> {
             .await
         });
 
-        handshake(tcp_msgs_tx.clone(), master_rx, cli.port.to_string()).await?;
+        // now we know we are a replica, we get our replid from the master
+        replication_data.master_replid =
+            handshake(tcp_msgs_tx.clone(), master_rx, cli.port).await?;
 
-        debug!(
-            "Handshake completed, connected to master at {}.",
-            master_host_port_combo
-        );
         // set the role to slave
-        info_data = ReplicationSectionData::new(ServerRole::Slave);
+        replication_data.role = ServerRole::Slave;
+
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
-    info_command_actor_handle
-        .set_value(InfoCommandParameter::Replication, info_data)
+    // these are local 0.0.0.0 details
+    tracing::info!("Setting {:?} for Myself", replication_data);
+
+    replication_actor_handle
+        .set_value(HostId::Myself, replication_data)
         .await;
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
-    let set_command_handle_clone = set_command_actor_handle.clone();
+    let set_command_handle_expiry_clone = set_command_actor_handle.clone();
 
     // This will listen for messages on the expire_tx channel.
     // Once a msg comes, it'll see if it's an expiry message and if it is,
@@ -210,91 +235,27 @@ async fn main() -> anyhow::Result<()> {
         // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
         // This method blocks until a message is received.
         while let Some(msg) = expire_rx.recv().await {
-            // We may or may not need to expire a value. If not, no big deal, just wait again.
-            if let Some(duration) = msg.expire {
-                match duration {
-                    // reminder: seconds are Unix timestamps
-                    protocol::SetCommandExpireOption::EX(seconds) => {
-                        // Must clone again because we're about to move this into a dedicated sleep thread.
-                        let expire_command_handler_clone = set_command_handle_clone.clone();
-                        let _expiry_handle = tokio::spawn(async move {
-                            // get the current system time
-                            let now = SystemTime::now();
-
-                            // how many seconds have elapsed since beginning of time
-                            let duration_since_epoch = now
-                                .duration_since(UNIX_EPOCH)
-                                // .ok()
-                                .expect("Failed to calculate duration since epoch"); // Handle potential error
-
-                            // i64 since it is possible for this to be negative, i.e. past time expiration
-                            let expiry_time =
-                                seconds as i64 - duration_since_epoch.as_secs() as i64;
-
-                            // we sleep if this is NON negative
-                            if !expiry_time < 0 {
-                                debug!("Sleeping for {} seconds.", expiry_time);
-                                sleep(Duration::from_secs(expiry_time as u64)).await;
-                            }
-
-                            // Fire off a command to the handler to remove the value immediately.
-                            expire_command_handler_clone.delete_value(&msg.key).await;
-                        });
-                    }
-                    protocol::SetCommandExpireOption::PX(milliseconds) => {
-                        // Must clone again because we're about to move this into a dedicated sleep thread.
-                        let command_handler_expire_clone = set_command_handle_clone.clone();
-                        let _expiry_handle = tokio::spawn(async move {
-                            // get the current system time
-                            let now = SystemTime::now();
-
-                            // how many milliseconds have elapsed since beginning of time
-                            let duration_since_epoch = now
-                                .duration_since(UNIX_EPOCH)
-                                // .ok()
-                                .expect("Failed to calculate duration since epoch"); // Handle potential error
-
-                            // i64 since it is possible for this to be negative, i.e. past time expiration
-                            let expiry_time =
-                                milliseconds as i64 - duration_since_epoch.as_millis() as i64;
-
-                            // we sleep if this is NON negative
-                            if !expiry_time < 0 {
-                                debug!("Sleeping for {} milliseconds.", expiry_time);
-                                sleep(Duration::from_millis(expiry_time as u64)).await;
-                            }
-
-                            debug!("Expiring {:?}", msg);
-
-                            // Fire off a command to the handler to remove the value immediately.
-                            command_handler_expire_clone.delete_value(&msg.key).await;
-                        });
-                    }
-                    protocol::SetCommandExpireOption::EXAT(_) => todo!(),
-                    protocol::SetCommandExpireOption::PXAT(_) => todo!(),
-                    protocol::SetCommandExpireOption::KEEPTTL => todo!(),
-                }
-            }
+            expire_value(msg, set_command_handle_expiry_clone.clone()).await;
         }
     });
 
     loop {
         // Asynchronously wait for an inbound TcpStream.
-        let (stream, _) = listener.accept().await?;
+        let (stream, socket_address) = listener.accept().await?;
+
+        info!("Received connection from {}", socket_address);
 
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
         let config_command_handler_clone = config_command_actor_handle.clone();
-        let info_command_actor_handle_clone = info_command_actor_handle.clone();
+        let info_command_actor_handle_clone = replication_actor_handle.clone();
         let request_processor_actor_handle_clone = request_processor_actor_handle.clone();
 
         let expire_tx_clone = expire_tx.clone();
-        // let tcp_msgs_rx_clone = tcp_msgs_rx.clone();
         let master_tx_clone = master_tx.clone();
 
         let replica_tx_clone = replica_tx.clone();
-        let replica_rx_subscriber = replica_tx.subscribe();
-        //tcp_msgs_rx_clone.close(); // close the channel since redis as a server will never read it
+        // let replica_rx_subscriber = replica_tx.subscribe();
 
         // Spawn our handler to be run asynchronously.
         // A new task is spawned for each inbound socket.  The socket is moved to the new task and processed there.
@@ -308,19 +269,100 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx_clone,
                 master_tx_clone,
                 replica_tx_clone,
-                replica_rx_subscriber,
+                // replica_rx_subscriber,
             )
             .await
         });
     }
 }
 
+fn generate_replication_id() -> String {
+    // Initialize a random number generator based on the current thread.
+    let mut rng = thread_rng();
+
+    // Create a sequence of 40 random alphanumeric characters.
+    let repl_id: String = iter::repeat(())
+        // Map each iteration to a randomly chosen alphanumeric character.
+        .map(|()| rng.sample(Alphanumeric))
+        // Convert the sampled character into its char representation.
+        .map(char::from)
+        .take(40) // Take only the first 40 characters.
+        .collect(); // Collect the characters into a String.
+
+    repl_id
+}
+
+async fn expire_value(msg: SetCommandParameter, set_command_actor_handle: SetCommandActorHandle) {
+    // We may or may not need to expire a value. If not, no big deal, just wait again.
+    if let Some(duration) = msg.expire {
+        match duration {
+            // reminder: seconds are Unix timestamps
+            protocol::SetCommandExpireOption::EX(seconds) => {
+                // Must clone again because we're about to move this into a dedicated sleep thread.
+                let expire_command_handler_clone = set_command_actor_handle.clone();
+                let _expiry_handle = tokio::spawn(async move {
+                    // get the current system time
+                    let now = SystemTime::now();
+
+                    // how many seconds have elapsed since beginning of time
+                    let duration_since_epoch = now
+                        .duration_since(UNIX_EPOCH)
+                        // .ok()
+                        .expect("Failed to calculate duration since epoch"); // Handle potential error
+
+                    // i64 since it is possible for this to be negative, i.e. past time expiration
+                    let expiry_time = seconds as i64 - duration_since_epoch.as_secs() as i64;
+
+                    // we sleep if this is NON negative
+                    if !expiry_time < 0 {
+                        debug!("Sleeping for {} seconds.", expiry_time);
+                        sleep(Duration::from_secs(expiry_time as u64)).await;
+                    }
+
+                    // Fire off a command to the handler to remove the value immediately.
+                    expire_command_handler_clone.delete_value(&msg.key).await;
+                });
+            }
+            protocol::SetCommandExpireOption::PX(milliseconds) => {
+                // Must clone again because we're about to move this into a dedicated sleep thread.
+                let command_handler_expire_clone = set_command_actor_handle.clone();
+                let _expiry_handle = tokio::spawn(async move {
+                    // get the current system time
+                    let now = SystemTime::now();
+
+                    // how many milliseconds have elapsed since beginning of time
+                    let duration_since_epoch = now
+                        .duration_since(UNIX_EPOCH)
+                        // .ok()
+                        .expect("Failed to calculate duration since epoch"); // Handle potential error
+
+                    // i64 since it is possible for this to be negative, i.e. past time expiration
+                    let expiry_time = milliseconds as i64 - duration_since_epoch.as_millis() as i64;
+
+                    // we sleep if this is NON negative
+                    if !expiry_time < 0 {
+                        debug!("Sleeping for {} milliseconds.", expiry_time);
+                        sleep(Duration::from_millis(expiry_time as u64)).await;
+                    }
+
+                    debug!("Expiring {:?}", msg);
+
+                    // Fire off a command to the handler to remove the value immediately.
+                    command_handler_expire_clone.delete_value(&msg.key).await;
+                });
+            }
+            protocol::SetCommandExpireOption::EXAT(_) => todo!(),
+            protocol::SetCommandExpireOption::PXAT(_) => todo!(),
+            protocol::SetCommandExpireOption::KEEPTTL => todo!(),
+        }
+    }
+}
 // #[tracing::instrument]
 async fn handshake(
     tcp_msgs_tx: async_channel::Sender<RespValue>,
     mut master_rx: mpsc::Receiver<String>,
-    port: String,
-) -> anyhow::Result<()> {
+    port: u16,
+) -> anyhow::Result<String> {
     // begin the replication handshake
     // STEP 1: PING
     let ping = RespValue::array_from_slice(&["PING"]);
@@ -328,7 +370,7 @@ async fn handshake(
     // STEP 2: REPLCONF listening-port <PORT>
     // initialize the empty array
     let repl_conf_listening_port =
-        RespValue::array_from_slice(&["REPLCONF", "listening-port", &port]);
+        RespValue::array_from_slice(&["REPLCONF", "listening-port", &port.to_string()]);
 
     // STEP 3: REPLCONF capa psync2
     // initialize the empty array
@@ -337,45 +379,50 @@ async fn handshake(
     // STEP 4: send the PSYNC ? -1
     let psync = RespValue::array_from_slice(&["PSYNC", "?", "-1"]);
 
-    // let handshake_commands = vec![repl_conf_listening_port, repl_conf_capa, psync];
+    // // let handshake_commands = vec![repl_conf_listening_port, repl_conf_capa, psync];
 
     // send the ping
     tcp_msgs_tx.send(ping).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await;
-    debug!("HANDSHAKE: master replied to ping {:?}", reply);
+    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    info!("HANDSHAKE PING: master replied to ping {:?}", reply);
 
     // send the REPLCONF listening-port <PORT>
     tcp_msgs_tx.send(repl_conf_listening_port).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await;
-    debug!("HANDSHAKE: master replied {:?}", reply);
+    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    info!(
+        "HANDSHAKE REPLCONF listening-port <PORT>: master replied {:?}",
+        reply
+    );
 
     // send the REPLCONF capa psync2
     tcp_msgs_tx.send(repl_conf_capa).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await;
-    debug!("HANDSHAKE: master replied {:?}", reply);
+    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    info!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
 
     // send the PSYNC ? -1
+    /*
+        When a replica connects to a master for the first time, it sends a PSYNC ? -1 command.
+        This is the replica's way of telling the master that it doesn't have any data yet, and needs to be fully resynchronized.
+
+        The master acknowledges this by sending a FULLRESYNC response to the replica.
+        After sending the FULLRESYNC response, the master will then send a RDB file of its current state to the replica.
+        The replica is expected to load the file into memory, replacing its current state.
+    */
     tcp_msgs_tx.send(psync).await?;
-    // no waiting any more, we are done with the handshake
 
-    // for command in handshake_commands.into_iter() {
-    //     // Send the value.
-    //     // Encodes a slice of string to RESP binary buffer.
-    //     // It is used to create a request command on redis client.
-    //     // https://docs.rs/resp/latest/resp/fn.encode_slice.html
-    //     tcp_msgs_tx.send(command).await?;
+    // wait for a reply from the master before proceeding
+    let replication_id = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
 
-    //     // wait for the +OK reply from the master before proceeding
-    //     let reply = master_rx.recv().await;
-    //     debug!("HANDSHAKE: master replied {:?}", reply);
-    // }
+    // We are done with the handshake!
+    tracing::info!("Handshake completed.");
 
-    debug!("Handshake completed.");
+    // Ok(())
 
-    Ok(())
+    Ok(replication_id)
 }
 
 // This function will handle the connection from the client.
@@ -390,13 +437,28 @@ async fn handle_connection_from_clients(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
-    info_command_actor_handle: InfoCommandActorHandle,
+    replication_actor_handle: ReplicationActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
-    mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
+                                     // mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
+    let client_address = stream.peer_addr().map(|addr| addr)?;
+
+    let client_ip = client_address.ip().to_string();
+    let client_port = client_address.port();
+
+    let host_id = HostId::Host {
+        ip: client_ip,
+        port: client_port,
+    };
+    tracing::info!("Handling connection from {:?}", host_id);
+
+    let mut replica_rx = replica_tx.subscribe();
+
+    info!("Subscribed to replica updates {:?}", replica_rx);
+
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
 
@@ -415,25 +477,29 @@ async fn handle_connection_from_clients(
                 match msg {
                     Ok(request) => {
                         // send the request to the request processor actor.
-                        tracing::info!("Received from client: {:?}", request.to_encoded_string().expect("Failed to encode request as a string."));
+                        tracing::info!("Received {:?} from client: {:?}", request.to_encoded_string()?, host_id);
                         if let Some(processed_values) = request_processor_actor_handle
                             .process_request(
                                 request,
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
-                                info_command_actor_handle.clone(),
+                                replication_actor_handle.clone(),
+                                host_id.clone(),
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                Some(replica_tx.clone()), // used to send replication messages to the replica
+                                replica_tx.clone(), // used to send replication messages to the replica
                                 Some(client_or_replica_tx.clone()), // used to update replica status
                             )
                             .await
                         {
-                            tracing::info!("Sending replies to client: {:?}", processed_values);
+                            tracing::info!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
+
                             // iterate over processed_value and send each one to the client
-                            for value in processed_values.iter() {
-                                debug!("Sending response to client: {:?}", value);
+                            for value in &processed_values {
+                                // info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
                                 let _ = writer.send(value.clone()).await?;
+
+                                tracing::debug!("Done sending, moving to the next value.");
                             }
                         }
                     }
@@ -443,15 +509,16 @@ async fn handle_connection_from_clients(
                 }
             }
          msg = replica_rx.recv() => {
+            tracing::info!("replica_rx channel received {:?} for {:?}", msg.clone()?.to_encoded_string()?, host_id);
             match msg {
                 Ok(msg) => {
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
-                        tracing::info!("Sending message to replica: {:?}", msg);
+                        tracing::info!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
-                        debug!("Not sending replication message to non-replica client.");
+                        tracing::info!("Not forwarding message to non-replica client {:?}.", host_id);
                     }
                 }
                 Err(e) => {
@@ -461,12 +528,12 @@ async fn handle_connection_from_clients(
          }
          Some(msg) = client_or_replica_rx.recv() => {
             // // if let Some(client_type) = msg {
-            //     // check to make sure this client is a replica, not a redis-cli client.
-            //     // if it is a redis-cli client, we don't want to send replication messages to it.
-            //     // we only want to send replication messages to replicas.
+                // check to make sure this client is a replica, not a redis-cli client.
+                // if it is a redis-cli client, we don't want to send replication messages to it.
+                // we only want to send replication messages to replicas.
                 am_i_replica  = msg;
 
-                debug!("Updated client replica status to {:?}", am_i_replica);
+                tracing::info!("Updated client {:?} replica status to {}", host_id, am_i_replica);
             // // }
          }
         } // end tokio::select
@@ -479,7 +546,7 @@ async fn handle_connection_to_master(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
     config_command_actor_handle: ConfigCommandActorHandle,
-    info_command_actor_handle: InfoCommandActorHandle,
+    replication_actor_handle: ReplicationActorHandle,
     request_processor_actor_handle: RequestProcessorActorHandle,
     expire_tx: mpsc::Sender<SetCommandParameter>,
     tcp_msgs_rx: async_channel::Receiver<RespValue>,
@@ -504,45 +571,47 @@ async fn handle_connection_to_master(
                                 request.clone(),
                                 set_command_actor_handle.clone(),
                                 config_command_actor_handle.clone(),
-                                info_command_actor_handle.clone(),
+                                replication_actor_handle.clone(),
+                                HostId::Myself, // we are a replica, creating outbound connections, so we are Myself
                                 expire_tx.clone(),
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
-                                Some(replica_tx.clone()), // this enables daisy chaining of replicas to other replicas
+                                replica_tx.clone(), // this enables daisy chaining of replicas to other replicas
                                 None, // connections to master cannot update replica status
                             )
                             .await
                         {
-                             // get the current replication data.
-                             let mut current_replication_data =
-                             info_command_actor_handle.get_value(InfoCommandParameter::Replication).await.expect("Unable to get current replication data.",);
+                             // This is replica's own offset calculations.
+                             // First, let's get our current replication data from replica's POV.
+                            if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
+                                // we need to convert the request to a RESP string to count the bytes.
+                                let value_as_string = request.to_encoded_string()?;
 
-                             // we need to convert the request to a RESP string to count the bytes.
-                             let value_as_string = request.to_encoded_string().expect("Failed to encode request as a string.");
+                                // calculate how many bytes are in the value_as_string
+                                let value_as_string_bytes = value_as_string.len() as i16;
 
-                             // calculate how many bytes are in the value_as_string
-                             let value_as_string_bytes = value_as_string.len() as i16;
+                                // extract the current offset value.
+                                let current_offset = current_replication_data.master_repl_offset;
 
-                             // extract the current offset value.
-                             let current_offset = current_replication_data.master_repl_offset;
+                                // update the offset value.
+                                current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
 
-                             // update the offset value.
-                             current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
+                                // update the offset value in the replication actor.
+                                replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
 
-                             // update the offset value in the info actor.
-                             info_command_actor_handle.set_value(InfoCommandParameter::Replication,current_replication_data,).await;
+                                debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
+                                // iterate over processed_value and send each one to the client
 
-                            debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
-                            // iterate over processed_value and send each one to the client
-                            for value in processed_value.iter() {
-                                // check to see if processed_value contains REPLCONF in the encoded string
                                 let strings_to_reply = "REPLCONF";
-
-                                if value.to_encoded_string()?.contains(strings_to_reply) {
-                                    info!("Sending response to master: {:?}", value);
-                                    let _ = writer.send(value.clone()).await?;
+                                for value in processed_value.iter() {
+                                    // check to see if processed_value contains REPLCONF in the encoded string
+                                    if value.to_encoded_string()?.contains(strings_to_reply) {
+                                        info!("Sending response to master: {:?}", value.to_encoded_string()?);
+                                        let _ = writer.send(value.clone()).await?;
+                                    }
                                 }
-
                             }
+
+
                         }
                     }
                     Err(e) => {
@@ -557,7 +626,7 @@ async fn handle_connection_to_master(
          msg = tcp_msgs_rx.recv() => {
             match msg {
                 Ok(msg) => {
-                    tracing::info!("Sending message to master: {:?}", msg);
+                    tracing::info!("Sending message to master: {:?}", msg.to_encoded_string()?);
                     let _ = writer.send(msg).await?;
                     // writer.flush().await?;
                 }

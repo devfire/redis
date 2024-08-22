@@ -400,7 +400,7 @@ fn parse_wait(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Wait(numreplicas, timeout)))
 }
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
-    tracing::info!("Parsing command: {}", input);
+    tracing::debug!("Parsing command: {}", input);
     alt((
         map(tag_no_case("*1\r\n$4\r\nPING\r\n"), |_| RedisCommand::Ping),
         map(tag_no_case("*2\r\n$7\r\nCOMMAND\r\n$4\r\nDOCS\r\n"), |_| {

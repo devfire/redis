@@ -1,15 +1,17 @@
 use crate::{
-    actors::{messages::ProcessorActorMessage, processor::ProcessorActor},
+    actors::{messages::{HostId, ProcessorActorMessage}, processor::ProcessorActor},
     handlers::set_command::SetCommandActorHandle,
     protocol::SetCommandParameter,
     resp::value::RespValue,
 };
 
-use tracing::debug;
+// use anyhow::{Context, Result, anyhow};
+
+// use tracing::debug;
 // use resp::Value;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use super::{config_command::ConfigCommandActorHandle, info_command::InfoCommandActorHandle};
+use super::{config_command::ConfigCommandActorHandle, replication::ReplicationActorHandle};
 
 #[derive(Clone, Debug)]
 pub struct RequestProcessorActorHandle {
@@ -34,13 +36,14 @@ impl RequestProcessorActorHandle {
         request: RespValue,
         set_command_actor_handle: SetCommandActorHandle,
         config_command_actor_handle: ConfigCommandActorHandle,
-        info_command_actor_handle: InfoCommandActorHandle,
+        replication_actor_handle: ReplicationActorHandle,
+        host_id: HostId,
         expire_tx: mpsc::Sender<SetCommandParameter>,
         master_tx: mpsc::Sender<String>,
-        replica_tx: Option<broadcast::Sender<RespValue>>, // we get this from master handler only
+        replica_tx: broadcast::Sender<RespValue>, // we get this from master handler only
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
     ) -> Option<Vec<RespValue>> {
-        debug!("Processing request: {:?}", request);
+        tracing::debug!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
         let (send, recv) = oneshot::channel();
 
@@ -48,7 +51,8 @@ impl RequestProcessorActorHandle {
             request,
             set_command_actor_handle,
             config_command_actor_handle,
-            info_command_actor_handle,
+            replication_actor_handle,
+            host_id,
             expire_tx,
             master_tx,
             replica_tx,
