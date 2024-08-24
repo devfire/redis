@@ -215,6 +215,9 @@ async fn main() -> anyhow::Result<()> {
         // set the role to slave
         replication_data.role = ServerRole::Slave;
 
+        // init our offset to 0
+        replication_data.master_repl_offset = 0;
+
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
 
