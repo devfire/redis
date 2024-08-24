@@ -612,6 +612,8 @@ async fn handle_connection_to_master(
                                         let _ = writer.send(value.clone()).await?;
                                     }
                                 }
+                            } else {
+                                error!("Unable to locate replica replication data");
                             }
 
 
