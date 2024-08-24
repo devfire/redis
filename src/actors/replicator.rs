@@ -70,7 +70,7 @@ impl ReplicatorActor {
                 self.kv_hash.insert(host_id, info_value);
             }
             ReplicatorActorMessage::GetReplicaCount { respond_to } => {
-                let _ = respond_to.send(self.kv_hash.len());
+                let _ = respond_to.send(self.kv_hash.len() - 1); // we need to -1 because Host::Myself doesn't count
             }
         }
     }

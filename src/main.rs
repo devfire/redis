@@ -15,7 +15,7 @@ use tracing::{debug, error, info};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::{sleep, Duration};
+use tokio::time::{interval, sleep, Duration};
 
 // for master repl id generation
 use rand::distributions::Alphanumeric;
