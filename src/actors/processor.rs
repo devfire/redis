@@ -66,7 +66,10 @@ impl ProcessorActor {
                             .to_encoded_string()
                             .expect("Failed to encode request as a string.");
 
-                        tracing::info!("Simple string from master: {:?}", request_as_encoded_string);
+                        tracing::info!(
+                            "Simple string from master: {:?}",
+                            request_as_encoded_string
+                        );
 
                         // let _ = master_tx
                         //     .send(request)
@@ -380,7 +383,7 @@ impl ProcessorActor {
                                         // So, if we are processing this, we are a replica.
                                         // Replies to this will go back over the OUTBOUND tcp connection to the master.
                                         // NOTE: Most replies are suppressed but these we need to send back to the master.
-                                        debug!("Received GETACK: {}", ackvalue);
+                                        info!("Received GETACK: {}", ackvalue);
 
                                         // check to make sure ackvalue is actually *
                                         if ackvalue == "*" {
@@ -390,42 +393,48 @@ impl ProcessorActor {
                                             // let info_key = InfoCommandParameter::Replication;
 
                                             // get the current replication data.
-                                            let current_replication_data = replication_actor_handle
-                                                .get_value(host_id.clone())
-                                                .await
-                                                .expect("Unable to get current replication data.");
+                                            if let Some(current_replication_data) =
+                                                replication_actor_handle
+                                                    .get_value(host_id.clone())
+                                                    .await
+                                            {
+                                                tracing::info!(
+                                                    "Retrieving replication data {:?} for {:?}",
+                                                    current_replication_data,
+                                                    host_id
+                                                );
 
-                                            tracing::info!(
-                                                "Retrieving replication data {:?} for {:?}",
-                                                current_replication_data,
-                                                host_id
-                                            );
+                                                // extract the current offset value.
+                                                let current_offset =
+                                                    current_replication_data.master_repl_offset;
 
-                                            // extract the current offset value.
-                                            let current_offset =
-                                                current_replication_data.master_repl_offset;
+                                                let repl_conf_ack = RespValue::array_from_slice(&[
+                                                    "REPLCONF",
+                                                    "ACK",
+                                                    &current_offset.to_string(),
+                                                ]);
 
-                                            let repl_conf_ack = RespValue::array_from_slice(&[
-                                                "REPLCONF",
-                                                "ACK",
-                                                &current_offset.to_string(),
-                                            ]);
+                                                // convert it to an encoded string purely for debugging purposes
+                                                let repl_conf_ack_encoded = repl_conf_ack
+                                                    .to_encoded_string()
+                                                    .expect("Failed to encode repl_conf_ack");
 
-                                            // convert it to an encoded string purely for debugging purposes
-                                            let repl_conf_ack_encoded = repl_conf_ack
-                                                .to_encoded_string()
-                                                .expect("Failed to encode repl_conf_ack");
+                                                tracing::debug!(
+                                                    "Sending REPLCONF ACK: {}",
+                                                    repl_conf_ack_encoded
+                                                );
 
-                                            tracing::debug!(
-                                                "Sending REPLCONF ACK: {}",
-                                                repl_conf_ack_encoded
-                                            );
+                                                // response.push(repl_conf_ack);
 
-                                            // response.push(repl_conf_ack);
-
-                                            // send the current offset value back to the master
-                                            // NOTE: this does NOT go over the master_tx channel, which is only for replies TO the master.
-                                            let _ = respond_to.send(Some(vec![repl_conf_ack]));
+                                                // send the current offset value back to the master
+                                                // NOTE: this does NOT go over the master_tx channel, which is only for replies TO the master.
+                                                let _ = respond_to.send(Some(vec![repl_conf_ack]));
+                                            } else {
+                                                error!(
+                                                    "Unable to find replication data for {:?}",
+                                                    host_id
+                                                );
+                                            }
                                         }
                                     }
                                     ReplConfCommandParameter::Ack(ack) => {
@@ -546,7 +555,8 @@ impl ProcessorActor {
 
                                     reply.push(RespValue::SimpleString(format!(
                                         "FULLRESYNC {} {}",
-                                        replication_section_data.master_replid, replication_section_data.master_repl_offset
+                                        replication_section_data.master_replid,
+                                        replication_section_data.master_repl_offset
                                     )));
 
                                     let rdb_file_contents = config_command_actor_handle

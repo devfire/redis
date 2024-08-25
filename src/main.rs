@@ -15,7 +15,7 @@ use tracing::{debug, error, info};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::{sleep, Duration};
+use tokio::time::{interval, sleep, Duration};
 
 // for master repl id generation
 use rand::distributions::Alphanumeric;
@@ -167,11 +167,15 @@ async fn main() -> anyhow::Result<()> {
     // initialize to being a master, override if we are a replica.
     // PROBLEM: master_repl_id gets created as part of new() but only masters get to create one.
     // We need to modify this to allow empty ReplicationSectionData, without a new repl_id being created.
-    let mut replication_data: ReplicationSectionData = ReplicationSectionData {
+    let replication_data: ReplicationSectionData = ReplicationSectionData {
         role: ServerRole::Master,
         master_replid: generate_replication_id(),
-        master_repl_offset: -1,
+        master_repl_offset: 0,
     };
+
+    replication_actor_handle
+        .set_value(HostId::Myself, replication_data)
+        .await;
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
@@ -209,21 +213,16 @@ async fn main() -> anyhow::Result<()> {
         });
 
         // now we know we are a replica, we get our replid from the master
-        replication_data.master_replid =
-            handshake(tcp_msgs_tx.clone(), master_rx, cli.port).await?;
-
-        // set the role to slave
-        replication_data.role = ServerRole::Slave;
+        handshake(
+            tcp_msgs_tx.clone(),
+            master_rx,
+            cli.port,
+            replication_actor_handle.clone(),
+        )
+        .await?;
 
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
-
-    // these are local 0.0.0.0 details
-    tracing::info!("Setting {:?} for Myself", replication_data);
-
-    replication_actor_handle
-        .set_value(HostId::Myself, replication_data)
-        .await;
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
     let set_command_handle_expiry_clone = set_command_actor_handle.clone();
@@ -362,7 +361,8 @@ async fn handshake(
     tcp_msgs_tx: async_channel::Sender<RespValue>,
     mut master_rx: mpsc::Receiver<String>,
     port: u16,
-) -> anyhow::Result<String> {
+    replication_actor_handle: ReplicationActorHandle,
+) -> anyhow::Result<()> {
     // begin the replication handshake
     // STEP 1: PING
     let ping = RespValue::array_from_slice(&["PING"]);
@@ -414,15 +414,25 @@ async fn handshake(
     tcp_msgs_tx.send(psync).await?;
 
     // wait for a reply from the master before proceeding
-    let replication_id = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
-    info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
+    // let replication_id =
+    // info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
+
+    let replication_data: ReplicationSectionData = ReplicationSectionData {
+        role: ServerRole::Slave,
+        master_replid: master_rx.recv().await.ok_or(RedisError::HandshakeError)?, // master will reply with its repl id
+        master_repl_offset: 0,
+    };
+
+    replication_actor_handle
+        .set_value(HostId::Myself, replication_data)
+        .await;
 
     // We are done with the handshake!
     tracing::info!("Handshake completed.");
 
-    // Ok(())
+    Ok(())
 
-    Ok(replication_id)
+    // Ok(replication_id)
 }
 
 // This function will handle the connection from the client.
@@ -609,6 +619,8 @@ async fn handle_connection_to_master(
                                         let _ = writer.send(value.clone()).await?;
                                     }
                                 }
+                            } else {
+                                error!("Unable to locate replica replication data");
                             }
 
 
