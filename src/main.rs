@@ -184,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
         // We can pass a string to TcpStream::connect, so no need to create SocketAddr
         let stream = TcpStream::connect(&master_host_port_combo)
             .await
-            .expect("Failed to establish connection to master.");
+            .expect("Failed to establish connection to master."); // bail since this is not a recoverable error.
 
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();

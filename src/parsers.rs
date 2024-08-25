@@ -29,6 +29,8 @@ fn length(input: &str) -> IResult<&str, usize> {
     ))
 }
 
+use crate::errors;
+
 // RESP bulk string format: $<length>\r\n<data>\r\n
 fn parse_resp_string(input: &str) -> IResult<&str, String> {
     let (input, _) = tag("$")(input)?;
@@ -272,13 +274,13 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
         // In this case, it's used to map the result of the tag_no_case combinator to ReplConfCommandParameter::ListeningPort,
         // ReplConfCommandParameter::Capa, ReplConfCommandParameter::Getack, ReplConfCommandParameter::Ack for the option.
         //
-        map(
+        nom::combinator::map_res(
             tuple((tag_no_case("$14\r\nlistening-port\r\n"), parse_resp_string)),
-            |(_, port)| {
-                ReplConfCommandParameter::ListeningPort(
-                    port.parse::<u16>()
-                        .expect("Listening port conversion failed."),
-                ) //
+            |(_, port_str)| {
+                port_str
+                    .parse::<u16>()
+                    .map(ReplConfCommandParameter::ListeningPort)
+                    .map_err(|_| nom::error::Error::new(port_str, nom::error::ErrorKind::Digit))
             },
         ),
         map(
