@@ -170,7 +170,7 @@ async fn main() -> anyhow::Result<()> {
     let replication_data: ReplicationSectionData = ReplicationSectionData {
         role: ServerRole::Master,
         master_replid: generate_replication_id(),
-        master_repl_offset: -1,
+        master_repl_offset: 0,
     };
 
     replication_actor_handle
