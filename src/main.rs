@@ -330,15 +330,13 @@ async fn expire_value(
             protocol::SetCommandExpireOption::PX(milliseconds) => {
                 // Must clone again because we're about to move this into a dedicated sleep thread.
                 let command_handler_expire_clone = set_command_actor_handle.clone();
-                let _expiry_handle = tokio::spawn(async move {
+                let _expiry_handle: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
                     // get the current system time
                     let now = SystemTime::now();
 
                     // how many milliseconds have elapsed since beginning of time
                     let duration_since_epoch = now
-                        .duration_since(UNIX_EPOCH)
-                        // .ok()
-                        .expect("Failed to calculate duration since epoch"); // Handle potential error
+                        .duration_since(UNIX_EPOCH)?;
 
                     // i64 since it is possible for this to be negative, i.e. past time expiration
                     let expiry_time = milliseconds as i64 - duration_since_epoch.as_millis() as i64;
@@ -353,6 +351,8 @@ async fn expire_value(
 
                     // Fire off a command to the handler to remove the value immediately.
                     command_handler_expire_clone.delete_value(&msg.key).await;
+
+                    Ok(())
                 });
             }
             protocol::SetCommandExpireOption::EXAT(_) => todo!(),
