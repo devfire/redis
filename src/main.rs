@@ -291,7 +291,10 @@ fn generate_replication_id() -> String {
     repl_id
 }
 
-async fn expire_value(msg: SetCommandParameter, set_command_actor_handle: SetCommandActorHandle) {
+async fn expire_value(
+    msg: SetCommandParameter,
+    set_command_actor_handle: SetCommandActorHandle,
+) -> anyhow::Result<()> {
     // We may or may not need to expire a value. If not, no big deal, just wait again.
     if let Some(duration) = msg.expire {
         match duration {
@@ -299,28 +302,30 @@ async fn expire_value(msg: SetCommandParameter, set_command_actor_handle: SetCom
             protocol::SetCommandExpireOption::EX(seconds) => {
                 // Must clone again because we're about to move this into a dedicated sleep thread.
                 let expire_command_handler_clone = set_command_actor_handle.clone();
-                let _expiry_handle = tokio::spawn(async move {
-                    // get the current system time
-                    let now = SystemTime::now();
 
-                    // how many seconds have elapsed since beginning of time
-                    let duration_since_epoch = now
-                        .duration_since(UNIX_EPOCH)
-                        // .ok()
-                        .expect("Failed to calculate duration since epoch"); // Handle potential error
+                // NOTE: type annotations are needed here
+                let _expiry_handle: tokio::task::JoinHandle<Result<()>> =
+                    tokio::spawn(async move {
+                        // get the current system time
+                        let now = SystemTime::now();
 
-                    // i64 since it is possible for this to be negative, i.e. past time expiration
-                    let expiry_time = seconds as i64 - duration_since_epoch.as_secs() as i64;
+                        // how many seconds have elapsed since beginning of time
+                        let duration_since_epoch = now.duration_since(UNIX_EPOCH)?;
 
-                    // we sleep if this is NON negative
-                    if !expiry_time < 0 {
-                        debug!("Sleeping for {} seconds.", expiry_time);
-                        sleep(Duration::from_secs(expiry_time as u64)).await;
-                    }
+                        // i64 since it is possible for this to be negative, i.e. past time expiration
+                        let expiry_time = seconds as i64 - duration_since_epoch.as_secs() as i64;
 
-                    // Fire off a command to the handler to remove the value immediately.
-                    expire_command_handler_clone.delete_value(&msg.key).await;
-                });
+                        // we sleep if this is NON negative
+                        if !expiry_time < 0 {
+                            debug!("Sleeping for {} seconds.", expiry_time);
+                            sleep(Duration::from_secs(expiry_time as u64)).await;
+                        }
+
+                        // Fire off a command to the handler to remove the value immediately.
+                        expire_command_handler_clone.delete_value(&msg.key).await;
+
+                        Ok(())
+                    });
             }
             protocol::SetCommandExpireOption::PX(milliseconds) => {
                 // Must clone again because we're about to move this into a dedicated sleep thread.
@@ -355,6 +360,8 @@ async fn expire_value(msg: SetCommandParameter, set_command_actor_handle: SetCom
             protocol::SetCommandExpireOption::KEEPTTL => todo!(),
         }
     }
+
+    Ok(())
 }
 // #[tracing::instrument]
 async fn handshake(
