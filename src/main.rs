@@ -230,12 +230,14 @@ async fn main() -> anyhow::Result<()> {
     // This will listen for messages on the expire_tx channel.
     // Once a msg comes, it'll see if it's an expiry message and if it is,
     // will move everything and spawn off a thread to expire in the future.
-    let _expiry_handle_loop = tokio::spawn(async move {
+    let _expiry_handle_loop: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
         // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
         // This method blocks until a message is received.
         while let Some(msg) = expire_rx.recv().await {
-            expire_value(msg, set_command_handle_expiry_clone.clone()).await;
+            expire_value(msg, set_command_handle_expiry_clone.clone()).await?;
         }
+
+        Ok(())
     });
 
     loop {
@@ -330,30 +332,29 @@ async fn expire_value(
             protocol::SetCommandExpireOption::PX(milliseconds) => {
                 // Must clone again because we're about to move this into a dedicated sleep thread.
                 let command_handler_expire_clone = set_command_actor_handle.clone();
-                let _expiry_handle: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
-                    // get the current system time
-                    let now = SystemTime::now();
+                let _expiry_handle: tokio::task::JoinHandle<Result<()>> =
+                    tokio::spawn(async move {
+                        // get the current system time
+                        let now = SystemTime::now();
 
-                    // how many milliseconds have elapsed since beginning of time
-                    let duration_since_epoch = now
-                        .duration_since(UNIX_EPOCH)?;
+                        // how many milliseconds have elapsed since beginning of time
+                        let duration_since_epoch = now.duration_since(UNIX_EPOCH)?;
 
-                    // i64 since it is possible for this to be negative, i.e. past time expiration
-                    let expiry_time = milliseconds as i64 - duration_since_epoch.as_millis() as i64;
+                        // i64 since it is possible for this to be negative, i.e. past time expiration
+                        let expiry_time =
+                            milliseconds as i64 - duration_since_epoch.as_millis() as i64;
 
-                    // we sleep if this is NON negative
-                    if !expiry_time < 0 {
-                        debug!("Sleeping for {} milliseconds.", expiry_time);
-                        sleep(Duration::from_millis(expiry_time as u64)).await;
-                    }
+                        // we sleep if this is NON negative
+                        if !expiry_time < 0 {
+                            debug!("Sleeping for {} milliseconds.", expiry_time);
+                            sleep(Duration::from_millis(expiry_time as u64)).await;
+                        }
 
-                    debug!("Expiring {:?}", msg);
+                        // Fire off a command to the handler to remove the value immediately.
+                        command_handler_expire_clone.delete_value(&msg.key).await;
 
-                    // Fire off a command to the handler to remove the value immediately.
-                    command_handler_expire_clone.delete_value(&msg.key).await;
-
-                    Ok(())
-                });
+                        Ok(())
+                    });
             }
             protocol::SetCommandExpireOption::EXAT(_) => todo!(),
             protocol::SetCommandExpireOption::PXAT(_) => todo!(),
