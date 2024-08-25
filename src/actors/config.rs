@@ -10,7 +10,7 @@ use crate::{actors::messages::ConfigActorMessage, protocol::ConfigCommandParamet
 
 use anyhow::Error;
 use futures::StreamExt;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 // use resp::Value;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -46,11 +46,13 @@ impl ConfigCommandActor {
     }
 
     // Run the actor
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> anyhow::Result<()> {
         // Continuously receive messages and handle them
         while let Some(msg) = self.receiver.recv().await {
-            self.handle_message(msg).await;
+            self.handle_message(msg).await?;
         }
+
+        Ok(())
     }
 
     // Handle a message.
@@ -163,7 +165,7 @@ impl ConfigCommandActor {
                         } else {
                             // file exists, let's proceed.
                             // Log the attempt
-                            debug!("Loading config {} from disk", fullpath);
+                            info!("Loading config {} from disk", fullpath);
 
                             let rdb_file = File::open(fullpath)
                                 .await
@@ -214,6 +216,7 @@ impl ConfigCommandActor {
                                     // Err(_) => error!("{}",e),
                                 }
                             }
+                            Ok(())
                         }
                     }
                 }
@@ -252,8 +255,8 @@ impl ConfigCommandActor {
 
                 // check to see if the file exists.
                 if !Path::new(&fullpath).exists() {
-                    error!("Config file {} does not exist.", fullpath);
                     let _ = respond_to.send(None); // this will be turned into an Err in the handler
+                    Err(RedisError::ConfigFileOpenError(fullpath.to_string()).into())
                 } else {
                     // file exists, let's proceed.
                     // Log the attempt
@@ -271,6 +274,8 @@ impl ConfigCommandActor {
                         .expect("Failed to read config into memory");
 
                     let _ = respond_to.send(Some(buffer));
+
+                    Ok(())
                 }
             }
         }
