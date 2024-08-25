@@ -1,3 +1,4 @@
+use crate::errors::RedisError;
 use crate::protocol::SetCommandParameter;
 use crate::rdb::codec::RdbCodec;
 
@@ -7,6 +8,7 @@ use crate::{actors::messages::ConfigActorMessage, protocol::ConfigCommandParamet
 // use bytes::Buf;
 // use futures_util::io::BufReader;
 
+use anyhow::Error;
 use futures::StreamExt;
 use tracing::{debug, error};
 // use resp::Value;
@@ -53,7 +55,7 @@ impl ConfigCommandActor {
 
     // Handle a message.
     // NOTE: This is an async function due to TCP connect. The others are not async.
-    pub async fn handle_message(&mut self, msg: ConfigActorMessage) {
+    pub async fn handle_message(&mut self, msg: ConfigActorMessage) -> anyhow::Result<()> {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
@@ -68,6 +70,8 @@ impl ConfigCommandActor {
                     // If the key does not exist in the hash map, send None
                     let _ = respond_to.send(None);
                 }
+
+                Ok(())
             }
 
             // Handle a SetValue message
@@ -77,6 +81,8 @@ impl ConfigCommandActor {
             } => {
                 // Insert the key-value pair into the hash map
                 self.kv_hash.insert(config_key, config_value);
+
+                Ok(())
             }
 
             ConfigActorMessage::ImportRdb {
@@ -138,6 +144,8 @@ impl ConfigCommandActor {
                                 // Err(_) => error!("{}",e),
                             }
                         }
+
+                        Ok(())
                     }
                     None => {
                         debug!("Loading config from disk.");
@@ -151,7 +159,7 @@ impl ConfigCommandActor {
 
                         // check to see if the file exists.
                         if !Path::new(&fullpath).exists() {
-                            error!("Config file does not exist.");
+                            Err(RedisError::ConfigFileOpenError(fullpath.to_string()).into())
                         } else {
                             // file exists, let's proceed.
                             // Log the attempt
