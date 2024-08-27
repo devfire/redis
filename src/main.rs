@@ -1,9 +1,10 @@
 use crate::resp::value::RespValue;
 
 use actors::messages::HostId;
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
+
 use clap::Parser;
-use errors::RedisError;
+// use errors::RedisError;
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -15,7 +16,7 @@ use tracing::{debug, error, info};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::{interval, sleep, Duration};
+use tokio::time::{sleep, Duration};
 
 // for master repl id generation
 use rand::distributions::Alphanumeric;
@@ -133,6 +134,15 @@ async fn main() -> anyhow::Result<()> {
     // Store the config values if they are valid.
     // NOTE: If nothing is passed, cli.rs has the default values for clap.
     if let Some(dir) = cli.dir.as_deref() {
+        info!("Checking to see if directory {} exists.", dir);
+
+        if !std::path::Path::new(dir).is_dir() {
+            return Err(anyhow!(
+                "Failed to open {} as a directory.",
+                dir.to_string()
+            ));
+        }
+
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
             .await;
@@ -141,6 +151,14 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
+        info!(
+            "Checking to see if db {} exists.",
+            dbfilename.to_string_lossy()
+        );
+
+        if !std::path::Path::new(dbfilename).is_file() {
+            return Err(anyhow!("Invalid dbfilename: {}", dbfilename.to_string_lossy()));
+        }
         config_command_actor_handle
             .set_value(
                 ConfigCommandParameter::DbFilename,
@@ -219,7 +237,8 @@ async fn main() -> anyhow::Result<()> {
             cli.port,
             replication_actor_handle.clone(),
         )
-        .await?;
+        .await
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
@@ -392,13 +411,18 @@ async fn handshake(
     // send the ping
     tcp_msgs_tx.send(ping).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    let reply = master_rx
+        .recv()
+        .await
+        .context("Failed to receive a reply from master after sending PING.")?;
     info!("HANDSHAKE PING: master replied to ping {:?}", reply);
 
     // send the REPLCONF listening-port <PORT>
     tcp_msgs_tx.send(repl_conf_listening_port).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    let reply = master_rx.recv().await.context(
+        "Failed to receive a reply from master after sending REPLCONF listening-port <PORT>.",
+    )?;
     info!(
         "HANDSHAKE REPLCONF listening-port <PORT>: master replied {:?}",
         reply
@@ -407,7 +431,10 @@ async fn handshake(
     // send the REPLCONF capa psync2
     tcp_msgs_tx.send(repl_conf_capa).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    let reply = master_rx
+        .recv()
+        .await
+        .context("Failed to receive a reply from master after sending REPLCONF capa psync2.")?;
     info!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
 
     // send the PSYNC ? -1
@@ -427,7 +454,7 @@ async fn handshake(
 
     let replication_data: ReplicationSectionData = ReplicationSectionData {
         role: ServerRole::Slave,
-        master_replid: master_rx.recv().await.ok_or(RedisError::HandshakeError)?, // master will reply with its repl id
+        master_replid: master_rx.recv().await.context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
         master_repl_offset: 0,
     };
 
