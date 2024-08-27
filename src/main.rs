@@ -1,12 +1,13 @@
 use crate::resp::value::RespValue;
 
 use actors::messages::HostId;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 
 use clap::Parser;
 // use errors::RedisError;
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 use tracing::level_filters::LevelFilter;
@@ -134,14 +135,9 @@ async fn main() -> anyhow::Result<()> {
     // Store the config values if they are valid.
     // NOTE: If nothing is passed, cli.rs has the default values for clap.
     if let Some(dir) = cli.dir.as_deref() {
-        info!("Checking to see if directory {} exists.", dir);
-
-        if !std::path::Path::new(dir).is_dir() {
-            return Err(anyhow!(
-                "Failed to open {} as a directory.",
-                dir.to_string()
-            ));
-        }
+        // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
+        // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
+        ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
 
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
@@ -151,14 +147,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
-        info!(
-            "Checking to see if db {} exists.",
+        ensure!(
+            Path::new(&dbfilename).exists(),
+            "Dbfilename {} not found.",
             dbfilename.to_string_lossy()
         );
 
-        if !std::path::Path::new(dbfilename).is_file() {
-            return Err(anyhow!("Invalid dbfilename: {}", dbfilename.to_string_lossy()));
-        }
         config_command_actor_handle
             .set_value(
                 ConfigCommandParameter::DbFilename,
@@ -202,7 +196,7 @@ async fn main() -> anyhow::Result<()> {
         // We can pass a string to TcpStream::connect, so no need to create SocketAddr
         let stream = TcpStream::connect(&master_host_port_combo)
             .await
-            .expect("Failed to establish connection to master."); // bail since this is not a recoverable error.
+            .expect("Failed to establish connection to master."); // panic is ok here since this is not a recoverable error.
 
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
@@ -237,8 +231,7 @@ async fn main() -> anyhow::Result<()> {
             cli.port,
             replication_actor_handle.clone(),
         )
-        .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .await?;
 
         // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     }
@@ -454,7 +447,10 @@ async fn handshake(
 
     let replication_data: ReplicationSectionData = ReplicationSectionData {
         role: ServerRole::Slave,
-        master_replid: master_rx.recv().await.context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
+        master_replid: master_rx
+            .recv()
+            .await
+            .context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
         master_repl_offset: 0,
     };
 

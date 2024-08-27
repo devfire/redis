@@ -22,14 +22,12 @@ use crate::protocol::{
 };
 
 fn length(input: &str) -> IResult<&str, usize> {
-    let (input, len) = terminated(not_line_ending, crlf)(input)?;
-    Ok((
-        input,
-        len.parse().expect("Length str to usize conversion failed."),
-    ))
+    nom::combinator::map_res(terminated(not_line_ending, crlf), |len_str: &str| {
+        len_str
+            .parse()
+            .map_err(|_| nom::error::Error::new(len_str, nom::error::ErrorKind::MapRes))
+    })(input)
 }
-
-use crate::errors;
 
 // RESP bulk string format: $<length>\r\n<data>\r\n
 fn parse_resp_string(input: &str) -> IResult<&str, String> {
