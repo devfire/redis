@@ -1,5 +1,8 @@
 use crate::{
-    actors::{messages::{HostId, ProcessorActorMessage}, processor::ProcessorActor},
+    actors::{
+        messages::{HostId, ProcessorActorMessage},
+        processor::ProcessorActor,
+    },
     handlers::set_command::SetCommandActorHandle,
     protocol::SetCommandParameter,
     resp::value::RespValue,
@@ -7,6 +10,7 @@ use crate::{
 
 // use anyhow::{Context, Result, anyhow};
 
+use anyhow::Context;
 // use tracing::debug;
 // use resp::Value;
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -24,7 +28,12 @@ impl RequestProcessorActorHandle {
         let (sender, receiver) = mpsc::channel(8);
         let mut actor = ProcessorActor::new(receiver);
 
-        tokio::spawn(async move { actor.run().await });
+        // This isn't going to fail, so we are ignoring errors here.
+        let _handle = tokio::spawn(async move {
+            actor
+                .run()
+                .await
+        });
 
         Self { sender }
     }
