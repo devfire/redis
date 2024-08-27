@@ -4,7 +4,7 @@ use crate::{
     rdb::{codec::RdbCodec, format::Rdb::KeyValuePair},
 };
 
-use anyhow::{ensure, Context};
+use anyhow::{ensure, anyhow, Context};
 use futures::StreamExt;
 use tracing::{debug, error, info};
 // use resp::Value;
@@ -129,7 +129,7 @@ impl ConfigCommandActor {
                                 Ok(_) => {
                                     debug!("Ignoring other things.")
                                 }
-                                Err(e) => error!("Failure trying to load config: {}.", e),
+                                Err(e) => return Err(anyhow!("Error: {}", e)),
                                 // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
                                 // Ok(_) => debug!("Skipping over OpCodes"),
                                 // Err(_) => error!("{}",e),
@@ -138,17 +138,27 @@ impl ConfigCommandActor {
 
                         Ok(())
                     }
+                    // None = we are not importing from memory but loading from disk instead.
                     None => {
-                        let dir = self.kv_hash.get(&ConfigCommandParameter::Dir).unwrap();
+                        let dir = self
+                            .kv_hash
+                            .get(&ConfigCommandParameter::Dir)
+                            .context("Unable to retrieve the dir config parameter.")?;
+
                         let dbfilename = self
                             .kv_hash
                             .get(&ConfigCommandParameter::DbFilename)
-                            .unwrap();
+                            .context("Unable to retrieve the dbfilename config parameter.")?;
 
                         let fullpath = format!("{}/{}", dir, dbfilename);
 
+                        // check to see if the file exists.
+                        // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
+                        // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
+                        ensure!(Path::new(&fullpath).exists(), "RDB not found.");
+
                         // Log the attempt
-                        info!("Loading config {} from disk", fullpath);
+                        info!("Loading RDB {} from disk", fullpath);
 
                         let rdb_file = File::open(fullpath)
                             .await
@@ -224,6 +234,8 @@ impl ConfigCommandActor {
                 let fullpath = format!("{}/{}", dir, dbfilename);
 
                 // check to see if the file exists.
+                // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
+                // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
                 ensure!(Path::new(&fullpath).exists(), "RDB not found.");
 
                 // file exists, let's proceed.
