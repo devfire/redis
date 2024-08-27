@@ -102,21 +102,20 @@ fn parse_mget(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Mget(keys_to_get)))
 }
 
-fn expiry_to_timestamp(expiry: ExpiryOption) -> u64 {
+fn expiry_to_timestamp(expiry: ExpiryOption) -> anyhow::Result<u64> {
     // u64 always since u32 secs fits into u64
     // get the current system time
     let now = SystemTime::now();
 
     // how many seconds have elapsed since beginning of time
-    let duration_since_epoch = now
-        .duration_since(UNIX_EPOCH)
-        .expect("Failed to calculate duration since epoch"); // Handle potential error
+    let duration_since_epoch = now.duration_since(UNIX_EPOCH)?;
+    // .expect("Failed to calculate duration since epoch"); // Handle potential error
 
     // we don't want to lose precision between seconds & milliseconds
     match expiry {
-        ExpiryOption::Seconds(seconds) => seconds as u64 + duration_since_epoch.as_secs(),
+        ExpiryOption::Seconds(seconds) => Ok(seconds as u64 + duration_since_epoch.as_secs()),
         ExpiryOption::Milliseconds(milliseconds) => {
-            milliseconds + duration_since_epoch.as_millis() as u64 // nominally millis are u128
+            Ok(milliseconds + duration_since_epoch.as_millis() as u64) // nominally millis are u128
         }
     }
 }
@@ -162,20 +161,29 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
             map(
                 tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
                 |(_expire_option, seconds)| {
-                    SetCommandExpireOption::EX(expiry_to_timestamp(ExpiryOption::Seconds(
-                        seconds.parse::<u32>().expect("Seconds conversion failed"),
-                    )) as u32) // back to u32 since that's what seconds are
+                    SetCommandExpireOption::EX(
+                        expiry_to_timestamp(ExpiryOption::Seconds(
+                            seconds
+                                .parse::<u32>()
+                                .expect("Seconds conversion should have succeeded."),
+                        ))
+                        .expect("Expiry to timestamp conversion should have succeeded.")
+                            as u32,
+                    ) // back to u32 since that's what seconds are
                 },
             ),
             map(
                 // we have to convert milliseconds to seconds and parse as u64
                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
                 |(_expire_option, milliseconds)| {
-                    SetCommandExpireOption::PX(expiry_to_timestamp(ExpiryOption::Milliseconds(
-                        milliseconds
-                            .parse::<u64>()
-                            .expect("Milliseconds conversion failed"),
-                    )))
+                    SetCommandExpireOption::PX(
+                        expiry_to_timestamp(ExpiryOption::Milliseconds(
+                            milliseconds
+                                .parse::<u64>()
+                                .expect("Milliseconds should have succeeded."),
+                        ))
+                        .expect("Expiry to timestamp conversion should have succeeded."),
+                    )
                 },
             ),
         ))),
