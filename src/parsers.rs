@@ -1,7 +1,9 @@
 use std::{
+    num::ParseIntError,
     time::{SystemTime, UNIX_EPOCH},
     usize,
 };
+
 
 use nom::{
     branch::alt,
@@ -10,7 +12,7 @@ use nom::{
         complete::{crlf, not_line_ending},
         streaming::alphanumeric1,
     },
-    combinator::{map, opt, value, verify},
+    combinator::{map, map_res, opt, value, verify},
     multi::count,
     sequence::{terminated, tuple},
     IResult,
@@ -158,18 +160,35 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
             // In this case, it's used to map the result of the tag_no_case combinator to true for the GET flag,
             // and to parse the seconds or milliseconds for the expiration option.
             //
-            map(
+            // map_res(
+            //     tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
+            //     |(_expire_option, seconds)| {
+            //         Ok::<SetCommandExpireOption, ParseIntError>(SetCommandExpireOption::EX(expiry_to_timestamp(ExpiryOption::Seconds(
+            //             seconds.parse::<u32>().map_err(|e: ParseIntError| nom::error::Error::new(seconds_str, ErrorKind::Digit)),
+            //         )).map_err(|e: ParseIntError| nom::error::Error::new(seconds, nom::error::ErrorKind::Digit)) as u32)) // back to u32 since that's what seconds are
+            //     },
+            // ),
+            map_res(
                 tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
-                |(_expire_option, seconds)| {
-                    SetCommandExpireOption::EX(
-                        expiry_to_timestamp(ExpiryOption::Seconds(
-                            seconds
-                                .parse::<u32>()
-                                .expect("Seconds conversion should have succeeded."),
-                        ))
-                        .expect("Expiry to timestamp conversion should have succeeded.")
-                            as u32,
-                    ) // back to u32 since that's what seconds are
+                |(_, seconds_str)| {
+                    seconds_str
+                        .parse::<u32>()
+                        .map_err(|_e: ParseIntError| {
+                            nom::error::Error::new(
+                                seconds_str.clone(),
+                                nom::error::ErrorKind::Digit,
+                            )
+                        })
+                        .and_then(|seconds| {
+                            expiry_to_timestamp(ExpiryOption::Seconds(seconds))
+                                .map(|timestamp| SetCommandExpireOption::EX(timestamp as u32))
+                                .map_err(|_| {
+                                    nom::error::Error::new(
+                                        seconds_str.clone(),
+                                        nom::error::ErrorKind::Verify,
+                                    )
+                                })
+                        })
                 },
             ),
             map(

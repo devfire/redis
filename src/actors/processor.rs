@@ -81,10 +81,7 @@ impl ProcessorActor {
                                     repl_id,
                                     offset
                                 );
-                                let _ = master_tx
-                                    .send(repl_id)
-                                    .await
-                                    .expect("Unable to send master replies.");
+                                let _ = master_tx.send(repl_id).await?;
                                 let _ = respond_to.send(None);
 
                                 Ok(())
@@ -94,10 +91,7 @@ impl ProcessorActor {
                                     "Unknown string {}, forwarding to replica.",
                                     request_as_encoded_string
                                 );
-                                let _ = master_tx
-                                    .send(request_as_encoded_string)
-                                    .await
-                                    .expect("Unable to send master replies.");
+                                let _ = master_tx.send(request_as_encoded_string).await?;
                                 let _ = respond_to.send(None);
 
                                 Ok(())
@@ -176,9 +170,7 @@ impl ProcessorActor {
                                     replica_tx.receiver_count()
                                 );
 
-                                let subscriber_count = replica_tx
-                                    .send(request)
-                                    .expect("Unable to forward commands to replicas.");
+                                let subscriber_count = replica_tx.send(request)?;
 
                                 tracing::info!(
                                     "Forwarding {:?} command to {} clients.",
@@ -340,8 +332,7 @@ impl ProcessorActor {
                                     // }
                                 } else {
                                     let response = RespValue::Null;
-                                    // .to_encoded_string()
-                                    // .expect("Failed to encode"); // key does not exist, return nil
+
                                     keys_collection.push(response);
                                 }
 
@@ -392,10 +383,7 @@ impl ProcessorActor {
 
                                 // inform the handler_client that this is a replica
                                 if let Some(client_or_replica_tx_sender) = client_or_replica_tx {
-                                    let _ = client_or_replica_tx_sender
-                                        .send(true)
-                                        .await
-                                        .expect("Unable to update replica client status.");
+                                    let _ = client_or_replica_tx_sender.send(true).await?;
                                 }
 
                                 // Check what replconf parameter we have and act accordingly
@@ -438,9 +426,8 @@ impl ProcessorActor {
                                                 ]);
 
                                                 // convert it to an encoded string purely for debugging purposes
-                                                let repl_conf_ack_encoded = repl_conf_ack
-                                                    .to_encoded_string()
-                                                    .expect("Failed to encode repl_conf_ack");
+                                                let repl_conf_ack_encoded =
+                                                    repl_conf_ack.to_encoded_string()?;
 
                                                 tracing::debug!(
                                                     "Sending REPLCONF ACK: {}",
@@ -473,10 +460,7 @@ impl ProcessorActor {
                                                 .await
                                         {
                                             // we need to convert the request to a RESP string to count the bytes.
-                                            let value_as_string =
-                                                request.to_encoded_string().expect(
-                                                    "Failed to encode request to encoded string",
-                                                );
+                                            let value_as_string = request.to_encoded_string()?;
 
                                             // calculate how many bytes are in the value_as_string
                                             let value_as_string_bytes =
