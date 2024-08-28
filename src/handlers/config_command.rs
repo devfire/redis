@@ -12,6 +12,8 @@ pub struct ConfigCommandActorHandle {
     sender: mpsc::Sender<ConfigActorMessage>,
 }
 
+use anyhow::anyhow;
+
 // Gives you access to the underlying actor.
 impl ConfigCommandActorHandle {
     pub fn new() -> Self {
@@ -85,26 +87,36 @@ impl ConfigCommandActorHandle {
         &self,
         // dir: &str,
         // dbfilename: &str,
-    ) -> anyhow::Result<Vec<u8>, RedisError> {
-        if let Some(config_directory) = self.get_value(ConfigCommandParameter::Dir).await {
-            debug!("Found the dir setting: {}", config_directory);
-        } else {
-            error!("Failed to get the config file dir!");
-            return Err(RedisError::IOError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failure trying to load config into memory.",
-            )));
-        };
+    ) -> anyhow::Result<Vec<u8>> {
+        // let config_directory = self
+        //     .get_value(ConfigCommandParameter::Dir)
+        //     .await
+        //     .ok_or_else(|| anyhow!("Failed to get config directory"))?;
 
-        if let Some(config_filename) = self.get_value(ConfigCommandParameter::DbFilename).await {
-            debug!("Found the dbfilename setting: {}", config_filename);
-        } else {
-            error!("Failed to get the config filename!");
-            return Err(RedisError::IOError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failure trying to load config into memory.",
-            )));
-        }
+        // if let Some(config_directory) = self.get_value(ConfigCommandParameter::Dir).await {
+        //     debug!("Found the dir setting: {}", config_directory);
+        // } else {
+        //     error!("Failed to get the config file dir!");
+        //     return Err(RedisError::IOError(std::io::Error::new(
+        //         std::io::ErrorKind::Other,
+        //         "Failure trying to load config into memory.",
+        //     )));
+        // };
+
+        // let config_filename = self
+        //     .get_value(ConfigCommandParameter::DbFilename)
+        //     .await
+        //     .ok_or_else(|| anyhow!("Failed to get config filename."))?;
+
+        // if let Some(config_filename) = self.get_value(ConfigCommandParameter::DbFilename).await {
+        //     debug!("Found the dbfilename setting: {}", config_filename);
+        // } else {
+        //     error!("Failed to get the config filename!");
+        //     return Err(RedisError::IOError(std::io::Error::new(
+        //         std::io::ErrorKind::Other,
+        //         "Failure trying to load config into memory.",
+        //     )));
+        // }
 
         let (send, recv) = oneshot::channel();
 
@@ -120,10 +132,7 @@ impl ConfigCommandActorHandle {
         if let Some(config_file) = recv.await.expect("Actor task has been killed") {
             Ok(config_file)
         } else {
-            Err(RedisError::IOError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failure trying to load config into memory.",
-            )))
+            Err(anyhow!("Failed to load config into memory."))
         }
     }
 }
