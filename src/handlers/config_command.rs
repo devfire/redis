@@ -1,9 +1,8 @@
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error};
+use tracing::debug;
 
 use crate::{
     actors::{config::ConfigCommandActor, messages::ConfigActorMessage},
-    errors::RedisError,
     protocol::ConfigCommandParameter,
 };
 

@@ -1,7 +1,7 @@
 use crate::resp::value::RespValue;
 
 use actors::messages::HostId;
-use anyhow::{anyhow, ensure, Context, Result};
+use anyhow::{ensure, Context, Result};
 
 use clap::Parser;
 // use errors::RedisError;
