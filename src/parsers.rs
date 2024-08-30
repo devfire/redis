@@ -182,20 +182,35 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
                         })
                 },
             ),
-            map(
-                // we have to convert milliseconds to seconds and parse as u64
+            map_res(
                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
-                |(_expire_option, milliseconds)| {
-                    SetCommandExpireOption::PX(
-                        expiry_to_timestamp(ExpiryOption::Milliseconds(
-                            milliseconds
-                                .parse::<u64>()
-                                .expect("Milliseconds should have succeeded."),
-                        ))
-                        .expect("Expiry to timestamp conversion should have succeeded."),
-                    )
+                |(_, seconds_str)| {
+                    seconds_str
+                        .parse::<u64>()
+                        .map_err(|_e: ParseIntError| {
+                            nom::Err::Failure(nom::error::ErrorKind::Digit)
+                        })
+                        .and_then(|seconds| {
+                            expiry_to_timestamp(ExpiryOption::Milliseconds(seconds))
+                                .map(|timestamp| SetCommandExpireOption::PX(timestamp))
+                                .map_err(|_| nom::Err::Failure(nom::error::ErrorKind::Verify))
+                        })
                 },
             ),
+            // map(
+            //     // we have to convert milliseconds to seconds and parse as u64
+            //     tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
+            //     |(_expire_option, milliseconds)| {
+            //         SetCommandExpireOption::PX(
+            //             expiry_to_timestamp(ExpiryOption::Milliseconds(
+            //                 milliseconds
+            //                     .parse::<u64>()
+            //                     .expect("Milliseconds should have succeeded."),
+            //             ))
+            //             .expect("Expiry to timestamp conversion should have succeeded."),
+            //         )
+            //     },
+            // ),
         )))),
     ))(input)?;
 
