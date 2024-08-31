@@ -11,7 +11,7 @@ use nom::{
         complete::{crlf, not_line_ending},
         streaming::alphanumeric1,
     },
-    combinator::{map, map_res, opt, value, verify},
+    combinator::{cut, map, map_opt, map_res, opt, value, verify},
     multi::count,
     sequence::{terminated, tuple},
     IResult,
@@ -121,110 +121,173 @@ fn expiry_to_timestamp(expiry: ExpiryOption) -> anyhow::Result<u64> {
     }
 }
 
-fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
-    // test string: *3\r\n$3\r\nset\r\n$5\r\nhello\r\n$7\r\noranges\r\n
+fn parse_expire_option(input: &str) -> IResult<&str, SetCommandExpireOption> {
+    alt((
+        map_res(
+            tuple((tag_no_case("$2\r\nEX\r\n"), cut(parse_resp_string))),
+            |(_, seconds_str)| {
+                seconds_str
+                    .parse::<u32>()
+                    .map_err(|_: ParseIntError| {
+                        nom::Err::Failure(nom::error::Error::new(
+                            input,
+                            nom::error::ErrorKind::Digit,
+                        ))
+                    })
+                    .and_then(|seconds| {
+                        expiry_to_timestamp(ExpiryOption::Seconds(seconds))
+                            .map(|timestamp| SetCommandExpireOption::EX(timestamp as u32))
+                            .map_err(|_| {
+                                nom::Err::Failure(nom::error::Error::new(
+                                    input,
+                                    nom::error::ErrorKind::Verify,
+                                ))
+                            })
+                    })
+            },
+        ),
+        map_res(
+            tuple((tag_no_case("$2\r\nPX\r\n"), cut(parse_resp_string))),
+            |(_, milliseconds_str)| {
+                milliseconds_str
+                    .parse::<u64>()
+                    .map_err(|_: ParseIntError| {
+                        nom::Err::Failure(nom::error::Error::new(
+                            input,
+                            nom::error::ErrorKind::Digit,
+                        ))
+                    })
+                    .and_then(|milliseconds| {
+                        expiry_to_timestamp(ExpiryOption::Milliseconds(milliseconds))
+                            .map(SetCommandExpireOption::PX)
+                            .map_err(|_| {
+                                nom::Err::Failure(nom::error::Error::new(
+                                    input,
+                                    nom::error::ErrorKind::Verify,
+                                ))
+                            })
+                    })
+            },
+        ),
+    ))(input)
+}
+
+/// SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
+fn parse_set_command(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
     let (input, _len) = (length)(input)?; // length eats crlf
     let (input, _) = tag_no_case("$3\r\nSET\r\n")(input)?;
-
-    // Summary: This parser returns a tuple containing the parsed key, value, option, GET flag, and expiration option.
-    // If the option, GET flag, or expiration option are not present in the input string, they will be None.
-    // tuple: The tuple combinator is used to apply a tuple of parsers one by one and return their results as a tuple.
-    // In this case, it's used to parse two strings followed by an optional option, a GET flag, and an expiration option
-    //
-    let (input, (key, value, option, get, expire)) = tuple((
-        parse_resp_string, // key
-        parse_resp_string, // value
-        // opt: The opt combinator is used to make the parsing of the option, GET flag, and expiration option optional.
-        // If these options are not present in the input string, opt will return None.
-        // alt: The alt combinator is used to try multiple parsers in order until one succeeds.
-        // In this case, it's used to parse either the "NX" or "XX" option.
-        opt(alt((
-            // value: The value combinator is used to map the result of a parser to a specific value.
-            // In this case, it's used to map the result of the tag_no_case combinator to SetCommandSetOption::NX or
-            // SetCommandSetOption::XX for the option.
-            //
-            value(SetCommandSetOption::NX, tag_no_case("$2\r\nNX\r\n")),
-            value(SetCommandSetOption::XX, tag_no_case("$2\r\nXX\r\n")),
-        ))),
-        // GET: Return the old string stored at key, or nil if key did not exist.
-        // tag_no_case: The tag_no_case combinator is used to match a case-insensitive string.
-        // In this case, it's used to match the strings "$2\r\nNX\r\n", "$2\r\nXX\r\n", "$3\r\nGET\r\n", "$2\r\nEX\r\n", and "$2\r\nPX\r\n",
-        // each one a potential expiration option in redis SET command.
+    let (input, key) = parse_resp_string(input)?;
+    let (input, val) = parse_resp_string(input)?;
+    let (input, set_option) = opt(alt((
+        // value: The value combinator is used to map the result of a parser to a specific value.
         //
-        opt(map(tag_no_case("$3\r\nGET\r\n"), |_| true)),
-        // These maps all handle the various expiration options.
-        opt(nom::combinator::cut(alt((
-            // map: The map combinator is used to transform the output of the parser.
-            // In this case, it's used to map the result of the tag_no_case combinator to true for the GET flag,
-            // and to parse the seconds or milliseconds for the expiration option.
-            //
-            // map_res(
-            //     tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
-            //     |(_expire_option, seconds)| {
-            //         Ok::<SetCommandExpireOption, ParseIntError>(SetCommandExpireOption::EX(expiry_to_timestamp(ExpiryOption::Seconds(
-            //             seconds.parse::<u32>().map_err(|e: ParseIntError| nom::error::Error::new(seconds_str, ErrorKind::Digit)),
-            //         )).map_err(|e: ParseIntError| nom::error::Error::new(seconds, nom::error::ErrorKind::Digit)) as u32)) // back to u32 since that's what seconds are
-            //     },
-            // ),
-            map_res(
-                tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
-                |(_, seconds_str)| {
-                    seconds_str
-                        .parse::<u32>()
-                        .map_err(|_e: ParseIntError| {
-                            nom::Err::Failure(nom::error::ErrorKind::Digit)
-                        })
-                        .and_then(|seconds| {
-                            expiry_to_timestamp(ExpiryOption::Seconds(seconds))
-                                .map(|timestamp| SetCommandExpireOption::EX(timestamp as u32))
-                                .map_err(|_| nom::Err::Failure(nom::error::ErrorKind::Verify))
-                        })
-                },
-            ),
-            map_res(
-                tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
-                |(_, seconds_str)| {
-                    seconds_str
-                        .parse::<u64>()
-                        .map_err(|_e: ParseIntError| {
-                            nom::Err::Failure(nom::error::ErrorKind::Digit)
-                        })
-                        .and_then(|seconds| {
-                            expiry_to_timestamp(ExpiryOption::Milliseconds(seconds))
-                                .map(|timestamp| SetCommandExpireOption::PX(timestamp))
-                                .map_err(|_| nom::Err::Failure(nom::error::ErrorKind::Verify))
-                        })
-                },
-            ),
-            // map(
-            //     // we have to convert milliseconds to seconds and parse as u64
-            //     tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
-            //     |(_expire_option, milliseconds)| {
-            //         SetCommandExpireOption::PX(
-            //             expiry_to_timestamp(ExpiryOption::Milliseconds(
-            //                 milliseconds
-            //                     .parse::<u64>()
-            //                     .expect("Milliseconds should have succeeded."),
-            //             ))
-            //             .expect("Expiry to timestamp conversion should have succeeded."),
-            //         )
-            //     },
-            // ),
-        )))),
-    ))(input)?;
+        // In this case, it's used to map the result of the tag_no_case combinator to SetCommandSetOption::NX or
+        // SetCommandSetOption::XX for the option.
+        value(SetCommandSetOption::NX, tag_no_case("$2\r\nNX\r\n")),
+        value(SetCommandSetOption::XX, tag_no_case("$2\r\nXX\r\n")),
+    )))(input)?;
+
+    // optional GET
+    let (input, set_get_option) = opt(map(tag_no_case("$3\r\nGET\r\n"), |_| true))(input)?;
+
+    // EX seconds | PX milliseconds
+    // let (input, expire_option) = opt(parse_expire_option)(input)?;
+
+    // PROBLEM: opt converts Error to None, so if ex is missing OR ex foo = invalid input, it all looks the same. :(
+    // Something we need to fix still.
+    let (input, expire_option) = opt(parse_expire_option)(input)?;
 
     let set_params = SetCommandParameter {
         key,
-        value,
-        option,
-        get,
-        expire,
+        value: val,
+        option: set_option,
+        get: set_get_option,
+        expire: expire_option,
     };
     tracing::debug!("Parsed SET: {:?}", set_params);
 
     Ok((input, RedisCommand::Set(set_params)))
 }
+
+// fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
+//     // test string: *3\r\n$3\r\nset\r\n$5\r\nhello\r\n$7\r\noranges\r\n
+//     let (input, _) = tag("*")(input)?;
+//     let (input, _len) = (length)(input)?; // length eats crlf
+//     let (input, _) = tag_no_case("$3\r\nSET\r\n")(input)?;
+
+//     // Summary: This parser returns a tuple containing the parsed key, value, option, GET flag, and expiration option.
+//     // If the option, GET flag, or expiration option are not present in the input string, they will be None.
+//     // tuple: The tuple combinator is used to apply a tuple of parsers one by one and return their results as a tuple.
+//     // In this case, it's used to parse two strings followed by an optional option, a GET flag, and an expiration option
+//     //
+//     let (input, (key, value, option, get, expire)) = tuple((
+//         parse_resp_string, // key
+//         parse_resp_string, // value
+//         // opt: The opt combinator is used to make the parsing of the option, GET flag, and expiration option optional.
+//         // If these options are not present in the input string, opt will return None.
+//         // alt: The alt combinator is used to try multiple parsers in order until one succeeds.
+//         // In this case, it's used to parse either the "NX" or "XX" option.
+//         opt(alt((
+//             // value: The value combinator is used to map the result of a parser to a specific value.
+//             // In this case, it's used to map the result of the tag_no_case combinator to SetCommandSetOption::NX or
+//             // SetCommandSetOption::XX for the option.
+//             //
+//             value(SetCommandSetOption::NX, tag_no_case("$2\r\nNX\r\n")),
+//             value(SetCommandSetOption::XX, tag_no_case("$2\r\nXX\r\n")),
+//         ))),
+//         // GET: Return the old string stored at key, or nil if key did not exist.
+//         // tag_no_case: The tag_no_case combinator is used to match a case-insensitive string.
+//         // In this case, it's used to match the strings "$2\r\nNX\r\n", "$2\r\nXX\r\n", "$3\r\nGET\r\n", "$2\r\nEX\r\n", and "$2\r\nPX\r\n",
+//         // each one a potential expiration option in redis SET command.
+//         //
+//         opt(map(tag_no_case("$3\r\nGET\r\n"), |_| true)),
+//         // These maps all handle the various expiration options.
+//         opt(alt((
+//             map_res(
+//                 tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
+//                 |(_, seconds_str)| {
+//                     seconds_str
+//                         .parse::<u32>()
+//                         .map_err(|_e: ParseIntError| {
+//                             nom::Err::Failure(nom::error::ErrorKind::Digit)
+//                         })
+//                         .and_then(|seconds| {
+//                             expiry_to_timestamp(ExpiryOption::Seconds(seconds))
+//                                 .map(|timestamp| SetCommandExpireOption::EX(timestamp as u32))
+//                                 .map_err(|_| nom::Err::Failure(nom::error::ErrorKind::Verify))
+//                         })
+//                 },
+//             ),
+//             map_res(
+//                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
+//                 |(_, seconds_str)| {
+//                     seconds_str
+//                         .parse::<u64>()
+//                         .map_err(|_e: ParseIntError| {
+//                             nom::Err::Failure(nom::error::ErrorKind::Digit)
+//                         })
+//                         .and_then(|seconds| {
+//                             expiry_to_timestamp(ExpiryOption::Milliseconds(seconds))
+//                                 .map(|timestamp| SetCommandExpireOption::PX(timestamp))
+//                                 .map_err(|_| nom::Err::Failure(nom::error::ErrorKind::Verify))
+//                         })
+//                 },
+//             ),
+//         ))),
+//     ))(input)?;
+
+//     let set_params = SetCommandParameter {
+//         key,
+//         value,
+//         option,
+//         get,
+//         expire,
+//     };
+//     tracing::debug!("Parsed SET: {:?}", set_params);
+
+//     Ok((input, RedisCommand::Set(set_params)))
+// }
 
 fn parse_get(input: &str) -> IResult<&str, RedisCommand> {
     let (input, _) = tag("*")(input)?;
@@ -440,7 +503,7 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
             RedisCommand::Command
         }),
         parse_echo,
-        parse_set,
+        parse_set_command,
         parse_get,
         parse_del,
         parse_strlen,
