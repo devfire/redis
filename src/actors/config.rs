@@ -1,28 +1,19 @@
-use crate::protocol::SetCommandParameter;
-use crate::rdb::codec::RdbCodec;
+use crate::{
+    actors::messages::ConfigActorMessage,
+    protocol::{ConfigCommandParameter, SetCommandParameter},
+    rdb::{codec::RdbCodec, format::Rdb::KeyValuePair},
+};
 
-use crate::rdb::format::Rdb::KeyValuePair;
-// Import necessary modules and types
-use crate::{actors::messages::ConfigActorMessage, protocol::ConfigCommandParameter};
-// use bytes::Buf;
-// use futures_util::io::BufReader;
-
+use anyhow::{ensure, anyhow, Context};
 use futures::StreamExt;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 // use resp::Value;
 use tokio::fs::File;
-use tokio::io::AsyncReadExt;
-// use tokio::io::AsyncWriteExt;
+use tokio::{io::AsyncReadExt, sync::mpsc};
+
 use tokio_util::codec::FramedRead;
 
 use std::{collections::HashMap, path::Path};
-
-// use tokio::net::TcpStream;
-use tokio::fs;
-use tokio::sync::mpsc;
-
-// include the format.rs file from rdb
-// use crate::rdb::format;
 
 /// Handles CONFIG command. Receives message from the ConfigCommandActorHandle and processes them accordingly.
 pub struct ConfigCommandActor {
@@ -44,16 +35,18 @@ impl ConfigCommandActor {
     }
 
     // Run the actor
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> anyhow::Result<()> {
         // Continuously receive messages and handle them
         while let Some(msg) = self.receiver.recv().await {
-            self.handle_message(msg).await;
+            self.handle_message(msg).await?;
         }
+
+        Ok(())
     }
 
     // Handle a message.
     // NOTE: This is an async function due to TCP connect. The others are not async.
-    pub async fn handle_message(&mut self, msg: ConfigActorMessage) {
+    pub async fn handle_message(&mut self, msg: ConfigActorMessage) -> anyhow::Result<()> {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
@@ -68,6 +61,8 @@ impl ConfigCommandActor {
                     // If the key does not exist in the hash map, send None
                     let _ = respond_to.send(None);
                 }
+
+                Ok(())
             }
 
             // Handle a SetValue message
@@ -77,6 +72,8 @@ impl ConfigCommandActor {
             } => {
                 // Insert the key-value pair into the hash map
                 self.kv_hash.insert(config_key, config_value);
+
+                Ok(())
             }
 
             ConfigActorMessage::ImportRdb {
@@ -132,81 +129,86 @@ impl ConfigCommandActor {
                                 Ok(_) => {
                                     debug!("Ignoring other things.")
                                 }
+                                Err(e) => return Err(anyhow!("Error: {}", e)),
+                                // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
+                                // Ok(_) => debug!("Skipping over OpCodes"),
+                                // Err(_) => error!("{}",e),
+                            }
+                        }
+
+                        Ok(())
+                    }
+                    // None = we are not importing from memory but loading from disk instead.
+                    None => {
+                        let dir = self
+                            .kv_hash
+                            .get(&ConfigCommandParameter::Dir)
+                            .context("Unable to retrieve the dir config parameter.")?;
+
+                        let dbfilename = self
+                            .kv_hash
+                            .get(&ConfigCommandParameter::DbFilename)
+                            .context("Unable to retrieve the dbfilename config parameter.")?;
+
+                        let fullpath = format!("{}/{}", dir, dbfilename);
+
+                        // check to see if the file exists.
+                        // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
+                        // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
+                        ensure!(Path::new(&fullpath).exists(), "RDB not found.");
+
+                        // Log the attempt
+                        info!("Loading RDB {} from disk", fullpath);
+
+                        let rdb_file = File::open(fullpath)
+                            .await
+                            .context("Failed to open RDB file.")?;
+
+                        // stream the rdb file, decoding and parsing the saved entries.
+                        let mut rdb_file_stream_reader = FramedRead::new(rdb_file, RdbCodec::new());
+                        while let Some(result) = rdb_file_stream_reader.next().await {
+                            debug!("RDB decoder returned: {:?}", result);
+
+                            match result {
+                                Ok(KeyValuePair {
+                                    key_expiry_time,
+                                    value_type: _,
+                                    key,
+                                    value,
+                                }) => {
+                                    debug!(
+                                        "Loading {} {} {:?} from local db.",
+                                        key, value, key_expiry_time
+                                    );
+
+                                    let mut set_params = SetCommandParameter {
+                                        key: key.clone(),
+                                        value: value.clone(),
+                                        option: None,
+                                        get: None,
+                                        expire: None,
+                                    };
+
+                                    // Check to see if expiry was attached to this RDB entry
+                                    if let Some(expiry) = key_expiry_time {
+                                        set_params.expire = Some(expiry);
+                                        debug!("Set parameters: {:?}", set_params);
+                                    };
+
+                                    set_command_actor_handle
+                                        .set_value(expire_tx.clone(), set_params.clone())
+                                        .await;
+                                }
+                                Ok(_) => {
+                                    debug!("Ignoring other things.")
+                                }
                                 Err(e) => error!("Failure trying to load config: {}.", e),
                                 // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
                                 // Ok(_) => debug!("Skipping over OpCodes"),
                                 // Err(_) => error!("{}",e),
                             }
                         }
-                    }
-                    None => {
-                        debug!("Loading config from disk.");
-                        let dir = self.kv_hash.get(&ConfigCommandParameter::Dir).unwrap();
-                        let dbfilename = self
-                            .kv_hash
-                            .get(&ConfigCommandParameter::DbFilename)
-                            .unwrap();
-
-                        let fullpath = format!("{}/{}", dir, dbfilename);
-
-                        // check to see if the file exists.
-                        if !Path::new(&fullpath).exists() {
-                            error!("Config file does not exist.");
-                        } else {
-                            // file exists, let's proceed.
-                            // Log the attempt
-                            debug!("Loading config {} from disk", fullpath);
-
-                            let rdb_file = File::open(fullpath)
-                                .await
-                                .expect("Failed to open RDB file.");
-
-                            // stream the rdb file, decoding and parsing the saved entries.
-                            let mut rdb_file_stream_reader =
-                                FramedRead::new(rdb_file, RdbCodec::new());
-                            while let Some(result) = rdb_file_stream_reader.next().await {
-                                debug!("RDB decoder returned: {:?}", result);
-
-                                match result {
-                                    Ok(KeyValuePair {
-                                        key_expiry_time,
-                                        value_type: _,
-                                        key,
-                                        value,
-                                    }) => {
-                                        debug!(
-                                            "Loading {} {} {:?} from local db.",
-                                            key, value, key_expiry_time
-                                        );
-
-                                        let mut set_params = SetCommandParameter {
-                                            key: key.clone(),
-                                            value: value.clone(),
-                                            option: None,
-                                            get: None,
-                                            expire: None,
-                                        };
-
-                                        // Check to see if expiry was attached to this RDB entry
-                                        if let Some(expiry) = key_expiry_time {
-                                            set_params.expire = Some(expiry);
-                                            debug!("Set parameters: {:?}", set_params);
-                                        };
-
-                                        set_command_actor_handle
-                                            .set_value(expire_tx.clone(), set_params.clone())
-                                            .await;
-                                    }
-                                    Ok(_) => {
-                                        debug!("Ignoring other things.")
-                                    }
-                                    Err(e) => error!("Failure trying to load config: {}.", e),
-                                    // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
-                                    // Ok(_) => debug!("Skipping over OpCodes"),
-                                    // Err(_) => error!("{}",e),
-                                }
-                            }
-                        }
+                        Ok(())
                     }
                 }
             }
@@ -219,51 +221,38 @@ impl ConfigCommandActor {
             // This involves opening the file asynchronously, reading its entire content into a byte vector (`buffer`),
             // and returning it through the `respond_to` channel back to the handler.
             ConfigActorMessage::GetRdb { respond_to } => {
-                let dir = self.kv_hash.get(&ConfigCommandParameter::Dir).unwrap();
+                let dir = self
+                    .kv_hash
+                    .get(&ConfigCommandParameter::Dir)
+                    .context("Failed to retrieve hash value for dir.")?;
+
                 let dbfilename = self
                     .kv_hash
                     .get(&ConfigCommandParameter::DbFilename)
-                    .unwrap();
+                    .context("Failed to retrieve hash value for dbfilename.")?;
 
                 let fullpath = format!("{}/{}", dir, dbfilename);
-                // list all the files in the directory
-
-                let current_dir = Path::new(".");
-                let mut entries = fs::read_dir(current_dir)
-                    .await
-                    .expect("Failed to read directory");
-
-                while let Some(entry) = entries.next_entry().await.expect("Failed to read entry") {
-                    let path = entry.path();
-                    if path.is_file() {
-                        debug!("File: {:?}", path);
-                    } else if path.is_dir() {
-                        debug!("Directory: {:?}", path);
-                    }
-                }
 
                 // check to see if the file exists.
-                if !Path::new(&fullpath).exists() {
-                    error!("Config file {} does not exist.", fullpath);
-                    let _ = respond_to.send(None); // this will be turned into an Err in the handler
-                } else {
-                    // file exists, let's proceed.
-                    // Log the attempt
-                    debug!("Loading config {} into memory.", fullpath);
+                // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
+                // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
+                ensure!(Path::new(&fullpath).exists(), "RDB not found.");
 
-                    let mut rdb_file = File::open(fullpath)
-                        .await
-                        .expect("Failed to open RDB file.");
+                // file exists, let's proceed.
+                let mut rdb_file = File::open(fullpath)
+                    .await
+                    .context("Failed to open RDB file.")?;
 
-                    let mut buffer: Vec<u8> = Vec::new();
+                let mut buffer: Vec<u8> = Vec::new();
 
-                    rdb_file
-                        .read_to_end(&mut buffer)
-                        .await
-                        .expect("Failed to read config into memory");
+                rdb_file
+                    .read_to_end(&mut buffer)
+                    .await
+                    .context("Failed to read config into memory")?;
 
-                    let _ = respond_to.send(Some(buffer));
-                }
+                let _ = respond_to.send(Some(buffer));
+
+                Ok(())
             }
         }
     }

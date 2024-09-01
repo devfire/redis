@@ -1,6 +1,5 @@
 use crate::{
     actors::messages::{HostId, ProcessorActorMessage},
-    errors::RedisError,
     parsers::parse_command,
     protocol::{
         RedisCommand, ReplConfCommandParameter, ReplicationSectionData, SetCommandParameter,
@@ -8,6 +7,7 @@ use crate::{
     resp::value::RespValue,
 };
 
+use anyhow::{anyhow, Context};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
@@ -30,15 +30,17 @@ impl ProcessorActor {
     }
 
     // Run the actor
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> anyhow::Result<()> {
         // Continuously receive messages and handle them
         while let Some(msg) = self.receiver.recv().await {
-            self.handle_message(msg).await;
+            self.handle_message(msg).await.context("Unknown command")?;
         }
+
+        Ok(())
     }
 
     // Handle a RespValue message, parse it into a RedisCommand, and reply back with the appropriate response.
-    pub async fn handle_message(&mut self, msg: ProcessorActorMessage) {
+    pub async fn handle_message(&mut self, msg: ProcessorActorMessage) -> anyhow::Result<()> {
         tracing::debug!("Handling message: {:?}", msg);
         // Match on the type of the message
         match msg {
@@ -64,20 +66,12 @@ impl ProcessorActor {
                         // a response from the master server.
                         let request_as_encoded_string = request
                             .to_encoded_string()
-                            .expect("Failed to encode request as a string.");
+                            .context("Failed to encode request as a string.")?;
 
                         tracing::info!(
                             "Simple string from master: {:?}",
                             request_as_encoded_string
                         );
-
-                        // let _ = master_tx
-                        //     .send(request)
-                        //     .await
-                        //     .expect("Unable to send master replies.");
-
-                        // // replicas to do not reply back to masters
-                        // let _ = respond_to.send(None);
 
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Fullresync(repl_id, offset))) => {
@@ -87,28 +81,26 @@ impl ProcessorActor {
                                     repl_id,
                                     offset
                                 );
-                                let _ = master_tx
-                                    .send(repl_id)
-                                    .await
-                                    .expect("Unable to send master replies.");
+                                let _ = master_tx.send(repl_id).await?;
                                 let _ = respond_to.send(None);
+
+                                Ok(())
                             }
                             _ => {
                                 tracing::info!(
                                     "Unknown string {}, forwarding to replica.",
                                     request_as_encoded_string
                                 );
-                                let _ = master_tx
-                                    .send(request_as_encoded_string)
-                                    .await
-                                    .expect("Unable to send master replies.");
+                                let _ = master_tx.send(request_as_encoded_string).await?;
                                 let _ = respond_to.send(None);
+
+                                Ok(())
                             }
                         }
                     }
-                    RespValue::Error(e) => {
-                        error!("Received error: {}", e);
+                    RespValue::Error(_) => {
                         let _ = respond_to.send(None);
+                        Ok(()) // NOTE: we are returning Ok here instead of Err because a RespValue::Error is not a program error.
                     }
                     RespValue::Integer(_) => todo!(),
                     RespValue::Array(_) => {
@@ -119,7 +111,7 @@ impl ProcessorActor {
                         // NOTE: array of arrays is not supported at this time.
                         let request_as_encoded_string = request
                             .to_encoded_string()
-                            .expect("Failed to encode request as a string.");
+                            .context("Failed to encode request as a string.")?;
 
                         debug!("RESP request: {:?}", request_as_encoded_string);
 
@@ -134,22 +126,29 @@ impl ProcessorActor {
                                 let _ = respond_to.send(Some(vec![
                                     (RespValue::SimpleString("PONG".to_string())),
                                 ]));
+
+                                Ok(())
                             }
-                            Err(_) => {
+                            Err(e) => {
                                 // let err_response =
-                                let _ = respond_to.send(Some(vec![
-                                    (RespValue::Error(RedisError::ParseFailure.to_string())),
-                                ]));
+                                let _ =
+                                    respond_to.send(Some(vec![(RespValue::Error(e.to_string()))]));
+
+                                Ok(()) // NOTE: a parsing errror is not a Rust error, so we are returning Ok here.
                             }
                             Ok((_, RedisCommand::Echo(message))) => {
                                 // Encode the value to RESP binary buffer.
                                 let _ =
                                     respond_to.send(Some(vec![(RespValue::SimpleString(message))]));
+
+                                Ok(())
                             }
                             Ok((_, RedisCommand::Command)) => {
                                 // Encode the value to RESP binary buffer.
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::SimpleString("OK".to_string()))]));
+
+                                Ok(())
                             }
                             Ok((_, RedisCommand::Set(set_parameters))) => {
                                 debug!("Set command parameters: {:?}", set_parameters);
@@ -171,15 +170,15 @@ impl ProcessorActor {
                                     replica_tx.receiver_count()
                                 );
 
-                                let subscriber_count = replica_tx
-                                    .send(request)
-                                    .expect("Unable to forward commands to replicas.");
+                                let subscriber_count = replica_tx.send(request)?;
 
                                 tracing::info!(
                                     "Forwarding {:?} command to {} clients.",
                                     request_as_encoded_string,
                                     subscriber_count
                                 );
+
+                                Ok(())
                             }
                             Ok((_, RedisCommand::Get(key))) => {
                                 // we may or may not get a value for the supplied key.
@@ -191,6 +190,8 @@ impl ProcessorActor {
                                 } else {
                                     let _ = respond_to.send(Some(vec![(RespValue::Null)]));
                                 }
+
+                                Ok(())
                             }
                             Ok((_, RedisCommand::Del(keys))) => {
                                 // iterate over all the keys, deleting them one by one
@@ -202,6 +203,8 @@ impl ProcessorActor {
 
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::Integer(keys.len() as i64))]));
+
+                                Ok(())
                             }
                             Ok((_, RedisCommand::Mget(keys))) => {
                                 // Returns the values of all specified keys.
@@ -225,6 +228,8 @@ impl ProcessorActor {
                                 }
                                 let _ =
                                     respond_to.send(Some(vec![(RespValue::Array(key_collection))]));
+
+                                Ok(())
                             }
                             Ok((_, RedisCommand::Strlen(key))) => {
                                 // we may or may not get a value for the supplied key.
@@ -238,6 +243,8 @@ impl ProcessorActor {
                                     let _ =
                                         respond_to.send(Some(vec![(RespValue::Integer(0 as i64))]));
                                 }
+
+                                Ok(())
                             }
 
                             // If key already exists and is a string, this command appends the value at the end of the string.
@@ -274,6 +281,8 @@ impl ProcessorActor {
 
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::Integer(new_value.len() as i64))]));
+
+                                Ok(())
                             }
                             Ok((_, RedisCommand::Config(config_key))) => {
                                 // we may or may not get a value for the supplied key.
@@ -294,6 +303,8 @@ impl ProcessorActor {
                                 } else {
                                     let _ = respond_to.send(Some(vec![(RespValue::Null)]));
                                 }
+
+                                Ok(())
                             }
 
                             Ok((_, RedisCommand::Keys(pattern))) => {
@@ -321,14 +332,15 @@ impl ProcessorActor {
                                     // }
                                 } else {
                                     let response = RespValue::Null;
-                                    // .to_encoded_string()
-                                    // .expect("Failed to encode"); // key does not exist, return nil
+
                                     keys_collection.push(response);
                                 }
 
                                 // debug!("Returning keys: {:?}", keys_collection);
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::Array(keys_collection))]));
+
+                                Ok(())
                             }
 
                             Ok((_, RedisCommand::Info(info_parameter))) => {
@@ -358,6 +370,8 @@ impl ProcessorActor {
                                 } else {
                                     let _ = respond_to.send(Some(vec![RespValue::Null]));
                                 }
+
+                                Ok(())
                             }
 
                             Ok((_, RedisCommand::ReplConf(replconf_params))) => {
@@ -369,10 +383,7 @@ impl ProcessorActor {
 
                                 // inform the handler_client that this is a replica
                                 if let Some(client_or_replica_tx_sender) = client_or_replica_tx {
-                                    let _ = client_or_replica_tx_sender
-                                        .send(true)
-                                        .await
-                                        .expect("Unable to update replica client status.");
+                                    let _ = client_or_replica_tx_sender.send(true).await?;
                                 }
 
                                 // Check what replconf parameter we have and act accordingly
@@ -415,9 +426,8 @@ impl ProcessorActor {
                                                 ]);
 
                                                 // convert it to an encoded string purely for debugging purposes
-                                                let repl_conf_ack_encoded = repl_conf_ack
-                                                    .to_encoded_string()
-                                                    .expect("Failed to encode repl_conf_ack");
+                                                let repl_conf_ack_encoded =
+                                                    repl_conf_ack.to_encoded_string()?;
 
                                                 tracing::debug!(
                                                     "Sending REPLCONF ACK: {}",
@@ -436,6 +446,8 @@ impl ProcessorActor {
                                                 );
                                             }
                                         }
+
+                                        Ok(())
                                     }
                                     ReplConfCommandParameter::Ack(ack) => {
                                         tracing::info!("Received ACK: {} from {:?}", ack, host_id);
@@ -448,10 +460,7 @@ impl ProcessorActor {
                                                 .await
                                         {
                                             // we need to convert the request to a RESP string to count the bytes.
-                                            let value_as_string =
-                                                request.to_encoded_string().expect(
-                                                    "Failed to encode request to encoded string",
-                                                );
+                                            let value_as_string = request.to_encoded_string()?;
 
                                             // calculate how many bytes are in the value_as_string
                                             let value_as_string_bytes =
@@ -476,11 +485,15 @@ impl ProcessorActor {
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
                                         let _ = respond_to.send(None);
+
+                                        Ok(())
                                     }
                                     ReplConfCommandParameter::Capa => {
                                         let _ = respond_to.send(Some(vec![
                                             (RespValue::SimpleString("OK".to_string())),
                                         ]));
+
+                                        Ok(())
                                     }
                                     ReplConfCommandParameter::ListeningPort(_port) => {
                                         // create a new record for a new replica, under the current master's repl ID.
@@ -507,6 +520,8 @@ impl ProcessorActor {
                                                 (RespValue::SimpleString("OK".to_string())),
                                             ]));
                                         }
+
+                                        Ok(())
                                     }
                                 }
                             }
@@ -562,7 +577,7 @@ impl ProcessorActor {
                                     let rdb_file_contents = config_command_actor_handle
                                         .get_rdb()
                                         .await
-                                        .expect("Unable to load RDB file into memory");
+                                        .context("Unable to load RDB file into memory")?;
 
                                     tracing::info!(
                                         "Retrieved config file contents {:?}.",
@@ -577,6 +592,8 @@ impl ProcessorActor {
                                     error!("Failed to retrieve replication information");
                                     let _ = respond_to.send(None);
                                 }
+
+                                Ok(())
                             } // end of psync
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
                                 debug!("Processing WAIT {} {}", numreplicas, timeout);
@@ -586,9 +603,13 @@ impl ProcessorActor {
                                     replication_actor_handle.get_connected_replica_count().await;
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::Integer(replica_count as i64))]));
+
+                                Ok(())
                             }
                             _ => {
                                 debug!("Unsupported command: {:?}", request_as_encoded_string);
+
+                                Err(anyhow!("Unsupported command."))
                             }
                         }
                     }
@@ -602,6 +623,8 @@ impl ProcessorActor {
                             .await;
 
                         let _ = respond_to.send(None);
+
+                        Ok(())
                     }
                 }
             }
