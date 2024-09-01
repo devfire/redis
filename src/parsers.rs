@@ -1,4 +1,5 @@
 use std::{
+    num::ParseIntError,
     time::{SystemTime, UNIX_EPOCH},
     usize,
 };
@@ -10,7 +11,7 @@ use nom::{
         complete::{crlf, not_line_ending},
         streaming::alphanumeric1,
     },
-    combinator::{map, opt, value, verify},
+    combinator::{map, map_res, opt, value, verify},
     multi::count,
     sequence::{terminated, tuple},
     IResult,
@@ -22,11 +23,11 @@ use crate::protocol::{
 };
 
 fn length(input: &str) -> IResult<&str, usize> {
-    let (input, len) = terminated(not_line_ending, crlf)(input)?;
-    Ok((
-        input,
-        len.parse().expect("Length str to usize conversion failed."),
-    ))
+    nom::combinator::map_res(terminated(not_line_ending, crlf), |len_str: &str| {
+        len_str
+            .parse()
+            .map_err(|_| nom::error::Error::new(len_str, nom::error::ErrorKind::MapRes))
+    })(input)
 }
 
 // RESP bulk string format: $<length>\r\n<data>\r\n
@@ -102,21 +103,20 @@ fn parse_mget(input: &str) -> IResult<&str, RedisCommand> {
     Ok((input, RedisCommand::Mget(keys_to_get)))
 }
 
-fn expiry_to_timestamp(expiry: ExpiryOption) -> u64 {
+fn expiry_to_timestamp(expiry: ExpiryOption) -> anyhow::Result<u64> {
     // u64 always since u32 secs fits into u64
     // get the current system time
     let now = SystemTime::now();
 
     // how many seconds have elapsed since beginning of time
-    let duration_since_epoch = now
-        .duration_since(UNIX_EPOCH)
-        .expect("Failed to calculate duration since epoch"); // Handle potential error
+    let duration_since_epoch = now.duration_since(UNIX_EPOCH)?;
+    // .expect("Failed to calculate duration since epoch"); // Handle potential error
 
     // we don't want to lose precision between seconds & milliseconds
     match expiry {
-        ExpiryOption::Seconds(seconds) => seconds as u64 + duration_since_epoch.as_secs(),
+        ExpiryOption::Seconds(seconds) => Ok(seconds as u64 + duration_since_epoch.as_secs()),
         ExpiryOption::Milliseconds(milliseconds) => {
-            milliseconds + duration_since_epoch.as_millis() as u64 // nominally millis are u128
+            Ok(milliseconds + duration_since_epoch.as_millis() as u64) // nominally millis are u128
         }
     }
 }
@@ -154,31 +154,64 @@ fn parse_set(input: &str) -> IResult<&str, RedisCommand> {
         //
         opt(map(tag_no_case("$3\r\nGET\r\n"), |_| true)),
         // These maps all handle the various expiration options.
-        opt(alt((
+        opt(nom::combinator::cut(alt((
             // map: The map combinator is used to transform the output of the parser.
             // In this case, it's used to map the result of the tag_no_case combinator to true for the GET flag,
             // and to parse the seconds or milliseconds for the expiration option.
             //
-            map(
+            // map_res(
+            //     tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
+            //     |(_expire_option, seconds)| {
+            //         Ok::<SetCommandExpireOption, ParseIntError>(SetCommandExpireOption::EX(expiry_to_timestamp(ExpiryOption::Seconds(
+            //             seconds.parse::<u32>().map_err(|e: ParseIntError| nom::error::Error::new(seconds_str, ErrorKind::Digit)),
+            //         )).map_err(|e: ParseIntError| nom::error::Error::new(seconds, nom::error::ErrorKind::Digit)) as u32)) // back to u32 since that's what seconds are
+            //     },
+            // ),
+            map_res(
                 tuple((tag_no_case("$2\r\nEX\r\n"), parse_resp_string)),
-                |(_expire_option, seconds)| {
-                    SetCommandExpireOption::EX(expiry_to_timestamp(ExpiryOption::Seconds(
-                        seconds.parse::<u32>().expect("Seconds conversion failed"),
-                    )) as u32) // back to u32 since that's what seconds are
+                |(_, seconds_str)| {
+                    seconds_str
+                        .parse::<u32>()
+                        .map_err(|_e: ParseIntError| {
+                            nom::Err::Failure(nom::error::ErrorKind::Digit)
+                        })
+                        .and_then(|seconds| {
+                            expiry_to_timestamp(ExpiryOption::Seconds(seconds))
+                                .map(|timestamp| SetCommandExpireOption::EX(timestamp as u32))
+                                .map_err(|_| nom::Err::Failure(nom::error::ErrorKind::Verify))
+                        })
                 },
             ),
-            map(
-                // we have to convert milliseconds to seconds and parse as u64
+            map_res(
                 tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
-                |(_expire_option, milliseconds)| {
-                    SetCommandExpireOption::PX(expiry_to_timestamp(ExpiryOption::Milliseconds(
-                        milliseconds
-                            .parse::<u64>()
-                            .expect("Milliseconds conversion failed"),
-                    )))
+                |(_, seconds_str)| {
+                    seconds_str
+                        .parse::<u64>()
+                        .map_err(|_e: ParseIntError| {
+                            nom::Err::Failure(nom::error::ErrorKind::Digit)
+                        })
+                        .and_then(|seconds| {
+                            expiry_to_timestamp(ExpiryOption::Milliseconds(seconds))
+                                .map(|timestamp| SetCommandExpireOption::PX(timestamp))
+                                .map_err(|_| nom::Err::Failure(nom::error::ErrorKind::Verify))
+                        })
                 },
             ),
-        ))),
+            // map(
+            //     // we have to convert milliseconds to seconds and parse as u64
+            //     tuple((tag_no_case("$2\r\nPX\r\n"), parse_resp_string)),
+            //     |(_expire_option, milliseconds)| {
+            //         SetCommandExpireOption::PX(
+            //             expiry_to_timestamp(ExpiryOption::Milliseconds(
+            //                 milliseconds
+            //                     .parse::<u64>()
+            //                     .expect("Milliseconds should have succeeded."),
+            //             ))
+            //             .expect("Expiry to timestamp conversion should have succeeded."),
+            //         )
+            //     },
+            // ),
+        )))),
     ))(input)?;
 
     let set_params = SetCommandParameter {
@@ -272,13 +305,13 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
         // In this case, it's used to map the result of the tag_no_case combinator to ReplConfCommandParameter::ListeningPort,
         // ReplConfCommandParameter::Capa, ReplConfCommandParameter::Getack, ReplConfCommandParameter::Ack for the option.
         //
-        map(
+        nom::combinator::map_res(
             tuple((tag_no_case("$14\r\nlistening-port\r\n"), parse_resp_string)),
-            |(_, port)| {
-                ReplConfCommandParameter::ListeningPort(
-                    port.parse::<u16>()
-                        .expect("Listening port conversion failed."),
-                ) //
+            |(_, port_str)| {
+                port_str
+                    .parse::<u16>()
+                    .map(ReplConfCommandParameter::ListeningPort)
+                    .map_err(|_| nom::error::Error::new(port_str, nom::error::ErrorKind::Digit))
             },
         ),
         map(

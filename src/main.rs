@@ -1,11 +1,13 @@
 use crate::resp::value::RespValue;
 
 use actors::messages::HostId;
-use anyhow::Result;
+use anyhow::{ensure, Context, Result};
+
 use clap::Parser;
-use errors::RedisError;
+// use errors::RedisError;
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 use tracing::level_filters::LevelFilter;
@@ -15,7 +17,7 @@ use tracing::{debug, error, info};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::{interval, sleep, Duration};
+use tokio::time::{sleep, Duration};
 
 // for master repl id generation
 use rand::distributions::Alphanumeric;
@@ -133,6 +135,10 @@ async fn main() -> anyhow::Result<()> {
     // Store the config values if they are valid.
     // NOTE: If nothing is passed, cli.rs has the default values for clap.
     if let Some(dir) = cli.dir.as_deref() {
+        // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
+        // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
+        ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
+
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
             .await;
@@ -141,6 +147,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
+        ensure!(
+            Path::new(&dbfilename).exists(),
+            "Dbfilename {} not found.",
+            dbfilename.to_string_lossy()
+        );
+
         config_command_actor_handle
             .set_value(
                 ConfigCommandParameter::DbFilename,
@@ -184,7 +196,7 @@ async fn main() -> anyhow::Result<()> {
         // We can pass a string to TcpStream::connect, so no need to create SocketAddr
         let stream = TcpStream::connect(&master_host_port_combo)
             .await
-            .expect("Failed to establish connection to master.");
+            .expect("Failed to establish connection to master."); // panic is ok here since this is not a recoverable error.
 
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
@@ -230,12 +242,14 @@ async fn main() -> anyhow::Result<()> {
     // This will listen for messages on the expire_tx channel.
     // Once a msg comes, it'll see if it's an expiry message and if it is,
     // will move everything and spawn off a thread to expire in the future.
-    let _expiry_handle_loop = tokio::spawn(async move {
+    let _expiry_handle_loop: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
         // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
         // This method blocks until a message is received.
         while let Some(msg) = expire_rx.recv().await {
-            expire_value(msg, set_command_handle_expiry_clone.clone()).await;
+            expire_value(msg, set_command_handle_expiry_clone.clone()).await?;
         }
+
+        Ok(())
     });
 
     loop {
@@ -291,7 +305,10 @@ fn generate_replication_id() -> String {
     repl_id
 }
 
-async fn expire_value(msg: SetCommandParameter, set_command_actor_handle: SetCommandActorHandle) {
+async fn expire_value(
+    msg: SetCommandParameter,
+    set_command_actor_handle: SetCommandActorHandle,
+) -> anyhow::Result<()> {
     // We may or may not need to expire a value. If not, no big deal, just wait again.
     if let Some(duration) = msg.expire {
         match duration {
@@ -299,62 +316,65 @@ async fn expire_value(msg: SetCommandParameter, set_command_actor_handle: SetCom
             protocol::SetCommandExpireOption::EX(seconds) => {
                 // Must clone again because we're about to move this into a dedicated sleep thread.
                 let expire_command_handler_clone = set_command_actor_handle.clone();
-                let _expiry_handle = tokio::spawn(async move {
-                    // get the current system time
-                    let now = SystemTime::now();
 
-                    // how many seconds have elapsed since beginning of time
-                    let duration_since_epoch = now
-                        .duration_since(UNIX_EPOCH)
-                        // .ok()
-                        .expect("Failed to calculate duration since epoch"); // Handle potential error
+                // NOTE: type annotations are needed here
+                let _expiry_handle: tokio::task::JoinHandle<Result<()>> =
+                    tokio::spawn(async move {
+                        // get the current system time
+                        let now = SystemTime::now();
 
-                    // i64 since it is possible for this to be negative, i.e. past time expiration
-                    let expiry_time = seconds as i64 - duration_since_epoch.as_secs() as i64;
+                        // how many seconds have elapsed since beginning of time
+                        let duration_since_epoch = now.duration_since(UNIX_EPOCH)?;
 
-                    // we sleep if this is NON negative
-                    if !expiry_time < 0 {
-                        debug!("Sleeping for {} seconds.", expiry_time);
-                        sleep(Duration::from_secs(expiry_time as u64)).await;
-                    }
+                        // i64 since it is possible for this to be negative, i.e. past time expiration
+                        let expiry_time = seconds as i64 - duration_since_epoch.as_secs() as i64;
 
-                    // Fire off a command to the handler to remove the value immediately.
-                    expire_command_handler_clone.delete_value(&msg.key).await;
-                });
+                        // we sleep if this is NON negative
+                        if !expiry_time < 0 {
+                            debug!("Sleeping for {} seconds.", expiry_time);
+                            sleep(Duration::from_secs(expiry_time as u64)).await;
+                        }
+
+                        // Fire off a command to the handler to remove the value immediately.
+                        expire_command_handler_clone.delete_value(&msg.key).await;
+
+                        Ok(())
+                    });
             }
             protocol::SetCommandExpireOption::PX(milliseconds) => {
                 // Must clone again because we're about to move this into a dedicated sleep thread.
                 let command_handler_expire_clone = set_command_actor_handle.clone();
-                let _expiry_handle = tokio::spawn(async move {
-                    // get the current system time
-                    let now = SystemTime::now();
+                let _expiry_handle: tokio::task::JoinHandle<Result<()>> =
+                    tokio::spawn(async move {
+                        // get the current system time
+                        let now = SystemTime::now();
 
-                    // how many milliseconds have elapsed since beginning of time
-                    let duration_since_epoch = now
-                        .duration_since(UNIX_EPOCH)
-                        // .ok()
-                        .expect("Failed to calculate duration since epoch"); // Handle potential error
+                        // how many milliseconds have elapsed since beginning of time
+                        let duration_since_epoch = now.duration_since(UNIX_EPOCH)?;
 
-                    // i64 since it is possible for this to be negative, i.e. past time expiration
-                    let expiry_time = milliseconds as i64 - duration_since_epoch.as_millis() as i64;
+                        // i64 since it is possible for this to be negative, i.e. past time expiration
+                        let expiry_time =
+                            milliseconds as i64 - duration_since_epoch.as_millis() as i64;
 
-                    // we sleep if this is NON negative
-                    if !expiry_time < 0 {
-                        debug!("Sleeping for {} milliseconds.", expiry_time);
-                        sleep(Duration::from_millis(expiry_time as u64)).await;
-                    }
+                        // we sleep if this is NON negative
+                        if !expiry_time < 0 {
+                            debug!("Sleeping for {} milliseconds.", expiry_time);
+                            sleep(Duration::from_millis(expiry_time as u64)).await;
+                        }
 
-                    debug!("Expiring {:?}", msg);
+                        // Fire off a command to the handler to remove the value immediately.
+                        command_handler_expire_clone.delete_value(&msg.key).await;
 
-                    // Fire off a command to the handler to remove the value immediately.
-                    command_handler_expire_clone.delete_value(&msg.key).await;
-                });
+                        Ok(())
+                    });
             }
             protocol::SetCommandExpireOption::EXAT(_) => todo!(),
             protocol::SetCommandExpireOption::PXAT(_) => todo!(),
             protocol::SetCommandExpireOption::KEEPTTL => todo!(),
         }
     }
+
+    Ok(())
 }
 // #[tracing::instrument]
 async fn handshake(
@@ -384,13 +404,18 @@ async fn handshake(
     // send the ping
     tcp_msgs_tx.send(ping).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    let reply = master_rx
+        .recv()
+        .await
+        .context("Failed to receive a reply from master after sending PING.")?;
     info!("HANDSHAKE PING: master replied to ping {:?}", reply);
 
     // send the REPLCONF listening-port <PORT>
     tcp_msgs_tx.send(repl_conf_listening_port).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    let reply = master_rx.recv().await.context(
+        "Failed to receive a reply from master after sending REPLCONF listening-port <PORT>.",
+    )?;
     info!(
         "HANDSHAKE REPLCONF listening-port <PORT>: master replied {:?}",
         reply
@@ -399,7 +424,10 @@ async fn handshake(
     // send the REPLCONF capa psync2
     tcp_msgs_tx.send(repl_conf_capa).await?;
     // wait for a reply from the master before proceeding
-    let reply = master_rx.recv().await.ok_or(RedisError::HandshakeError)?;
+    let reply = master_rx
+        .recv()
+        .await
+        .context("Failed to receive a reply from master after sending REPLCONF capa psync2.")?;
     info!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
 
     // send the PSYNC ? -1
@@ -419,7 +447,10 @@ async fn handshake(
 
     let replication_data: ReplicationSectionData = ReplicationSectionData {
         role: ServerRole::Slave,
-        master_replid: master_rx.recv().await.ok_or(RedisError::HandshakeError)?, // master will reply with its repl id
+        master_replid: master_rx
+            .recv()
+            .await
+            .context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
         master_repl_offset: 0,
     };
 

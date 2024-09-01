@@ -21,6 +21,9 @@ pub enum RedisError {
     #[error("Master failed to reply to handshake")]
     HandshakeError,
 
+    /// Config file not found
+    #[error("Failed to open config file: {0}")]
+    ConfigFileOpenError(String),
 
     /// Represents all other cases of `ParseIntError`.
     #[error("Invalid digit parsing")]
