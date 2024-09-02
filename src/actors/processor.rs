@@ -611,6 +611,11 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
                                 debug!("Processing WAIT {} {}", numreplicas, timeout);
 
+                                let replconf_ack_offset =
+                                    RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
+
+                                let _ = replica_tx.send(replconf_ack_offset)?;
+
                                 // get the replica count
                                 let replicas_in_sync =
                                     replication_actor_handle.get_synced_replica_count().await;
@@ -632,9 +637,6 @@ impl ProcessorActor {
                                     // but we won't wait more than timeout milliseconds.
                                     // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
                                     // This will update the offset in the replication actor.
-                                    let replconf_ack_offset =
-                                        RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
-                                    let _ = replica_tx.send(replconf_ack_offset)?;
 
                                     // ok now we wait for everyone to reply
                                     info!(
