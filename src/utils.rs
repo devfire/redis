@@ -123,7 +123,7 @@ pub async fn handshake(
 
     // STEP 2: REPLCONF listening-port <PORT>
     // initialize the empty array
-    let repl_conf_listening_port =
+    let replconf_listening_port =
         RespValue::array_from_slice(&["REPLCONF", "listening-port", &port.to_string()]);
 
     // STEP 3: REPLCONF capa psync2
@@ -145,7 +145,7 @@ pub async fn handshake(
     info!("HANDSHAKE PING: master replied to ping {:?}", reply);
 
     // send the REPLCONF listening-port <PORT>
-    tcp_msgs_tx.send(repl_conf_listening_port).await?;
+    tcp_msgs_tx.send(replconf_listening_port).await?;
     // wait for a reply from the master before proceeding
     let reply = master_rx.recv().await.context(
         "Failed to receive a reply from master after sending REPLCONF listening-port <PORT>.",

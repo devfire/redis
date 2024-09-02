@@ -71,8 +71,8 @@ impl ReplicationActorHandle {
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
 
-    /// Implements the WAIT command
-    pub async fn get_connected_replica_count(&self) -> usize {
+    /// Returns the number of replicas that are in sync.
+    pub async fn get_synced_replica_count(&self) -> usize {
         let (send, recv) = oneshot::channel();
         let msg = ReplicatorActorMessage::GetReplicaCount { respond_to: send };
 

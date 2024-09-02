@@ -72,7 +72,16 @@ impl ReplicatorActor {
             ReplicatorActorMessage::GetReplicaCount { respond_to } => {
                 // we need to -1 because Host::Myself doesn't count, and
                 // we need to return 0 if there are no replicas to avoid returning 0-1=-1
-                let _ = respond_to.send(std::cmp::max(self.kv_hash.len() - 1, 0));
+
+                // first, let's get the master offset
+                let master_offset = self.kv_hash.get(&HostId::Myself)
+                .expect("Something is wrong, no master offset found")
+                    .master_repl_offset;
+
+                // now, let's count how many replicas have this offset
+                let replica_count = self.kv_hash.iter().filter(|(_, v)| v.master_repl_offset == master_offset).count();
+
+                let _ = respond_to.send(replica_count);
             }
         }
     }
