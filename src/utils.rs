@@ -1,4 +1,25 @@
-// various axillary functions
+// This code implements several utility functions.
+
+// Key functions and their purposes:
+
+// expire_value: Handles delayed expiration of values based on specified EX or PX options. 
+// It schedules a task to delete the value after the specified duration.
+//
+// handshake: Manages the replication handshake process between a master and slave node. 
+// It sends and receives necessary commands to establish the connection and synchronize replication data.
+//
+// generate_replication_id: Generates a random 40-character alphanumeric string to be used as a replication ID.
+
+// Additional details:
+
+// The code uses tokio for asynchronous operations and anyhow for error handling.
+
+// It leverages tracing for logging and debugging.
+// The code includes functions to handle different expiration options (EX, PX, EXAT, PXAT, KEEPTTL) but currently only implements the EX and PX options.
+// The handshake function sends commands to establish a replication connection, including PING, REPLCONF, and PSYNC.
+// The generate_replication_id function uses rand to generate a random string for the replication ID.
+
+
 use crate::{
     actors::messages::HostId,
     handlers::{replication::ReplicationActorHandle, set_command::SetCommandActorHandle},

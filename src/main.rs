@@ -5,10 +5,11 @@ use anyhow::{ensure, Result};
 
 use clap::Parser;
 
-use utils::{expire_value, generate_replication_id, handshake};
 use futures::{SinkExt, StreamExt};
+use intervals::send_replconf_periodically;
 use resp::codec::RespCodec;
 use std::path::Path;
+use utils::{expire_value, generate_replication_id, handshake};
 // use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 use tracing::level_filters::LevelFilter;
@@ -20,11 +21,11 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 use tokio::sync::{broadcast, mpsc};
 // use tokio::time::{sleep, Duration};
 
-
 pub mod actors;
 pub mod cli;
 pub mod errors;
 pub mod handlers;
+pub mod intervals;
 pub mod parsers;
 pub mod protocol;
 pub mod rdb;
@@ -222,7 +223,7 @@ async fn main() -> anyhow::Result<()> {
             .await
         });
 
-        // now we know we are a replica, we get our replid from the master
+        // handshake sets the replica replid based on the value it gets from the master.
         handshake(
             tcp_msgs_tx.clone(),
             master_rx,
@@ -231,7 +232,13 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-        // use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        // one more round of cloning
+        let replication_actor_handle_clone = replication_actor_handle.clone();
+        // kick off a once a sec offset update to master
+        tokio::spawn(async move {
+            send_replconf_periodically(tcp_msgs_tx.clone(), replication_actor_handle_clone, 1)
+                .await
+        });
     }
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
@@ -286,22 +293,6 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 }
-
-// fn generate_replication_id() -> String {
-//     // Initialize a random number generator based on the current thread.
-//     let mut rng = thread_rng();
-
-//     // Create a sequence of 40 random alphanumeric characters.
-//     let repl_id: String = iter::repeat(())
-//         // Map each iteration to a randomly chosen alphanumeric character.
-//         .map(|()| rng.sample(Alphanumeric))
-//         // Convert the sampled character into its char representation.
-//         .map(char::from)
-//         .take(40) // Take only the first 40 characters.
-//         .collect(); // Collect the characters into a String.
-
-//     repl_id
-// }
 
 // This function will handle the connection from the client.
 // The reason why we need two separate functions, one for clients and one for master,
