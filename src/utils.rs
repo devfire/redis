@@ -6,10 +6,17 @@ use crate::{
     resp::value::RespValue,
 };
 use anyhow::{Context, Result};
+
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{debug, info};
+
+// for master repl id generation
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use std::iter;
+// ----------
 
 pub async fn expire_value(
     msg: SetCommandParameter,
@@ -170,4 +177,20 @@ pub async fn handshake(
     Ok(())
 
     // Ok(replication_id)
+}
+
+pub fn generate_replication_id() -> String {
+    // Initialize a random number generator based on the current thread.
+    let mut rng = thread_rng();
+
+    // Create a sequence of 40 random alphanumeric characters.
+    let repl_id: String = iter::repeat(())
+        // Map each iteration to a randomly chosen alphanumeric character.
+        .map(|()| rng.sample(Alphanumeric))
+        // Convert the sampled character into its char representation.
+        .map(char::from)
+        .take(40) // Take only the first 40 characters.
+        .collect(); // Collect the characters into a String.
+
+    repl_id
 }

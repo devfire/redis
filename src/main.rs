@@ -5,7 +5,7 @@ use anyhow::{ensure, Result};
 
 use clap::Parser;
 
-use utils::{expire_value, handshake};
+use utils::{expire_value, generate_replication_id, handshake};
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
 use std::path::Path;
@@ -20,11 +20,7 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 use tokio::sync::{broadcast, mpsc};
 // use tokio::time::{sleep, Duration};
 
-// for master repl id generation
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use std::iter;
-// ----------
+
 pub mod actors;
 pub mod cli;
 pub mod errors;
@@ -291,109 +287,20 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-fn generate_replication_id() -> String {
-    // Initialize a random number generator based on the current thread.
-    let mut rng = thread_rng();
+// fn generate_replication_id() -> String {
+//     // Initialize a random number generator based on the current thread.
+//     let mut rng = thread_rng();
 
-    // Create a sequence of 40 random alphanumeric characters.
-    let repl_id: String = iter::repeat(())
-        // Map each iteration to a randomly chosen alphanumeric character.
-        .map(|()| rng.sample(Alphanumeric))
-        // Convert the sampled character into its char representation.
-        .map(char::from)
-        .take(40) // Take only the first 40 characters.
-        .collect(); // Collect the characters into a String.
+//     // Create a sequence of 40 random alphanumeric characters.
+//     let repl_id: String = iter::repeat(())
+//         // Map each iteration to a randomly chosen alphanumeric character.
+//         .map(|()| rng.sample(Alphanumeric))
+//         // Convert the sampled character into its char representation.
+//         .map(char::from)
+//         .take(40) // Take only the first 40 characters.
+//         .collect(); // Collect the characters into a String.
 
-    repl_id
-}
-
-// async fn handshake(
-//     tcp_msgs_tx: async_channel::Sender<RespValue>,
-//     mut master_rx: mpsc::Receiver<String>,
-//     port: u16,
-//     replication_actor_handle: ReplicationActorHandle,
-// ) -> anyhow::Result<()> {
-//     // begin the replication handshake
-//     // STEP 1: PING
-//     let ping = RespValue::array_from_slice(&["PING"]);
-
-//     // STEP 2: REPLCONF listening-port <PORT>
-//     // initialize the empty array
-//     let repl_conf_listening_port =
-//         RespValue::array_from_slice(&["REPLCONF", "listening-port", &port.to_string()]);
-
-//     // STEP 3: REPLCONF capa psync2
-//     // initialize the empty array
-//     let repl_conf_capa = RespValue::array_from_slice(&["REPLCONF", "capa", "psync2"]);
-
-//     // STEP 4: send the PSYNC ? -1
-//     let psync = RespValue::array_from_slice(&["PSYNC", "?", "-1"]);
-
-//     // // let handshake_commands = vec![repl_conf_listening_port, repl_conf_capa, psync];
-
-//     // send the ping
-//     tcp_msgs_tx.send(ping).await?;
-//     // wait for a reply from the master before proceeding
-//     let reply = master_rx
-//         .recv()
-//         .await
-//         .context("Failed to receive a reply from master after sending PING.")?;
-//     info!("HANDSHAKE PING: master replied to ping {:?}", reply);
-
-//     // send the REPLCONF listening-port <PORT>
-//     tcp_msgs_tx.send(repl_conf_listening_port).await?;
-//     // wait for a reply from the master before proceeding
-//     let reply = master_rx.recv().await.context(
-//         "Failed to receive a reply from master after sending REPLCONF listening-port <PORT>.",
-//     )?;
-//     info!(
-//         "HANDSHAKE REPLCONF listening-port <PORT>: master replied {:?}",
-//         reply
-//     );
-
-//     // send the REPLCONF capa psync2
-//     tcp_msgs_tx.send(repl_conf_capa).await?;
-//     // wait for a reply from the master before proceeding
-//     let reply = master_rx
-//         .recv()
-//         .await
-//         .context("Failed to receive a reply from master after sending REPLCONF capa psync2.")?;
-//     info!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
-
-//     // send the PSYNC ? -1
-//     /*
-//         When a replica connects to a master for the first time, it sends a PSYNC ? -1 command.
-//         This is the replica's way of telling the master that it doesn't have any data yet, and needs to be fully resynchronized.
-
-//         The master acknowledges this by sending a FULLRESYNC response to the replica.
-//         After sending the FULLRESYNC response, the master will then send a RDB file of its current state to the replica.
-//         The replica is expected to load the file into memory, replacing its current state.
-//     */
-//     tcp_msgs_tx.send(psync).await?;
-
-//     // wait for a reply from the master before proceeding
-//     // let replication_id =
-//     // info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
-
-//     let replication_data: ReplicationSectionData = ReplicationSectionData {
-//         role: ServerRole::Slave,
-//         master_replid: master_rx
-//             .recv()
-//             .await
-//             .context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
-//         master_repl_offset: 0,
-//     };
-
-//     replication_actor_handle
-//         .set_value(HostId::Myself, replication_data)
-//         .await;
-
-//     // We are done with the handshake!
-//     tracing::info!("Handshake completed.");
-
-//     Ok(())
-
-//     // Ok(replication_id)
+//     repl_id
 // }
 
 // This function will handle the connection from the client.
