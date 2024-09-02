@@ -37,7 +37,7 @@ pub enum RedisCommand {
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum ReplConfCommandParameter {
     Getack(String),
-    Ack(u32),
+    Ack(usize),
     Capa,
     ListeningPort(u16),
 }

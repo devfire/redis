@@ -6,7 +6,7 @@ use anyhow::{ensure, Result};
 use clap::Parser;
 
 use futures::{SinkExt, StreamExt};
-use intervals::send_replconf_periodically;
+use intervals::send_offset_to_master;
 use resp::codec::RespCodec;
 use std::path::Path;
 use utils::{expire_value, generate_replication_id, handshake};
@@ -232,13 +232,13 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-        // one more round of cloning
-        let replication_actor_handle_clone = replication_actor_handle.clone();
-        // kick off a once a sec offset update to master
-        tokio::spawn(async move {
-            send_replconf_periodically(tcp_msgs_tx.clone(), replication_actor_handle_clone, 1)
-                .await
-        });
+        // // one more round of cloning
+        // let replication_actor_handle_clone = replication_actor_handle.clone();
+        // // kick off a once a sec offset update to master
+        // tokio::spawn(async move {
+        //     send_offset_to_master(tcp_msgs_tx.clone(), replication_actor_handle_clone, 1)
+        //         .await
+        // });
     }
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop

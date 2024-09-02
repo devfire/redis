@@ -633,7 +633,7 @@ impl ProcessorActor {
                                     // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
                                     // This will update the offset in the replication actor.
                                     let replconf_ack_offset =
-                                        RespValue::array_from_slice(&["REPLCONF", "ACK", "*"]);
+                                        RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
                                     let _ = replica_tx.send(replconf_ack_offset)?;
 
                                     // ok now we wait for everyone to reply

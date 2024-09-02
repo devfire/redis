@@ -393,16 +393,26 @@ fn parse_replconf(input: &str) -> IResult<&str, RedisCommand> {
                 ReplConfCommandParameter::Getack(ackvalue) //
             },
         ),
-        map(
+        map_res(
             tuple((tag_no_case("$3\r\nack\r\n"), parse_resp_string)),
             |(_, offset)| {
-                ReplConfCommandParameter::Ack(
-                    offset
-                        .parse::<u32>()
-                        .expect("Offset string to u32 conversion failed."),
-                )
+                offset
+                    .parse::<usize>()
+                    .map(ReplConfCommandParameter::Ack)
+                    .map_err(|_| nom::error::Error::new(offset, nom::error::ErrorKind::Digit))
             },
         ),
+        // map_res(
+        //     tuple((tag_no_case("$3\r\nack\r\n"), parse_resp_string)),
+        //     |(_, offset)| {
+        //         ReplConfCommandParameter::Ack(
+        //             offset
+        //                 .parse::<u32>()
+        //                 .map(ReplConfCommandParameter::ListeningPort)
+        //                 .map_err(|_| nom::error::Error::new(offset, nom::error::ErrorKind::Digit)),
+        //         )
+        //     },
+        // ),
     ))(input)?;
 
     Ok((input, RedisCommand::ReplConf(replconf_params)))
