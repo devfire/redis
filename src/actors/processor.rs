@@ -170,12 +170,12 @@ impl ProcessorActor {
                                     replica_tx.receiver_count()
                                 );
 
-                                let subscriber_count = replica_tx.send(request)?;
+                                let active_replica_count = replica_tx.send(request)?;
 
                                 tracing::info!(
-                                    "Forwarding {:?} command to {} clients.",
+                                    "Forwarding {:?} command to {} replicas.",
                                     request_as_encoded_string,
-                                    subscriber_count
+                                    active_replica_count
                                 );
 
                                 Ok(())
@@ -203,6 +203,14 @@ impl ProcessorActor {
 
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::Integer(keys.len() as i64))]));
+
+                                let active_replica_count = replica_tx.send(request)?;
+
+                                tracing::info!(
+                                    "Forwarding {:?} command to {} replicas.",
+                                    request_as_encoded_string,
+                                    active_replica_count
+                                );
 
                                 Ok(())
                             }

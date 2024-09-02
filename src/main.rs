@@ -377,7 +377,7 @@ async fn handle_connection_from_clients(
                     }
                 }
             }
-         msg = replica_rx.recv() => {
+         msg = replica_rx.recv() => { // from processor.rs replica_tx
             tracing::info!("replica_rx channel received {:?} for {:?}", msg.clone()?.to_encoded_string()?, host_id);
             match msg {
                 Ok(msg) => {
@@ -430,7 +430,7 @@ async fn handle_connection_to_master(
 
     loop {
         tokio::select! {
-            // Read data from the stream, n is the number of bytes read
+            // Read data from the stream, these are commands from the master to the replica
             Some(msg) = reader.next() => {
                 match msg {
                     Ok(request) => {
