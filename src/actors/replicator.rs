@@ -73,13 +73,27 @@ impl ReplicatorActor {
                 // we need to -1 because Host::Myself doesn't count, and
                 // we need to return 0 if there are no replicas to avoid returning 0-1=-1
 
-                // first, let's get the master offset
-                let master_offset = self.kv_hash.get(&HostId::Myself)
-                .expect("Something is wrong, no master offset found")
+                // first, let's get the master offset. It's ok to panic here because this should never fail.
+                // if it were to fail, we can't proceed anyway.
+                let master_offset = self
+                    .kv_hash
+                    .get(&HostId::Myself)
+                    .expect("Something is wrong, expected to find master offset.")
                     .master_repl_offset;
 
                 // now, let's count how many replicas have this offset
-                let replica_count = self.kv_hash.iter().filter(|(_, v)| v.master_repl_offset == master_offset).count();
+                // Again, must -1 to avoid counting HostId::Myself
+                let replica_count = self
+                    .kv_hash
+                    .iter()
+                    .filter(|(_, v)| v.master_repl_offset == master_offset)
+                    .count()
+                    - 1;
+                // for kv in self.kv_hash.iter(){
+                //     if *kv.0 != HostId::Myself && kv.1.master_repl_offset == master_offset{
+
+                //     }
+                // }
 
                 let _ = respond_to.send(replica_count);
             }
