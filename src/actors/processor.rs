@@ -609,7 +609,7 @@ impl ProcessorActor {
                                 Ok(())
                             } // end of psync
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
-                                debug!("Processing WAIT {} {}", numreplicas, timeout);
+                                info!("Processing WAIT {} {}", numreplicas, timeout);
 
                                 let replconf_ack_offset =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
@@ -620,6 +620,8 @@ impl ProcessorActor {
                                 let replicas_in_sync =
                                     replication_actor_handle.get_synced_replica_count().await;
 
+                                info!("We have {} in sync replicas.", replicas_in_sync);
+
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/
                                 //
@@ -627,10 +629,10 @@ impl ProcessorActor {
                                 // 1. numreplicas: The number of replicas that must be connected and in sync.
                                 // 2. timeout: The maximum number of milliseconds to wait for the replicas to be connected and in sync.
                                 //
-                                if replicas_in_sync >= numreplicas {
+                                if numreplicas <= replicas_in_sync  {
                                     // we can return immediately
                                     let _ = respond_to.send(Some(vec![
-                                        (RespValue::Integer(numreplicas as i64)),
+                                        (RespValue::Integer(replicas_in_sync as i64)),
                                     ]));
                                 } else {
                                     // we need to wait for the replicas to be connected and in sync
