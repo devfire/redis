@@ -361,7 +361,7 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            tracing::info!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
+                            tracing::debug!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
 
                             // iterate over processed_value and send each one to the client
                             for value in &processed_values {
@@ -378,7 +378,7 @@ async fn handle_connection_from_clients(
                 }
             }
          msg = replica_rx.recv() => { // from processor.rs replica_tx
-            tracing::info!("replica_rx channel received {:?} for {:?}", msg.clone()?.to_encoded_string()?, host_id);
+            tracing::debug!("replica_rx channel received {:?} for {:?}", msg.clone()?.to_encoded_string()?, host_id);
             match msg {
                 Ok(msg) => {
                     // Send replication messages only to replicas, not to other clients.
@@ -387,7 +387,7 @@ async fn handle_connection_from_clients(
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
-                        tracing::info!("Not forwarding message to non-replica client {:?}.", host_id);
+                        tracing::debug!("Not forwarding message to non-replica client {:?}.", host_id);
                     }
                 }
                 Err(e) => {
@@ -402,7 +402,7 @@ async fn handle_connection_from_clients(
                 // we only want to send replication messages to replicas.
                 am_i_replica  = msg;
 
-                tracing::info!("Updated client {:?} replica status to {}", host_id, am_i_replica);
+                tracing::debug!("Updated client {:?} replica status to {}", host_id, am_i_replica);
             // // }
          }
         } // end tokio::select
