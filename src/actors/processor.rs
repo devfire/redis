@@ -630,7 +630,7 @@ impl ProcessorActor {
                                 if replicas_in_sync >= numreplicas {
                                     // we can return immediately
                                     let _ = respond_to.send(Some(vec![
-                                        (RespValue::Integer(replicas_in_sync as i64)),
+                                        (RespValue::Integer(numreplicas as i64)),
                                     ]));
                                 } else {
                                     // we need to wait for the replicas to be connected and in sync
