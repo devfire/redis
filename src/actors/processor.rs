@@ -422,7 +422,7 @@ impl ProcessorActor {
                                                     .get_value(host_id.clone())
                                                     .await
                                             {
-                                                tracing::info!(
+                                                tracing::debug!(
                                                     "Retrieving replication data {:?} for {:?}",
                                                     current_replication_data,
                                                     host_id
