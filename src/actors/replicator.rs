@@ -37,7 +37,7 @@ impl ReplicatorActor {
 
     // Handle a message.
     pub fn handle_message(&mut self, msg: ReplicatorActorMessage) {
-        tracing::info!("Handling message: {:?}", msg);
+        tracing::debug!("Handling message: {:?}", msg);
 
         // Match on the type of the message
         match msg {
@@ -82,13 +82,12 @@ impl ReplicatorActor {
                     .master_repl_offset;
 
                 // now, let's count how many replicas have this offset
-                // Again, must -1 to avoid counting HostId::Myself
+                // Again, avoid counting HostId::Myself
                 let replica_count = self
                     .kv_hash
                     .iter()
-                    .filter(|(_, v)| v.master_repl_offset == master_offset)
-                    .count()
-                    - 1;
+                    .filter(|(k, v)| v.master_repl_offset == master_offset && **k != HostId::Myself)
+                    .count();
                 // for kv in self.kv_hash.iter(){
                 //     if *kv.0 != HostId::Myself && kv.1.master_repl_offset == master_offset{
 
