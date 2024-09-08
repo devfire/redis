@@ -629,8 +629,10 @@ impl ProcessorActor {
                                 // 1. numreplicas: The number of replicas that must be connected and in sync.
                                 // 2. timeout: The maximum number of milliseconds to wait for the replicas to be connected and in sync.
                                 //
-                                if numreplicas <= replicas_in_sync  {
+                                // detailed OG implementation: https://github.com/redis/redis/blob/unstable/src/replication.c#L3548
+                                if replicas_in_sync >= numreplicas  {
                                     // we can return immediately
+                                    info!("{} > {}, returning immediately.", replicas_in_sync, numreplicas);
                                     let _ = respond_to.send(Some(vec![
                                         (RespValue::Integer(replicas_in_sync as i64)),
                                     ]));
