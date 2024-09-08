@@ -87,6 +87,8 @@ pub enum ReplicatorActorMessage {
     GetReplicaCount {
         respond_to: oneshot::Sender<usize>, // total number of connected, synced up replicas
     },
+
+    ResetReplicaCount, // used to zero out the in sync replica count after WAIT
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]

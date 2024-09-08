@@ -96,6 +96,9 @@ impl ReplicatorActor {
 
                 let _ = respond_to.send(replica_count);
             }
+            ReplicatorActorMessage::ResetReplicaCount => {
+                self.kv_hash.clear();
+            },
         }
     }
 }
