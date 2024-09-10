@@ -97,8 +97,15 @@ impl ReplicatorActor {
                 let _ = respond_to.send(replica_count);
             }
             ReplicatorActorMessage::ResetReplicaCount => {
-                self.kv_hash.clear();
-            },
+                // Iterate through all entries in the HashMap
+                for (key, _value) in self.kv_hash.drain() {
+                    // Check if the current entry's key is not 1
+                    if key != HostId::Myself {
+                        // Remove the entry if it's not Myself
+                        continue; // This effectively skips the rest of the loop body
+                    }
+                }
+            }
         }
     }
 }
