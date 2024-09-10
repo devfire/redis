@@ -407,7 +407,7 @@ impl ProcessorActor {
                                         // So, if we are processing this, we are a replica.
                                         // Replies to this will go back over the OUTBOUND tcp connection to the master.
                                         // NOTE: Most replies are suppressed but these we need to send back to the master.
-                                        info!("Received GETACK: {}", ackvalue);
+                                        info!("Replica received GETACK: {}", ackvalue);
 
                                         // check to make sure ackvalue is actually *
                                         if ackvalue == "*" {
@@ -419,7 +419,7 @@ impl ProcessorActor {
                                             // get the current replication data.
                                             if let Some(current_replication_data) =
                                                 replication_actor_handle
-                                                    .get_value(host_id.clone())
+                                                    .get_value(HostId::Myself)
                                                     .await
                                             {
                                                 tracing::debug!(
@@ -463,6 +463,7 @@ impl ProcessorActor {
                                         Ok(())
                                     }
                                     ReplConfCommandParameter::Ack(ack) => {
+                                        // These are received by the master from the replica slaves.
                                         tracing::info!("Received ACK: {} from {:?}", ack, host_id);
 
                                         // get the current replica's replication data.
@@ -494,6 +495,9 @@ impl ProcessorActor {
                                                     current_replication_data,
                                                 )
                                                 .await;
+                                        } else {
+                                            // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
+                                            
                                         }
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
