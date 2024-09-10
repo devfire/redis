@@ -497,7 +497,7 @@ impl ProcessorActor {
                                                 .await;
                                         } else {
                                             // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
-                                            
+                                           error!("Missing offset value.");
                                         }
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
@@ -616,7 +616,7 @@ impl ProcessorActor {
                                 info!("Processing WAIT {} {}", numreplicas, timeout);
 
                                 // flush the replica in sync db
-                                replication_actor_handle.reset_synced_replica_count().await;
+                                // replication_actor_handle.reset_synced_replica_count().await;
 
                                 let replconf_getack_star =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
