@@ -616,7 +616,7 @@ impl ProcessorActor {
                                 info!("Processing WAIT {} {}", numreplicas, timeout);
 
                                 // flush the replica in sync db
-                                // replication_actor_handle.reset_synced_replica_count().await;
+                                replication_actor_handle.reset_synced_replica_count().await;
 
                                 let replconf_getack_star =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
