@@ -91,22 +91,22 @@ pub enum ReplicatorActorMessage {
     ResetReplicaCount, // used to zero out the in sync replica count after WAIT
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Clone, Hash, Eq, PartialEq)]
 pub enum HostId {
     Host { ip: String, port: u16 },
     Myself, // this is used to store this redis' instance own metadata, like its offset, etc.
 }
 
-// #[derive(Debug)]
-// pub enum WaitActorMessage {
-//     // the idea here is that values are stored in a HashMap.
-//     // So, to get a CONFIG Value back the client must supply a String key.
-//     // NOTE: Only dir and dbfilename keys are supported.
-//     GetReplicas {
-//         key: WaitCommandParameter,
-//         respond_to: oneshot::Sender<u16>,
-//     },
-// }
+impl std::fmt::Debug for HostId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HostId::Host { ip, port } => {
+                write!(f, "{}:{}", ip, port)
+            }
+            HostId::Myself => write!(f, "self"),
+        }
+    }
+}
 
 pub enum ProcessorActorMessage {
     // connection string to connect to master
