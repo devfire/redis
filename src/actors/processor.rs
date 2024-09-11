@@ -615,7 +615,10 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
                                 info!("Processing WAIT {} {}", numreplicas, timeout);
 
-                                // let _ = replica_tx.send(replconf_getack_star.clone())?;
+                                let replconf_getack_star: RespValue =
+                                    RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
+
+                                let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 // get the replica count
                                 let replicas_in_sync =
@@ -648,9 +651,6 @@ impl ProcessorActor {
 
                                     // flush the replica in sync db because we are about to ask all replicas for their offsets
                                     replication_actor_handle.reset_synced_replica_count().await;
-
-                                    let replconf_getack_star =
-                                        RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
 
                                     // ok now we wait for everyone to reply
                                     info!(
