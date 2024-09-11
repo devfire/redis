@@ -175,12 +175,11 @@ impl ProcessorActor {
                                     replica_tx.receiver_count()
                                 );
 
-                                let active_replica_count = replica_tx.send(request)?;
+                                let _active_client_count = replica_tx.send(request)?;
 
                                 tracing::info!(
-                                    "Forwarding {:?} command to {} replicas.",
-                                    request_as_encoded_string,
-                                    active_replica_count
+                                    "Forwarding {:?} command to replicas.",
+                                    request_as_encoded_string
                                 );
 
                                 Ok(())
@@ -209,12 +208,11 @@ impl ProcessorActor {
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::Integer(keys.len() as i64))]));
 
-                                let active_replica_count = replica_tx.send(request)?;
+                                let _active_client_count = replica_tx.send(request)?;
 
                                 tracing::info!(
-                                    "Forwarding {:?} command to {} replicas.",
-                                    request_as_encoded_string,
-                                    active_replica_count
+                                    "Forwarding {:?} command to the replicas.",
+                                    request_as_encoded_string
                                 );
 
                                 Ok(())
@@ -474,19 +472,19 @@ impl ProcessorActor {
                                                 .await
                                         {
                                             // we need to convert the request to a RESP string to count the bytes.
-                                            let value_as_string = request.to_encoded_string()?;
+                                            // let value_as_string = request.to_encoded_string()?;
 
                                             // calculate how many bytes are in the value_as_string
-                                            let value_as_string_bytes =
-                                                value_as_string.len() as i16;
+                                            // let value_as_string_bytes =
+                                            //     value_as_string.len() as i16;
 
                                             // extract the current offset value.
-                                            let current_offset =
-                                                current_replication_data.master_repl_offset;
+                                            // let current_offset =
+                                            //     current_replication_data.master_repl_offset;
 
                                             // update the offset value.
                                             current_replication_data.master_repl_offset =
-                                                current_offset + value_as_string_bytes;
+                                                ack as i16;
 
                                             // update the offset value in the replication actor.
                                             replication_actor_handle
@@ -497,7 +495,10 @@ impl ProcessorActor {
                                                 .await;
                                         } else {
                                             // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
-                                            error!("Missing offset value.");
+                                            error!(
+                                                "Missing offset value for replica {:?}.",
+                                                host_id
+                                            );
                                         }
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
@@ -621,10 +622,10 @@ impl ProcessorActor {
                                 // let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 // get the replica count
-                                let replicas_in_sync =
-                                    replication_actor_handle.get_synced_replica_count().await;
+                                // let replicas_in_sync =
+                                    // replication_actor_handle.get_synced_replica_count().await;
 
-                                info!("We have {} in sync replicas.", replicas_in_sync);
+                                // info!("We have {} in sync replicas.", replicas_in_sync);
 
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/
@@ -644,36 +645,33 @@ impl ProcessorActor {
                                 //         (RespValue::Integer(replicas_in_sync as i64)),
                                 //     ]));
                                 // } else {
-                                    // we need to wait for the replicas to be connected and in sync
-                                    // but we won't wait more than timeout milliseconds.
-                                    // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
-                                    // This will update the offset in the replication actor.
+                                // we need to wait for the replicas to be connected and in sync
+                                // but we won't wait more than timeout milliseconds.
+                                // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
+                                // This will update the offset in the replication actor.
 
-                                    // flush the replica in sync db because we are about to ask all replicas for their offsets
-                                    replication_actor_handle.reset_synced_replica_count().await;
+                                // flush the replica in sync db because we are about to ask all replicas for their offsets
+                                // replication_actor_handle.reset_synced_replica_count().await;
 
-                                    // ok now we wait for everyone to reply
-                                    info!(
-                                        "Starting the waiting period of {} milliseconds.",
-                                        timeout
-                                    );
+                                // ok now we wait for everyone to reply
+                                info!("Starting the waiting period of {} milliseconds.", timeout);
 
-                                    let _ = replica_tx.send(replconf_getack_star)?;
+                                let _ = replica_tx.send(replconf_getack_star)?;
 
-                                    let start_time = Instant::now();
+                                let start_time = Instant::now();
 
-                                    sleep(Duration::from_millis(timeout.try_into()?)).await;
+                                sleep(Duration::from_millis(timeout.try_into()?)).await;
 
-                                    let elapsed_time = start_time.elapsed();
-                                    info!("Done waiting after {:?}!", elapsed_time);
+                                let elapsed_time = start_time.elapsed();
+                                info!("Done waiting after {:?}!", elapsed_time);
 
-                                    // get the replica count again
-                                    let replicas_in_sync =
-                                        replication_actor_handle.get_synced_replica_count().await;
+                                // get the replica count again
+                                let replicas_in_sync =
+                                    replication_actor_handle.get_synced_replica_count().await;
 
-                                    let _ = respond_to.send(Some(vec![
-                                        (RespValue::Integer(replicas_in_sync as i64)),
-                                    ]));
+                                let _ = respond_to.send(Some(vec![
+                                    (RespValue::Integer(replicas_in_sync as i64)),
+                                ]));
                                 // }
 
                                 Ok(())

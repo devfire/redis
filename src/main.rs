@@ -6,7 +6,6 @@ use anyhow::{ensure, Result};
 use clap::Parser;
 
 use futures::{SinkExt, StreamExt};
-use intervals::send_offset_to_master;
 use resp::codec::RespCodec;
 use std::path::Path;
 use utils::{expire_value, generate_replication_id, handshake};
