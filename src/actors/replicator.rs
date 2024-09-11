@@ -2,6 +2,7 @@ use crate::{actors::messages::ReplicatorActorMessage, protocol::ReplicationSecti
 
 use std::collections::HashMap;
 use tokio::sync::mpsc;
+use tracing::info;
 
 use super::messages::HostId;
 
@@ -81,13 +82,21 @@ impl ReplicatorActor {
                     .expect("Something is wrong, expected to find master offset.")
                     .master_repl_offset;
 
+                let mut replica_count = 0;
+                for (key, value) in &self.kv_hash {
+                    if key.clone() != HostId::Myself && value.master_repl_offset == master_offset {
+                        replica_count += 1;
+                    }
+                    info!("Host: {:?}, Value: {:?}", key, value);
+                }
+
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
-                let replica_count = self
-                    .kv_hash
-                    .iter()
-                    .filter(|(k, v)| v.master_repl_offset == master_offset && **k != HostId::Myself)
-                    .count();
+                // let replica_count = self
+                //     .kv_hash
+                //     .iter()
+                //     .filter(|(k, v)| v.master_repl_offset == master_offset && **k != HostId::Myself)
+                //     .count();
                 // for kv in self.kv_hash.iter(){
                 //     if *kv.0 != HostId::Myself && kv.1.master_repl_offset == master_offset{
 
