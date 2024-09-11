@@ -6,7 +6,6 @@ use anyhow::{ensure, Result};
 use clap::Parser;
 
 use futures::{SinkExt, StreamExt};
-use intervals::send_offset_to_master;
 use resp::codec::RespCodec;
 use std::path::Path;
 use utils::{expire_value, generate_replication_id, handshake};
@@ -456,16 +455,20 @@ async fn handle_connection_to_master(
                                 let value_as_string = request.to_encoded_string()?;
 
                                 // calculate how many bytes are in the value_as_string
-                                let value_as_string_bytes = value_as_string.len() as i16;
+                                let value_as_string_num_bytes = value_as_string.len() as i16;
 
                                 // extract the current offset value.
                                 let current_offset = current_replication_data.master_repl_offset;
 
                                 // update the offset value.
-                                current_replication_data.master_repl_offset = current_offset + value_as_string_bytes;
+                                let new_offset = current_offset + value_as_string_num_bytes;
+
+                                current_replication_data.master_repl_offset = new_offset;
 
                                 // update the offset value in the replication actor.
                                 replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
+
+                                info!("Current offset: {} new offset: {}",current_offset,new_offset);
 
                                 debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                                 // iterate over processed_value and send each one to the client

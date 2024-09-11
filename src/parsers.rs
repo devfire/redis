@@ -11,7 +11,7 @@ use nom::{
         complete::{crlf, not_line_ending},
         streaming::alphanumeric1,
     },
-    combinator::{cut, map, map_opt, map_res, opt, value, verify},
+    combinator::{cut, map, map_res, opt, value, verify},
     multi::count,
     sequence::{terminated, tuple},
     IResult,

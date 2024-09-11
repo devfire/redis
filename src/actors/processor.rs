@@ -175,12 +175,11 @@ impl ProcessorActor {
                                     replica_tx.receiver_count()
                                 );
 
-                                let active_replica_count = replica_tx.send(request)?;
+                                let _active_client_count = replica_tx.send(request)?;
 
                                 tracing::info!(
-                                    "Forwarding {:?} command to {} replicas.",
-                                    request_as_encoded_string,
-                                    active_replica_count
+                                    "Forwarding {:?} command to replicas.",
+                                    request_as_encoded_string
                                 );
 
                                 Ok(())
@@ -209,12 +208,11 @@ impl ProcessorActor {
                                 let _ = respond_to
                                     .send(Some(vec![(RespValue::Integer(keys.len() as i64))]));
 
-                                let active_replica_count = replica_tx.send(request)?;
+                                let _active_client_count = replica_tx.send(request)?;
 
                                 tracing::info!(
-                                    "Forwarding {:?} command to {} replicas.",
-                                    request_as_encoded_string,
-                                    active_replica_count
+                                    "Forwarding {:?} command to the replicas.",
+                                    request_as_encoded_string
                                 );
 
                                 Ok(())
@@ -497,7 +495,10 @@ impl ProcessorActor {
                                                 .await;
                                         } else {
                                             // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
-                                           
+                                            error!(
+                                                "Missing offset value for replica {:?}.",
+                                                host_id
+                                            );
                                         }
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
@@ -621,10 +622,10 @@ impl ProcessorActor {
                                 // let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 // get the replica count
-                                let replicas_in_sync =
-                                    replication_actor_handle.get_synced_replica_count().await;
+                                // let replicas_in_sync =
+                                    // replication_actor_handle.get_synced_replica_count().await;
 
-                                info!("We have {} in sync replicas.", replicas_in_sync);
+                                // info!("We have {} in sync replicas.", replicas_in_sync);
 
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/
@@ -650,7 +651,7 @@ impl ProcessorActor {
                                 // This will update the offset in the replication actor.
 
                                 // flush the replica in sync db because we are about to ask all replicas for their offsets
-                                replication_actor_handle.reset_synced_replica_count().await;
+                                // replication_actor_handle.reset_synced_replica_count().await;
 
                                 // ok now we wait for everyone to reply
                                 info!("Starting the waiting period of {} milliseconds.", timeout);
