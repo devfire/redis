@@ -497,7 +497,7 @@ impl ProcessorActor {
                                                 .await;
                                         } else {
                                             // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
-                                           error!("Missing offset value.");
+                                            error!("Missing offset value.");
                                         }
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
@@ -615,12 +615,6 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
                                 info!("Processing WAIT {} {}", numreplicas, timeout);
 
-                                // flush the replica in sync db
-                                replication_actor_handle.reset_synced_replica_count().await;
-
-                                let replconf_getack_star =
-                                    RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
-
                                 // let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 // get the replica count
@@ -637,9 +631,12 @@ impl ProcessorActor {
                                 // 2. timeout: The maximum number of milliseconds to wait for the replicas to be connected and in sync.
                                 //
                                 // detailed OG implementation: https://github.com/redis/redis/blob/unstable/src/replication.c#L3548
-                                if replicas_in_sync >= numreplicas  {
+                                if replicas_in_sync >= numreplicas {
                                     // we can return immediately
-                                    info!("{} > {}, returning immediately.", replicas_in_sync, numreplicas);
+                                    info!(
+                                        "{} > {}, returning immediately.",
+                                        replicas_in_sync, numreplicas
+                                    );
                                     let _ = respond_to.send(Some(vec![
                                         (RespValue::Integer(replicas_in_sync as i64)),
                                     ]));
@@ -648,6 +645,12 @@ impl ProcessorActor {
                                     // but we won't wait more than timeout milliseconds.
                                     // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
                                     // This will update the offset in the replication actor.
+
+                                    // flush the replica in sync db because we are about to ask all replicas for their offsets
+                                    replication_actor_handle.reset_synced_replica_count().await;
+
+                                    let replconf_getack_star =
+                                        RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
 
                                     // ok now we wait for everyone to reply
                                     info!(
