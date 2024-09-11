@@ -634,16 +634,16 @@ impl ProcessorActor {
                                 // 2. timeout: The maximum number of milliseconds to wait for the replicas to be connected and in sync.
                                 //
                                 // detailed OG implementation: https://github.com/redis/redis/blob/unstable/src/replication.c#L3548
-                                if replicas_in_sync >= numreplicas {
-                                    // we can return immediately
-                                    info!(
-                                        "{} > {}, returning immediately.",
-                                        replicas_in_sync, numreplicas
-                                    );
-                                    let _ = respond_to.send(Some(vec![
-                                        (RespValue::Integer(replicas_in_sync as i64)),
-                                    ]));
-                                } else {
+                                // if replicas_in_sync >= numreplicas {
+                                //     // we can return immediately
+                                //     info!(
+                                //         "{} > {}, returning immediately.",
+                                //         replicas_in_sync, numreplicas
+                                //     );
+                                //     let _ = respond_to.send(Some(vec![
+                                //         (RespValue::Integer(replicas_in_sync as i64)),
+                                //     ]));
+                                // } else {
                                     // we need to wait for the replicas to be connected and in sync
                                     // but we won't wait more than timeout milliseconds.
                                     // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
@@ -674,7 +674,7 @@ impl ProcessorActor {
                                     let _ = respond_to.send(Some(vec![
                                         (RespValue::Integer(replicas_in_sync as i64)),
                                     ]));
-                                }
+                                // }
 
                                 Ok(())
                             }
