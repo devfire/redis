@@ -490,7 +490,7 @@ async fn handle_connection_to_master(
                                 // update the offset value in the replication actor.
                                 replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
 
-                                info!("Current offset: {} new offset: {}",current_offset,new_offset);
+                                info!("Current replica offset: {} new offset: {}",current_offset,new_offset);
 
                                 debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                                 // iterate over processed_value and send each one to the client
