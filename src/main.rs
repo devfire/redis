@@ -383,28 +383,6 @@ async fn handle_connection_from_clients(
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
                         tracing::info!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
-
-                        // we need to update master's offset because we are sending writeable commands to replicas
-                        if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
-                            // we need to convert the command to a RESP string to count the bytes.
-                            let value_as_string = msg.to_encoded_string()?;
-
-                            // calculate how many bytes are in the value_as_string
-                            let value_as_string_num_bytes = value_as_string.len() as i16;
-
-                            // extract the current offset value.
-                            let current_offset = current_replication_data.master_repl_offset;
-
-                            // update the offset value.
-                            let new_offset = current_offset + value_as_string_num_bytes;
-
-                            current_replication_data.master_repl_offset = new_offset;
-
-                            // update the offset value in the replication actor.
-                            replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
-
-                            info!("Current master offset: {} new offset: {}",current_offset,new_offset);
-                        }
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {

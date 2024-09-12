@@ -1,4 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
+use tracing::info;
 
 use crate::{
     actors::{
@@ -6,6 +7,7 @@ use crate::{
         replicator::ReplicatorActor,
     },
     protocol::ReplicationSectionData,
+    resp::value::RespValue,
 };
 
 #[derive(Clone, Debug)]
@@ -54,12 +56,7 @@ impl ReplicationActorHandle {
 
     /// Stores sections for redis INFO command, taking a key, value pair as input. Returns nothing.
     /// https://redis.io/commands/info/
-    pub async fn set_value(
-        &self,
-        // info_key: InfoCommandParameter,
-        host_id: HostId,
-        replication_value: ReplicationSectionData,
-    ) {
+    pub async fn set_value(&self, host_id: HostId, replication_value: ReplicationSectionData) {
         let msg = ReplicatorActorMessage::SetInfoValue {
             // info_key,
             host_id,
@@ -87,12 +84,46 @@ impl ReplicationActorHandle {
     }
 
     /// Resets the number of replicas that are in sync.
-    pub async fn reset_synced_replica_count(&self) {
-        let msg = ReplicatorActorMessage::ResetReplicaCount;
+    // pub async fn reset_synced_replica_count(&self) {
+    //     let msg = ReplicatorActorMessage::ResetReplicaCount;
 
-        // Ignore send errors. If this send fails, so does the
-        // recv.await below. There's no reason to check the
-        // failure twice.
-        let _ = self.sender.send(msg).await;
+    //     // Ignore send errors. If this send fails, so does the
+    //     // recv.await below. There's no reason to check the
+    //     // failure twice.
+    //     let _ = self.sender.send(msg).await;
+    // }
+
+    /// Update the replica's offset. Easier wrapper around set_value to avoid the whole
+    /// get current offset, encode value, update offset everywhere.
+    /// There's no ReplicatorActorMessage for this because it's just a wrapper.
+    pub async fn update_master_offset(&self, writeable_cmd: &RespValue) {
+        // // we need to update master's offset because we are sending writeable commands to replicas
+        if let Some(mut current_replication_data) = self.get_value(HostId::Myself).await {
+            // we need to convert the command to a RESP string to count the bytes.
+            let value_as_string = writeable_cmd
+                .to_encoded_string()
+                .expect("Failed to encode replicated command");
+
+            // calculate how many bytes are in the value_as_string
+            let value_as_string_num_bytes = value_as_string.len() as i16;
+
+            // extract the current offset value.
+            let current_offset = current_replication_data.master_repl_offset;
+
+            // update the offset value.
+            let new_offset = current_offset + value_as_string_num_bytes;
+
+            current_replication_data.master_repl_offset = new_offset;
+
+            // update the offset value in the replication actor.
+            self.set_value(HostId::Myself, current_replication_data).await;
+
+            info!(
+                "Current master offset: {} new offset: {}",
+                current_offset, new_offset
+            );
+        }
+        // This is a helper method, so it sends no messages but relies on set_value to serialize updates.
+        // let _ = self.sender.send(msg).await;
     }
 }

@@ -175,7 +175,12 @@ impl ProcessorActor {
                                     replica_tx.receiver_count()
                                 );
 
-                                let _active_client_count = replica_tx.send(request)?;
+                                let _active_client_count = replica_tx.send(request.clone())?;
+
+                                // update the replica
+                                replication_actor_handle
+                                    .update_master_offset(&request)
+                                    .await;
 
                                 tracing::info!(
                                     "Forwarding {:?} command to replicas.",
@@ -489,7 +494,7 @@ impl ProcessorActor {
                                             // update the offset value in the replication actor.
                                             replication_actor_handle
                                                 .set_value(
-                                                    host_id.clone(),
+                                                    host_id,
                                                     current_replication_data,
                                                 )
                                                 .await;
@@ -623,7 +628,7 @@ impl ProcessorActor {
 
                                 // get the replica count
                                 // let replicas_in_sync =
-                                    // replication_actor_handle.get_synced_replica_count().await;
+                                // replication_actor_handle.get_synced_replica_count().await;
 
                                 // info!("We have {} in sync replicas.", replicas_in_sync);
 
