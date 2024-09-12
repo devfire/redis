@@ -420,7 +420,7 @@ impl ProcessorActor {
                                                     .get_value(HostId::Myself)
                                                     .await
                                             {
-                                                tracing::debug!(
+                                                tracing::info!(
                                                     "Retrieving replication data {:?} for {:?}",
                                                     current_replication_data,
                                                     host_id
