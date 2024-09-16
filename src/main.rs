@@ -145,9 +145,17 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
+        for file in std::fs::read_dir(
+            cli.dir
+                .as_deref()
+                .expect("Should have listed a previously validated dir."),
+        )? {
+            println!("{} ", file?.path().display());
+        }
+
         ensure!(
             Path::new(&dbfilename).exists(),
-            "Dbfilename {} not found.",
+            "db {} not found.",
             dbfilename.to_string_lossy()
         );
 
