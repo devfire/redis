@@ -135,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
     if let Some(dir) = cli.dir.as_deref() {
         // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
         // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
-        ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
+        // ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
 
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
@@ -160,11 +160,11 @@ async fn main() -> anyhow::Result<()> {
             println!("{} ", file?.path().display());
         }
 
-        ensure!(
-            Path::new(&dbfilename).exists(),
-            "db {} not found.",
-            dbfilename.to_string_lossy()
-        );
+        // ensure!(
+        //     Path::new(&dbfilename).exists(),
+        //     "db {} not found.",
+        //     dbfilename.to_string_lossy()
+        // );
 
         config_command_actor_handle
             .set_value(
