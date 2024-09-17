@@ -135,13 +135,11 @@ async fn main() -> anyhow::Result<()> {
     if let Some(dir) = cli.dir.as_deref() {
         // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
         // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
-        // ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
+        ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
 
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
             .await;
-        // tracing::debug!("Config directory: {dir}");
-        // config_dir = dir.to_string();
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
@@ -152,6 +150,11 @@ async fn main() -> anyhow::Result<()> {
                 .expect("Should have listed a previously validated dir.")
         );
 
+        info!(
+            "Making sure {} exists.",
+            dbfilename.to_string_lossy().to_string()
+        );
+
         for file in std::fs::read_dir(
             cli.dir
                 .as_deref()
@@ -160,11 +163,11 @@ async fn main() -> anyhow::Result<()> {
             println!("{} ", file?.path().display());
         }
 
-        // ensure!(
-        //     Path::new(&dbfilename).exists(),
-        //     "db {} not found.",
-        //     dbfilename.to_string_lossy()
-        // );
+        ensure!(
+            Path::new(&dbfilename).exists(),
+            "db {} not found.",
+            dbfilename.to_string_lossy()
+        );
 
         config_command_actor_handle
             .set_value(
@@ -172,7 +175,7 @@ async fn main() -> anyhow::Result<()> {
                 &dbfilename.to_string_lossy(),
             )
             .await;
-        // debug!("Config db filename: {}", dbfilename.display());
+
         // let config_dbfilename = dbfilename.to_string_lossy().to_string();
 
         config_command_actor_handle
