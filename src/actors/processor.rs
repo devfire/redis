@@ -421,7 +421,7 @@ impl ProcessorActor {
                                                     .await
                                             {
                                                 info!(
-                                                    "Retrieving replication data {:?} for Myself",
+                                                    "REPLICA: retrieving replication data {:?}",
                                                     current_replication_data
                                                 );
 
@@ -440,14 +440,15 @@ impl ProcessorActor {
                                                     repl_conf_ack.to_encoded_string()?;
 
                                                 info!(
-                                                    "Returning {repl_conf_ack_encoded} from processor."
+                                                    "REPLICA: returning {:?} from processor to main.rs loop.",
+                                                    repl_conf_ack_encoded
                                                 );
 
                                                 // response.push(repl_conf_ack);
 
                                                 // send the current offset value back to the master
                                                 // NOTE: this does NOT go over the master_tx channel, which is only for replies TO the master.
-                                                // NOTE: this is the offset BEFORE the latest 
+                                                // NOTE: this is the offset BEFORE the latest
                                                 let _ = respond_to.send(Some(vec![repl_conf_ack]));
                                             } else {
                                                 error!(
