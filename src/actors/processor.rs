@@ -420,10 +420,9 @@ impl ProcessorActor {
                                                     .get_value(HostId::Myself)
                                                     .await
                                             {
-                                                tracing::debug!(
-                                                    "Retrieving replication data {:?} for {:?}",
-                                                    current_replication_data,
-                                                    host_id
+                                                info!(
+                                                    "Retrieving replication data {:?} for Myself",
+                                                    current_replication_data
                                                 );
 
                                                 // extract the current offset value.
@@ -440,15 +439,15 @@ impl ProcessorActor {
                                                 let repl_conf_ack_encoded =
                                                     repl_conf_ack.to_encoded_string()?;
 
-                                                tracing::debug!(
-                                                    "Sending REPLCONF ACK: {}",
-                                                    repl_conf_ack_encoded
+                                                info!(
+                                                    "Returning {repl_conf_ack_encoded} from processor."
                                                 );
 
                                                 // response.push(repl_conf_ack);
 
                                                 // send the current offset value back to the master
                                                 // NOTE: this does NOT go over the master_tx channel, which is only for replies TO the master.
+                                                // NOTE: this is the offset BEFORE the latest 
                                                 let _ = respond_to.send(Some(vec![repl_conf_ack]));
                                             } else {
                                                 error!(
@@ -548,7 +547,7 @@ impl ProcessorActor {
                                 // ignore the _replication_id for now. There are actually two of them:
                                 // https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#replication-id-explained
 
-                                tracing::info!("PSYNC: Getting replication data for {:?}", host_id);
+                                info!("PSYNC: Getting replication data for {:?}", host_id);
 
                                 // Let's get the current replication values.
                                 // let replication_data =
@@ -623,7 +622,7 @@ impl ProcessorActor {
 
                                 // get the replica count
                                 // let replicas_in_sync =
-                                    // replication_actor_handle.get_synced_replica_count().await;
+                                // replication_actor_handle.get_synced_replica_count().await;
 
                                 // info!("We have {} in sync replicas.", replicas_in_sync);
 

@@ -143,31 +143,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
-        info!(
-            "Listing files in {}.",
-            cli.dir
-                .as_deref()
-                .expect("Should have listed a previously validated dir.")
-        );
-
-        info!(
-            "Making sure {} exists.",
-            dbfilename.to_string_lossy().to_string()
-        );
-
-        for file in std::fs::read_dir(
-            cli.dir
-                .as_deref()
-                .expect("Should have listed a previously validated dir."),
-        )? {
-            println!("{} ", file?.path().display());
-        }
-
-        // ensure!(
-        //     Path::new(&dbfilename).exists(),
-        //     "db {} not found.",
-        //     dbfilename.to_string_lossy()
-        // );
 
         config_command_actor_handle
             .set_value(
@@ -497,6 +472,8 @@ async fn handle_connection_to_master(
                                 // calculate how many bytes are in the value_as_string
                                 let value_as_string_num_bytes = value_as_string.len() as i16;
 
+                                info!("REPLICA: request {value_as_string} has {value_as_string_num_bytes} bytes.");
+
                                 // extract the current offset value.
                                 let current_offset = current_replication_data.master_repl_offset;
 
@@ -508,7 +485,7 @@ async fn handle_connection_to_master(
                                 // update the offset value in the replication actor.
                                 replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
 
-                                info!("Current offset: {} new offset: {}",current_offset,new_offset);
+                                info!("REPLICA: current offset: {current_offset} new offset: {new_offset}");
 
                                 debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
                                 // iterate over processed_value and send each one to the client
@@ -517,12 +494,12 @@ async fn handle_connection_to_master(
                                 for value in processed_value.iter() {
                                     // check to see if processed_value contains REPLCONF in the encoded string
                                     if value.to_encoded_string()?.contains(strings_to_reply) {
-                                        info!("Sending response to master: {:?}", value.to_encoded_string()?);
+                                        // info!("Sending response to master: {:?}", value.to_encoded_string()?);
                                         let _ = writer.send(value.clone()).await?;
                                     }
                                 }
                             } else {
-                                error!("Unable to locate replica replication data");
+                                error!("Unable to locate replica replication data.");
                             }
 
 
