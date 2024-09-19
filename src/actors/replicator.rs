@@ -2,7 +2,6 @@ use crate::{actors::messages::ReplicatorActorMessage, protocol::ReplicationSecti
 
 use std::collections::HashMap;
 use tokio::sync::mpsc;
-use tracing::info;
 
 use super::messages::HostId;
 
