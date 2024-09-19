@@ -1,6 +1,7 @@
 use crate::{actors::messages::ReplicatorActorMessage, protocol::ReplicationSectionData};
 
 use std::collections::HashMap;
+
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -21,11 +22,7 @@ impl ReplicatorActor {
         // Initialize the key-value hash map.
         let mut kv_hash = HashMap::new();
 
-        let replication_data: ReplicationSectionData = ReplicationSectionData {
-            role: crate::protocol::ServerRole::Master,
-            master_replid: "".to_string(),
-            master_repl_offset: 0,
-        };
+        let replication_data: ReplicationSectionData = ReplicationSectionData::new();
 
         // initialize the offset to 0
         kv_hash.insert(HostId::Myself, replication_data);
