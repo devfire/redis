@@ -1,7 +1,6 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
 
-
 #[derive(Debug)]
 pub enum RedisCommand {
     Ping,
@@ -74,6 +73,16 @@ impl fmt::Display for ReplicationSectionData {
     }
 }
 
+impl ReplicationSectionData {
+    pub fn new() -> Self {
+        ReplicationSectionData {
+            role: ServerRole::Master,     // Default role is Master
+            master_replid: String::new(), // Empty string by default
+            master_repl_offset: 0,
+        }
+    }
+}
+
 // implement new for InfoSectionData
 // impl ReplicationSectionData {
 //     // Generates a random alphanumeric string of 40 characters to serve as a replication ID.
@@ -101,7 +110,7 @@ impl fmt::Display for ReplicationSectionData {
 //     //         // master_replid: The ID of the master instance
 //     //         master_replid: "".to_string(),
 //     //         // Each master also maintains a "replication offset" corresponding to how many bytes of commands
-//     //         // have been added to the replication stream. 
+//     //         // have been added to the replication stream.
 //     //         // This is tracked in replicator actor Hash PER REPLICA.
 //     //         master_repl_offset: 0,
 //     //     }

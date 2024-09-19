@@ -420,7 +420,7 @@ impl ProcessorActor {
                                                     .get_value(HostId::Myself)
                                                     .await
                                             {
-                                                info!(
+                                                debug!(
                                                     "REPLICA: retrieving replication data {:?}",
                                                     current_replication_data
                                                 );
@@ -597,7 +597,7 @@ impl ProcessorActor {
                                         .await
                                         .context("Unable to load RDB file into memory")?;
 
-                                    tracing::info!(
+                                    debug!(
                                         "Retrieved config file contents {:?}.",
                                         rdb_file_contents
                                     );
@@ -685,7 +685,7 @@ impl ProcessorActor {
                     }
                     RespValue::BulkString(_) => todo!(),
                     RespValue::Rdb(rdb) => {
-                        info!("Received RDB file: {:?}", rdb);
+                        debug!("Received RDB file: {:?}", rdb);
 
                         // Import it into the config actor
                         config_command_actor_handle

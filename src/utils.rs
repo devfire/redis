@@ -2,10 +2,10 @@
 
 // Key functions and their purposes:
 
-// expire_value: Handles delayed expiration of values based on specified EX or PX options. 
+// expire_value: Handles delayed expiration of values based on specified EX or PX options.
 // It schedules a task to delete the value after the specified duration.
 //
-// handshake: Manages the replication handshake process between a master and slave node. 
+// handshake: Manages the replication handshake process between a master and slave node.
 // It sends and receives necessary commands to establish the connection and synchronize replication data.
 //
 // generate_replication_id: Generates a random 40-character alphanumeric string to be used as a replication ID.
@@ -18,7 +18,6 @@
 // The code includes functions to handle different expiration options (EX, PX, EXAT, PXAT, KEEPTTL) but currently only implements the EX and PX options.
 // The handshake function sends commands to establish a replication connection, including PING, REPLCONF, and PSYNC.
 // The generate_replication_id function uses rand to generate a random string for the replication ID.
-
 
 use crate::{
     actors::messages::HostId,
@@ -179,14 +178,21 @@ pub async fn handshake(
     // let replication_id =
     // info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
 
-    let replication_data: ReplicationSectionData = ReplicationSectionData {
-        role: ServerRole::Slave,
-        master_replid: master_rx
-            .recv()
-            .await
-            .context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
-        master_repl_offset: 0,
-    };
+    // let replication_data: ReplicationSectionData = ReplicationSectionData {
+    //     role: ServerRole::Slave,
+    //     master_replid: master_rx
+    //         .recv()
+    //         .await
+    //         .context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
+    //     master_repl_offset: 0,
+    // };
+
+    let mut replication_data = ReplicationSectionData::new();
+    replication_data.role = ServerRole::Slave;
+    replication_data.master_replid = master_rx
+        .recv()
+        .await
+        .context("Failed to receive a reply from master after sending PSYNC ? -1.")?; // master will reply with its repl id
 
     replication_actor_handle
         .set_value(HostId::Myself, replication_data)

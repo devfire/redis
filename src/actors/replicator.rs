@@ -11,9 +11,6 @@ pub struct ReplicatorActor {
     // The receiver for incoming messages
     receiver: mpsc::Receiver<ReplicatorActorMessage>,
 
-    // The section-key-value hash map for storing data.
-    // There are multiple sections, each has multiple keys, each key with one value.
-    // Hash<ServerIP:Port,Offset> for example.
     // Note the special value of HostId::Myself that stores server's own data.
     kv_hash: HashMap<HostId, ReplicationSectionData>,
 }
@@ -22,7 +19,16 @@ impl ReplicatorActor {
     // Constructor for the actor
     pub fn new(receiver: mpsc::Receiver<ReplicatorActorMessage>) -> Self {
         // Initialize the key-value hash map.
-        let kv_hash = HashMap::new();
+        let mut kv_hash = HashMap::new();
+
+        let replication_data: ReplicationSectionData = ReplicationSectionData {
+            role: crate::protocol::ServerRole::Master,
+            master_replid: "".to_string(),
+            master_repl_offset: 0,
+        };
+
+        // initialize the offset to 0
+        kv_hash.insert(HostId::Myself, replication_data);
 
         // Return a new actor with the given receiver and an empty key-value hash map
         Self { receiver, kv_hash }
