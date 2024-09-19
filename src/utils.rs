@@ -187,17 +187,21 @@ pub async fn handshake(
     //     master_repl_offset: 0,
     // };
 
-    let mut replication_data = ReplicationSectionData::new();
-    replication_data.role = ServerRole::Slave;
-    replication_data.master_replid = master_rx
-        .recv()
-        .await
-        .context("Failed to receive a reply from master after sending PSYNC ? -1.")?; // master will reply with its repl id
+    if let Some(mut replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
+        info!(
+            "Replication settings during handshake: {}",
+            replication_data
+        );
+        replication_data.role = ServerRole::Slave;
+        replication_data.master_replid = master_rx
+            .recv()
+            .await
+            .context("Failed to receive a reply from master after sending PSYNC ? -1.")?; // master will reply with its repl id
 
-    replication_actor_handle
-        .set_value(HostId::Myself, replication_data)
-        .await;
-
+        replication_actor_handle
+            .set_value(HostId::Myself, replication_data)
+            .await;
+    }
     // We are done with the handshake!
     info!("Handshake completed.");
 
