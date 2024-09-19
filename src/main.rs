@@ -143,7 +143,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
-
         config_command_actor_handle
             .set_value(
                 ConfigCommandParameter::DbFilename,
@@ -314,7 +313,7 @@ async fn handle_connection_from_clients(
         ip: client_ip,
         port: client_port,
     };
-    tracing::info!("Handling connection from {:?}", host_id);
+    info!("Handling connection from {:?}", host_id);
 
     let mut replica_rx = replica_tx.subscribe();
 
@@ -472,7 +471,7 @@ async fn handle_connection_to_master(
                                 // calculate how many bytes are in the value_as_string
                                 let value_as_string_num_bytes = value_as_string.len() as i16;
 
-                                info!("REPLICA: request {value_as_string} has {value_as_string_num_bytes} bytes.");
+                                info!("REPLICA: {:?} has {value_as_string_num_bytes} bytes.", value_as_string);
 
                                 // extract the current offset value.
                                 let current_offset = current_replication_data.master_repl_offset;

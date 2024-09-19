@@ -142,7 +142,7 @@ pub async fn handshake(
         .recv()
         .await
         .context("Failed to receive a reply from master after sending PING.")?;
-    info!("HANDSHAKE PING: master replied to ping {:?}", reply);
+    debug!("HANDSHAKE PING: master replied to ping {:?}", reply);
 
     // send the REPLCONF listening-port <PORT>
     tcp_msgs_tx.send(replconf_listening_port).await?;
@@ -150,7 +150,7 @@ pub async fn handshake(
     let reply = master_rx.recv().await.context(
         "Failed to receive a reply from master after sending REPLCONF listening-port <PORT>.",
     )?;
-    info!(
+    debug!(
         "HANDSHAKE REPLCONF listening-port <PORT>: master replied {:?}",
         reply
     );
@@ -162,7 +162,7 @@ pub async fn handshake(
         .recv()
         .await
         .context("Failed to receive a reply from master after sending REPLCONF capa psync2.")?;
-    info!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
+    debug!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
 
     // send the PSYNC ? -1
     /*
@@ -193,7 +193,7 @@ pub async fn handshake(
         .await;
 
     // We are done with the handshake!
-    tracing::info!("Handshake completed.");
+    info!("Handshake completed.");
 
     Ok(())
 
