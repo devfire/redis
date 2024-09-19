@@ -21,11 +21,7 @@ impl ReplicatorActor {
         // Initialize the key-value hash map.
         let mut kv_hash = HashMap::new();
 
-        let replication_data: ReplicationSectionData = ReplicationSectionData {
-            role: crate::protocol::ServerRole::Master,
-            master_replid: "".to_string(),
-            master_repl_offset: 0,
-        };
+        let replication_data: ReplicationSectionData = ReplicationSectionData::new();
 
         // initialize the offset to 0
         kv_hash.insert(HostId::Myself, replication_data);
@@ -88,21 +84,21 @@ impl ReplicatorActor {
                     .expect("Something is wrong, expected to find master offset.")
                     .master_repl_offset;
 
-                let mut replica_count = 0;
-                for (key, value) in &self.kv_hash {
-                    if key.clone() != HostId::Myself && value.master_repl_offset == master_offset {
-                        replica_count += 1;
-                    }
-                    info!("Host: {:?}, Value: {:?}", key, value);
-                }
+                // let mut replica_count = 0;
+                // for (key, value) in &self.kv_hash {
+                //     if key.clone() != HostId::Myself && value.master_repl_offset == master_offset {
+                //         replica_count += 1;
+                //     }
+                //     info!("Host: {:?}, Value: {:?}", key, value);
+                // }
 
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
-                // let replica_count = self
-                //     .kv_hash
-                //     .iter()
-                //     .filter(|(k, v)| v.master_repl_offset == master_offset && **k != HostId::Myself)
-                //     .count();
+                let replica_count = self
+                    .kv_hash
+                    .iter()
+                    .filter(|(k, v)| v.master_repl_offset == master_offset && **k != HostId::Myself)
+                    .count();
                 // for kv in self.kv_hash.iter(){
                 //     if *kv.0 != HostId::Myself && kv.1.master_repl_offset == master_offset{
 

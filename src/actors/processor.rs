@@ -622,10 +622,10 @@ impl ProcessorActor {
                                 // let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 // get the replica count
-                                // let replicas_in_sync =
-                                // replication_actor_handle.get_synced_replica_count().await;
+                                let replicas_in_sync =
+                                    replication_actor_handle.get_synced_replica_count().await;
 
-                                // info!("We have {} in sync replicas.", replicas_in_sync);
+                                info!("We have {replicas_in_sync} in sync replicas.");
 
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/
