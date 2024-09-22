@@ -73,7 +73,7 @@ impl ReplicationActorHandle {
         replication_value: ReplicationSectionData,
     ) {
         info!(
-            "Setting REPLICATION key: {:?}, value: {}",
+            "HANDLER: Setting REPLICATION key: {:?}, value: {}",
             host_id, replication_value
         );
         let msg = ReplicatorActorMessage::UpdateReplicationValue {

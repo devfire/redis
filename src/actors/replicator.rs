@@ -82,9 +82,28 @@ impl ReplicatorActor {
                 if let Some(offset_increment) = replication_value.master_repl_offset {
                     info!("Increasing offset by {offset_increment}");
                     self.kv_hash
-                        .entry(host_id)
+                        .entry(host_id.clone())
                         .and_modify(|replication_section_data| {
                             replication_section_data.increment_offset(offset_increment);
+                        });
+                }
+
+                if let Some(replid) = replication_value.master_replid {
+                    info!("Setting replid {replid}");
+                    self.kv_hash
+                        .entry(host_id.clone())
+                        .and_modify(|replication_section_data| {
+                            replication_section_data.master_replid = Some(replid);
+                        });
+                }
+
+
+                if let Some(role) = replication_value.role {
+                    info!("Setting role {role}");
+                    self.kv_hash
+                        .entry(host_id)
+                        .and_modify(|replication_section_data| {
+                            replication_section_data.role = Some(role);
                         });
                 }
 

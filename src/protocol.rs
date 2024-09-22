@@ -61,7 +61,9 @@ pub struct ReplicationSectionData {
     // Sub-replicas instead will always receive the replication stream identical
     // to the one sent by the top-level master to the intermediate replicas.
     //
-    // NOTE: these are all Option to enable updates to individual fields
+    // NOTE: these are all Option to enable updates to individual fields. Because actors serialize updates from multiple
+    // simultaenous threads, we need a way to enable updates to individual struct members without get-update-push cycle,
+    // which risks race conditions in cases of multiple threads trying to update the same value at the same time.
     pub role: Option<ServerRole>,
     pub master_replid: Option<String>,
     pub master_repl_offset: Option<i16>, // cannot be u16 because initial offset is -1
@@ -104,6 +106,8 @@ impl ReplicationSectionData {
         if let Some(current_offset) = self.master_repl_offset {
             let new_offset = current_offset + offset_increment;
             self.master_repl_offset = Some(new_offset);
+        } else {
+            self.master_repl_offset = Some(offset_increment);
         }
     }
 
