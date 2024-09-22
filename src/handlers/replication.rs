@@ -25,14 +25,14 @@ impl ReplicationActorHandle {
     }
 
     /// Gets sections from INFO REPLICATION command, taking a key as input and returning a value.
-    /// https://redis.io/commands/info/
+    /// https://redis.io/commands/replication/
     pub async fn get_value(
         &self,
         host_id: HostId, //hostIP:port combo
     ) -> Option<ReplicationSectionData> {
         tracing::debug!("Getting info value for key: {:?}", host_id);
         let (send, recv) = oneshot::channel();
-        let msg = ReplicatorActorMessage::GetInfoValue {
+        let msg = ReplicatorActorMessage::GetReplicationValue {
             // info_key,
             host_id,
             respond_to: send,
@@ -52,15 +52,22 @@ impl ReplicationActorHandle {
         }
     }
 
-    /// Stores sections for redis INFO command, taking a key, value pair as input. Returns nothing.
-    /// https://redis.io/commands/info/
-    pub async fn set_value(
+    /// Resets the master's current replica tracked offset to 0.
+    pub async fn reset_replica_offset(&self, host_id: HostId) {
+        let msg = ReplicatorActorMessage::ResetReplicaOffset { host_id };
+        // Ignore send errors.
+        let _ = self.sender.send(msg).await.expect("Should have reset the replication value.");
+    }
+
+    /// Updates sections for redis REPLICATION command, taking a key, value pair as input. Returns nothing.
+    /// https://redis.io/commands/replication/
+    pub async fn update_value(
         &self,
         // info_key: InfoCommandParameter,
         host_id: HostId,
         replication_value: ReplicationSectionData,
     ) {
-        let msg = ReplicatorActorMessage::SetInfoValue {
+        let msg = ReplicatorActorMessage::UpdateReplicationValue {
             // info_key,
             host_id,
             replication_value,
