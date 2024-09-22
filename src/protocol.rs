@@ -70,19 +70,19 @@ pub struct ReplicationSectionData {
 impl fmt::Display for ReplicationSectionData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(my_role) = &self.role {
-            write!(f, "role:{}:", my_role)?;
+            write!(f, "role:{}:", *my_role)?;
         } else {
-            writeln!(f, "Role: Not set")?;
+            write!(f, "Role: Not set")?;
         }
 
         if let Some(replid) = &self.master_replid {
-            write!(f, "master_replid:{}:", replid)?;
+            write!(f, "master_replid:{}:", *replid)?;
         } else {
             writeln!(f, "Master Replication ID: Not set")?;
         }
 
         if let Some(my_offset) = &self.master_repl_offset {
-            write!(f, "master_repl_offset:{}:", my_offset)?;
+            write!(f, "master_repl_offset:{}:", *my_offset)?;
         } else {
             writeln!(f, "Master Replication Offset: Not set")?;
         }

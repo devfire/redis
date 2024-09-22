@@ -171,6 +171,14 @@ async fn main() -> anyhow::Result<()> {
         .update_value(HostId::Myself, replication_data)
         .await;
 
+    info!(
+        "Just set the value: {}",
+        replication_actor_handle
+            .get_value(HostId::Myself)
+            .await
+            .expect("Should have found the self value.")
+    );
+
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
         let master_host_port_combo = replica.replace(" ", ":");
