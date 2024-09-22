@@ -31,7 +31,7 @@ impl ReplicationActorHandle {
         &self,
         host_id: HostId, //hostIP:port combo
     ) -> Option<ReplicationSectionData> {
-        tracing::debug!("Getting info value for key: {:?}", host_id);
+        info!("Getting info value for key: {:?}", host_id);
         let (send, recv) = oneshot::channel();
         let msg = ReplicatorActorMessage::GetReplicationValue {
             // info_key,

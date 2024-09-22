@@ -61,6 +61,7 @@ impl ReplicatorActor {
                 // If the key exists in the hash map, send the value back
 
                 if let Some(value) = self.kv_hash.get(&host_id) {
+                    info!("For {:?} retrieved {value}", host_id);
                     let _ = respond_to.send(Some(value.clone()));
                 } else {
                     let _ = respond_to.send(None);
