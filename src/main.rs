@@ -1,13 +1,12 @@
 use crate::resp::value::RespValue;
 
 use actors::messages::HostId;
-use anyhow::{ensure, Result};
+use anyhow::Result;
 
 use clap::Parser;
 
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
-use std::path::Path;
 use utils::{expire_value, generate_replication_id, handshake};
 // use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
