@@ -362,7 +362,7 @@ impl ProcessorActor {
                                     let replication_data =
                                         replication_actor_handle.get_value(HostId::Myself).await;
 
-                                    tracing::debug!(
+                                    tracing::info!(
                                         "Retrieved INFO RespValue: {:?}",
                                         replication_data
                                     );
