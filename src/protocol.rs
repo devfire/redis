@@ -60,26 +60,66 @@ pub struct ReplicationSectionData {
     // and are not propagated to sub-replicas attached to the instance.
     // Sub-replicas instead will always receive the replication stream identical
     // to the one sent by the top-level master to the intermediate replicas.
-    pub role: ServerRole,
-    pub master_replid: String,
-    pub master_repl_offset: i16, // cannot be u16 because initial offset is -1
+    //
+    // NOTE: these are all Option to enable updates to individual fields
+    pub role: Option<ServerRole>,
+    pub master_replid: Option<String>,
+    pub master_repl_offset: Option<i16>, // cannot be u16 because initial offset is -1
 }
 
 impl fmt::Display for ReplicationSectionData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "role:{}:", &self.role)?;
-        write!(f, "master_replid:{}:", &self.master_replid)?;
-        write!(f, "master_repl_offset:{}:", &self.master_repl_offset)
+        writeln!(f, "Replication Section Data:")?;
+
+        if let Some(role) = &self.role {
+            writeln!(
+                f,
+                "  Role: {}",
+                match role {
+                    ServerRole::Master => "Master",
+                    ServerRole::Slave => "Slave",
+                }
+            )?;
+        } else {
+            writeln!(f, "  Role: Not set")?;
+        }
+
+        if let Some(replid) = &self.master_replid {
+            writeln!(f, "  Master Replication ID: {}", replid)?;
+        } else {
+            writeln!(f, "  Master Replication ID: Not set")?;
+        }
+
+        if let Some(offset) = &self.master_repl_offset {
+            writeln!(f, "  Master Replication Offset: {}", offset)?;
+        } else {
+            writeln!(f, "  Master Replication Offset: Not set")?;
+        }
+
+        Ok(())
     }
 }
 
 impl ReplicationSectionData {
     pub fn new() -> Self {
         ReplicationSectionData {
-            role: ServerRole::Master,     // Default role is Master
-            master_replid: String::new(), // Empty string by default
-            master_repl_offset: 0,
+            role: None,          // Default role is Master
+            master_replid: None, // Empty string by default
+            master_repl_offset: None,
         }
+    }
+
+    pub fn increment_offset(&mut self, offset_increment: i16) {
+        if let Some(current_offset) = self.master_repl_offset {
+            let new_offset = current_offset + offset_increment;
+            self.master_repl_offset = Some(new_offset);
+        }
+    }
+
+    /// This is used when the master receives a REPLCONF ACK N from a replica.
+    /// When that happens, the old value must be erased and the new value added.
+    pub fn reset_replica_offset(&mut self) {
+        self.master_repl_offset = Some(0);
     }
 }
 

@@ -174,34 +174,23 @@ pub async fn handshake(
     */
     tcp_msgs_tx.send(psync).await?;
 
-    // wait for a reply from the master before proceeding
-    // let replication_id =
-    // info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
+    // NOTE: offset is set to None which is OK we are not going to update it.
+    // Reason is, some other thread may have updated the offset already, so we need to preserve it.
+    let replication_data: ReplicationSectionData = ReplicationSectionData {
+        role: Some(ServerRole::Slave),
+        master_replid: Some(
+            master_rx
+                .recv()
+                .await
+                .context("Failed to receive a reply from master after sending PSYNC ? -1.")?,
+        ), // master will reply with its repl id
+        master_repl_offset: None,
+    };
 
-    // let replication_data: ReplicationSectionData = ReplicationSectionData {
-    //     role: ServerRole::Slave,
-    //     master_replid: master_rx
-    //         .recv()
-    //         .await
-    //         .context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
-    //     master_repl_offset: 0,
-    // };
+    replication_actor_handle
+        .update_value(HostId::Myself, replication_data)
+        .await;
 
-    if let Some(mut replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
-        info!(
-            "Replication settings during handshake: {}",
-            replication_data
-        );
-        replication_data.role = ServerRole::Slave;
-        replication_data.master_replid = master_rx
-            .recv()
-            .await
-            .context("Failed to receive a reply from master after sending PSYNC ? -1.")?; // master will reply with its repl id
-
-        replication_actor_handle
-            .set_value(HostId::Myself, replication_data)
-            .await;
-    }
     // We are done with the handshake!
     info!("Handshake completed.");
 
