@@ -158,11 +158,6 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx.clone(), // need to pass this to unlock expirations on config file load
             )
             .await;
-
-        // debug!(
-        //     "Config db dir: {} filename: {}",
-        //     config_dir, config_dbfilename
-        // );
     }
 
     // initialize to being a master, override if we are a replica.

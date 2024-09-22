@@ -356,7 +356,7 @@ impl ProcessorActor {
                                 // we may or may not get a value for the INFO command.
 
                                 // first, let's see if this INFO section exists.
-                                // For now, we are assuming it's a Replication query but there may be others.
+                                // For now, we are assuming it's a INFO REPLICATION query cmd but there may be others.
                                 if let Some(_param) = info_parameter {
                                     // TODO: match on param
                                     let replication_data =
