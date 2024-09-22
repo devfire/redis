@@ -1,4 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
+use tracing::info;
 
 use crate::{
     actors::{
@@ -56,7 +57,11 @@ impl ReplicationActorHandle {
     pub async fn reset_replica_offset(&self, host_id: HostId) {
         let msg = ReplicatorActorMessage::ResetReplicaOffset { host_id };
         // Ignore send errors.
-        let _ = self.sender.send(msg).await.expect("Should have reset the replication value.");
+        let _ = self
+            .sender
+            .send(msg)
+            .await
+            .expect("Should have reset the replication value.");
     }
 
     /// Updates sections for redis REPLICATION command, taking a key, value pair as input. Returns nothing.
@@ -67,13 +72,16 @@ impl ReplicationActorHandle {
         host_id: HostId,
         replication_value: ReplicationSectionData,
     ) {
+        info!(
+            "Setting REPLICATION key: {:?}, value: {}",
+            host_id, replication_value
+        );
         let msg = ReplicatorActorMessage::UpdateReplicationValue {
             // info_key,
             host_id,
             replication_value,
         };
 
-        // debug!("Setting INFO key: {:?}, value: {}", info_key.clone(), info_value);
         // Ignore send errors.
         let _ = self.sender.send(msg).await.expect("Failed to set value.");
     }
