@@ -1,7 +1,9 @@
+use std::path::Path;
+
 use crate::resp::value::RespValue;
 
 use actors::messages::HostId;
-use anyhow::Result;
+use anyhow::{ensure, Result};
 
 use clap::Parser;
 
@@ -62,21 +64,6 @@ async fn main() -> anyhow::Result<()> {
         .with(filter)
         .init();
 
-    // Set the subscriber as the default for the application
-    // subscriber.init();
-
-    // construct a subscriber that prints formatted traces to stdout
-    // let subscriber = tracing_subscriber::FmtSubscriber::new();
-    // use that subscriber to process traces emitted after this point
-    // tracing::subscriber::set_global_default(subscriber)?;
-
-    // Setup the logging framework
-    // let env = Env::default()
-    //     .filter_or("LOG_LEVEL", "info")
-    //     .write_style_or("LOG_STYLE", "always");
-
-    // env_logger::init_from_env(env);
-
     let cli = Cli::parse();
 
     // let ip_listen = "0.0.0.0".to_string();
@@ -99,8 +86,6 @@ async fn main() -> anyhow::Result<()> {
 
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
-
-    // let mut config_dir: String = "".to_string();
 
     // Create a multi-producer, single-consumer channel to send expiration messages.
     // The channel capacity is set to 9600.
@@ -134,7 +119,9 @@ async fn main() -> anyhow::Result<()> {
     if let Some(dir) = cli.dir.as_deref() {
         // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
         // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
-        // ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
+        // NOTE: we cannot use ensure! because this exits; instead we need to create the file if it
+        // doesn't exist.
+        ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
 
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)

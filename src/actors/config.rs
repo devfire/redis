@@ -8,7 +8,7 @@ use anyhow::{anyhow, ensure, Context};
 use futures::StreamExt;
 use tracing::{debug, error, info};
 // use resp::Value;
-use tokio::fs::File;
+use tokio::{fs::File, io::AsyncWriteExt};
 use tokio::{io::AsyncReadExt, sync::mpsc};
 
 use tokio_util::codec::FramedRead;
@@ -154,9 +154,20 @@ impl ConfigCommandActor {
 
                         // check to see if the file exists.
                         if !Path::new(&fullpath).exists() {
-                            tracing::error!("Config file does not exist, proceeding without load.");
+                            tracing::warn!("Config file does not exist, creating one.");
 
-                            // normally this would be an error but here we are treating a missing file as an empty db
+                            // create an empty file
+                            let _ = File::create(&fullpath).await;
+
+                            // this is the hex string to initialize the db with.
+                            let init_string = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2".to_string();
+
+                            // now we write the hex string to the file.
+                            let mut file = File::create(&fullpath).await?;
+                            file.write_all(init_string.as_bytes()).await?;
+
+                            // normally this would be an error but here we are creating a missing file
+                            // as an empty db, so we are good.
                             Ok(())
                         } else {
                             // check to see if the file exists.
