@@ -1,6 +1,10 @@
-use crate::{actors::messages::ReplicatorActorMessage, protocol::ReplicationSectionData};
+use crate::{
+    actors::messages::ReplicatorActorMessage,
+    protocol::ReplicationSectionData,
+};
 
 use std::collections::HashMap;
+
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -11,9 +15,6 @@ pub struct ReplicatorActor {
     // The receiver for incoming messages
     receiver: mpsc::Receiver<ReplicatorActorMessage>,
 
-    // The section-key-value hash map for storing data.
-    // There are multiple sections, each has multiple keys, each key with one value.
-    // Hash<ServerIP:Port,Offset> for example.
     // Note the special value of HostId::Myself that stores server's own data.
     kv_hash: HashMap<HostId, ReplicationSectionData>,
 }
@@ -22,7 +23,16 @@ impl ReplicatorActor {
     // Constructor for the actor
     pub fn new(receiver: mpsc::Receiver<ReplicatorActorMessage>) -> Self {
         // Initialize the key-value hash map.
-        let kv_hash = HashMap::new();
+        let mut kv_hash = HashMap::new();
+
+        let replication_data: ReplicationSectionData = ReplicationSectionData {
+            role: None,
+            master_replid: None,
+            master_repl_offset: Some(0),
+        };
+
+        // initialize the offset to 0
+        kv_hash.insert(HostId::Myself, replication_data);
 
         // Return a new actor with the given receiver and an empty key-value hash map
         Self { receiver, kv_hash }
@@ -43,7 +53,7 @@ impl ReplicatorActor {
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
-            ReplicatorActorMessage::GetInfoValue {
+            ReplicatorActorMessage::GetReplicationValue {
                 // info_key,
                 host_id,
                 respond_to,
@@ -51,6 +61,7 @@ impl ReplicatorActor {
                 // If the key exists in the hash map, send the value back
 
                 if let Some(value) = self.kv_hash.get(&host_id) {
+                    info!("For {:?} retrieved {value}", host_id);
                     let _ = respond_to.send(Some(value.clone()));
                 } else {
                     let _ = respond_to.send(None);
@@ -59,21 +70,46 @@ impl ReplicatorActor {
                 // If the key exists in the hash map, send the value back
                 // debug!("Processing {:?}", msg);
             }
-            ReplicatorActorMessage::SetInfoValue {
+            // This updates the values in place.
+            // Allows for partial update of either replID or offset or role.
+            // Avoids the messy get-change-update loop causing race conditions.
+            ReplicatorActorMessage::UpdateReplicationValue {
                 host_id,
-                replication_value: info_value,
+                replication_value,
             } =>
-            // Insert the key-value pair into the hash map
+            // Updating the key-value pair in place
             {
-                // this is a temp var to store the Hash
-                // let mut server_replication_data = HashMap::new();
-                // server_replication_data.insert(host_id, info_value);
-                self.kv_hash.insert(host_id, info_value);
+                if let Some(offset_increment) = replication_value.master_repl_offset {
+                    info!("Increasing offset by {offset_increment}");
+                    self.kv_hash
+                        .entry(host_id.clone())
+                        .and_modify(|replication_section_data| {
+                            replication_section_data.increment_offset(offset_increment);
+                        });
+                }
+
+                if let Some(replid) = replication_value.master_replid {
+                    info!("Setting replid {replid}");
+                    self.kv_hash
+                        .entry(host_id.clone())
+                        .and_modify(|replication_section_data| {
+                            replication_section_data.master_replid = Some(replid);
+                        });
+                }
+
+
+                if let Some(role) = replication_value.role {
+                    info!("Setting role {role}");
+                    self.kv_hash
+                        .entry(host_id)
+                        .and_modify(|replication_section_data| {
+                            replication_section_data.role = Some(role);
+                        });
+                }
+
+                // self.kv_hash.insert(host_id, replication_value);
             }
             ReplicatorActorMessage::GetReplicaCount { respond_to } => {
-                // we need to -1 because Host::Myself doesn't count, and
-                // we need to return 0 if there are no replicas to avoid returning 0-1=-1
-
                 // first, let's get the master offset. It's ok to panic here because this should never fail.
                 // if it were to fail, we can't proceed anyway.
                 let master_offset = self
@@ -82,31 +118,24 @@ impl ReplicatorActor {
                     .expect("Something is wrong, expected to find master offset.")
                     .master_repl_offset;
 
-                let mut replica_count = 0;
-                for (key, value) in &self.kv_hash {
-                    if key.clone() != HostId::Myself && value.master_repl_offset == master_offset {
-                        replica_count += 1;
-                    }
-                    info!("Host: {:?}, Value: {:?}", key, value);
-                }
-
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
-                // let replica_count = self
-                //     .kv_hash
-                //     .iter()
-                //     .filter(|(k, v)| v.master_repl_offset == master_offset && **k != HostId::Myself)
-                //     .count();
-                // for kv in self.kv_hash.iter(){
-                //     if *kv.0 != HostId::Myself && kv.1.master_repl_offset == master_offset{
-
-                //     }
-                // }
+                let replica_count = self
+                    .kv_hash
+                    .iter()
+                    .filter(|(k, v)| v.master_repl_offset == master_offset && **k != HostId::Myself)
+                    .count();
 
                 let _ = respond_to.send(replica_count);
             }
-            ReplicatorActorMessage::ResetReplicaCount => {
-                self.kv_hash.retain(|k, _| *k == HostId::Myself);
+            ReplicatorActorMessage::ResetReplicaOffset {
+                host_id,
+            } => {
+                self.kv_hash
+                    .entry(host_id)
+                    .and_modify(|replication_section_data| {
+                        replication_section_data.reset_replica_offset();
+                    });
             }
         }
     }

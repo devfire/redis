@@ -2,10 +2,10 @@
 
 // Key functions and their purposes:
 
-// expire_value: Handles delayed expiration of values based on specified EX or PX options. 
+// expire_value: Handles delayed expiration of values based on specified EX or PX options.
 // It schedules a task to delete the value after the specified duration.
 //
-// handshake: Manages the replication handshake process between a master and slave node. 
+// handshake: Manages the replication handshake process between a master and slave node.
 // It sends and receives necessary commands to establish the connection and synchronize replication data.
 //
 // generate_replication_id: Generates a random 40-character alphanumeric string to be used as a replication ID.
@@ -18,7 +18,6 @@
 // The code includes functions to handle different expiration options (EX, PX, EXAT, PXAT, KEEPTTL) but currently only implements the EX and PX options.
 // The handshake function sends commands to establish a replication connection, including PING, REPLCONF, and PSYNC.
 // The generate_replication_id function uses rand to generate a random string for the replication ID.
-
 
 use crate::{
     actors::messages::HostId,
@@ -142,7 +141,7 @@ pub async fn handshake(
         .recv()
         .await
         .context("Failed to receive a reply from master after sending PING.")?;
-    info!("HANDSHAKE PING: master replied to ping {:?}", reply);
+    debug!("HANDSHAKE PING: master replied to ping {:?}", reply);
 
     // send the REPLCONF listening-port <PORT>
     tcp_msgs_tx.send(replconf_listening_port).await?;
@@ -150,7 +149,7 @@ pub async fn handshake(
     let reply = master_rx.recv().await.context(
         "Failed to receive a reply from master after sending REPLCONF listening-port <PORT>.",
     )?;
-    info!(
+    debug!(
         "HANDSHAKE REPLCONF listening-port <PORT>: master replied {:?}",
         reply
     );
@@ -162,7 +161,7 @@ pub async fn handshake(
         .recv()
         .await
         .context("Failed to receive a reply from master after sending REPLCONF capa psync2.")?;
-    info!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
+    debug!("HANDSHAKE REPLCONF capa psync2: master replied {:?}", reply);
 
     // send the PSYNC ? -1
     /*
@@ -175,25 +174,25 @@ pub async fn handshake(
     */
     tcp_msgs_tx.send(psync).await?;
 
-    // wait for a reply from the master before proceeding
-    // let replication_id =
-    // info!("HANDSHAKE PSYNC ? -1: master replied {:?}", replication_id);
-
+    // NOTE: offset is set to None which is OK we are not going to update it.
+    // Reason is, some other thread may have updated the offset already, so we need to preserve it.
     let replication_data: ReplicationSectionData = ReplicationSectionData {
-        role: ServerRole::Slave,
-        master_replid: master_rx
-            .recv()
-            .await
-            .context("Failed to receive a reply from master after sending PSYNC ? -1.")?, // master will reply with its repl id
-        master_repl_offset: 0,
+        role: Some(ServerRole::Slave),
+        master_replid: Some(
+            master_rx
+                .recv()
+                .await
+                .context("Failed to receive a reply from master after sending PSYNC ? -1.")?,
+        ), // master will reply with its repl id
+        master_repl_offset: None,
     };
 
     replication_actor_handle
-        .set_value(HostId::Myself, replication_data)
+        .update_value(HostId::Myself, replication_data)
         .await;
 
     // We are done with the handshake!
-    tracing::info!("Handshake completed.");
+    info!("Handshake completed.");
 
     Ok(())
 

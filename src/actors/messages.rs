@@ -73,13 +73,13 @@ pub enum ReplicatorActorMessage {
     //
     // Info values are 2 dimensional:
     // Example: Replication -> role -> master.
-    GetInfoValue {
+    GetReplicationValue {
         // info_key: InfoCommandParameter, // defined in protocol.rs
         host_id: HostId, // this is HOSTIP:PORT format
         respond_to: oneshot::Sender<Option<ReplicationSectionData>>,
     },
 
-    SetInfoValue {
+    UpdateReplicationValue {
         // info_key: InfoCommandParameter, // defined in protocol.rs
         host_id: HostId,
         replication_value: ReplicationSectionData,
@@ -88,7 +88,10 @@ pub enum ReplicatorActorMessage {
         respond_to: oneshot::Sender<usize>, // total number of connected, synced up replicas
     },
 
-    ResetReplicaCount, // used to zero out the in sync replica count after WAIT
+    ResetReplicaOffset {
+        host_id: HostId,
+    },
+
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
