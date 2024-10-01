@@ -173,12 +173,7 @@ impl ProcessorActor {
                                     replica_tx.receiver_count()
                                 );
 
-                                let _active_client_count = replica_tx.send(request.clone())?;
-
-                                // update the replica
-                                replication_actor_handle
-                                    .update_master_offset(&request)
-                                    .await;
+                                let _active_client_count = replica_tx.send(request)?;
 
                                 tracing::info!(
                                     "Forwarding {:?} command to replicas.",

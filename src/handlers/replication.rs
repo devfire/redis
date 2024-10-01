@@ -7,7 +7,6 @@ use crate::{
         replicator::ReplicatorActor,
     },
     protocol::ReplicationSectionData,
-    resp::value::RespValue,
 };
 
 #[derive(Clone, Debug)]
