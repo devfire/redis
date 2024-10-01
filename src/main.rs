@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::resp::value::RespValue;
 
 use actors::messages::HostId;
@@ -7,14 +9,13 @@ use clap::Parser;
 
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
-use std::path::Path;
 use utils::{expire_value, generate_replication_id, handshake};
 // use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 use tracing::level_filters::LevelFilter;
 
 use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
-use tracing::{debug, error, info};
+use tracing::{error, info};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};
@@ -63,21 +64,6 @@ async fn main() -> anyhow::Result<()> {
         .with(filter)
         .init();
 
-    // Set the subscriber as the default for the application
-    // subscriber.init();
-
-    // construct a subscriber that prints formatted traces to stdout
-    // let subscriber = tracing_subscriber::FmtSubscriber::new();
-    // use that subscriber to process traces emitted after this point
-    // tracing::subscriber::set_global_default(subscriber)?;
-
-    // Setup the logging framework
-    // let env = Env::default()
-    //     .filter_or("LOG_LEVEL", "info")
-    //     .write_style_or("LOG_STYLE", "always");
-
-    // env_logger::init_from_env(env);
-
     let cli = Cli::parse();
 
     // let ip_listen = "0.0.0.0".to_string();
@@ -100,8 +86,6 @@ async fn main() -> anyhow::Result<()> {
 
     // this is where decoded resp values are sent for processing
     let request_processor_actor_handle = RequestProcessorActorHandle::new();
-
-    // let mut config_dir: String = "".to_string();
 
     // Create a multi-producer, single-consumer channel to send expiration messages.
     // The channel capacity is set to 9600.
@@ -135,29 +119,23 @@ async fn main() -> anyhow::Result<()> {
     if let Some(dir) = cli.dir.as_deref() {
         // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
         // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
+        // NOTE: we cannot use ensure! because this exits; instead we need to create the file if it
+        // doesn't exist.
         ensure!(Path::new(&dir).exists(), "Directory {} not found.", dir);
 
         config_command_actor_handle
             .set_value(ConfigCommandParameter::Dir, dir)
             .await;
-        // tracing::debug!("Config directory: {dir}");
-        // config_dir = dir.to_string();
     }
 
     if let Some(dbfilename) = cli.dbfilename.as_deref() {
-        ensure!(
-            Path::new(&dbfilename).exists(),
-            "Dbfilename {} not found.",
-            dbfilename.to_string_lossy()
-        );
-
         config_command_actor_handle
             .set_value(
                 ConfigCommandParameter::DbFilename,
                 &dbfilename.to_string_lossy(),
             )
             .await;
-        // debug!("Config db filename: {}", dbfilename.display());
+
         // let config_dbfilename = dbfilename.to_string_lossy().to_string();
 
         config_command_actor_handle
@@ -167,25 +145,26 @@ async fn main() -> anyhow::Result<()> {
                 expire_tx.clone(), // need to pass this to unlock expirations on config file load
             )
             .await;
-
-        // debug!(
-        //     "Config db dir: {} filename: {}",
-        //     config_dir, config_dbfilename
-        // );
     }
 
     // initialize to being a master, override if we are a replica.
-    // PROBLEM: master_repl_id gets created as part of new() but only masters get to create one.
-    // We need to modify this to allow empty ReplicationSectionData, without a new repl_id being created.
     let replication_data: ReplicationSectionData = ReplicationSectionData {
-        role: ServerRole::Master,
-        master_replid: generate_replication_id(),
-        master_repl_offset: 0,
+        role: Some(ServerRole::Master),
+        master_replid: Some(generate_replication_id()),
+        master_repl_offset: None,
     };
 
     replication_actor_handle
-        .set_value(HostId::Myself, replication_data)
+        .update_value(HostId::Myself, replication_data)
         .await;
+
+    info!(
+        "Just set the value: {}",
+        replication_actor_handle
+            .get_value(HostId::Myself)
+            .await
+            .expect("Should have found the self value.")
+    );
 
     // see if we need to override it
     if let Some(replica) = cli.replicaof.as_deref() {
@@ -321,7 +300,7 @@ async fn handle_connection_from_clients(
         ip: client_ip,
         port: client_port,
     };
-    tracing::info!("Handling connection from {:?}", host_id);
+    info!("Handling connection from {:?}", host_id);
 
     let mut replica_rx = replica_tx.subscribe();
 
@@ -382,7 +361,42 @@ async fn handle_connection_from_clients(
                 Ok(msg) => {
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
-                        tracing::info!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
+                        info!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
+
+                        // we need to convert the command to a RESP string to count the bytes.
+                        let value_as_string = msg.to_encoded_string()?;
+
+                        // calculate how many bytes are in the value_as_string
+                        let value_as_string_num_bytes = value_as_string.len() as i16;
+
+                        // we need to update master's offset because we are sending writeable commands to replicas
+                        let mut updated_replication_data = ReplicationSectionData::new();
+
+                        // remember, this is an INCREMENT not a total new value
+                        updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
+
+                        replication_actor_handle.update_value(HostId::Myself,updated_replication_data).await;
+
+                        // if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
+                        //     // we need to convert the command to a RESP string to count the bytes.
+                        //     let value_as_string = msg.to_encoded_string()?;
+
+                        //     // calculate how many bytes are in the value_as_string
+                        //     let value_as_string_num_bytes = value_as_string.len() as i16;
+
+                        //     // extract the current offset value.
+                        //     let current_offset = current_replication_data.master_repl_offset;
+
+                        //     // update the offset value.
+                        //     let new_offset = current_offset + value_as_string_num_bytes;
+
+                        //     current_replication_data.master_repl_offset = new_offset;
+
+                        //     // update the offset value in the replication actor.
+                        //     replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
+
+                        //     info!("Current master offset: {} new offset: {}",current_offset,new_offset);
+                        // }
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
@@ -449,41 +463,70 @@ async fn handle_connection_to_master(
                             .await
                         {
                              // This is replica's own offset calculations.
-                             // First, let's get our current replication data from replica's POV.
-                            if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
-                                // we need to convert the request to a RESP string to count the bytes.
+                                                           // we need to convert the request to a RESP string to count the bytes.
                                 let value_as_string = request.to_encoded_string()?;
 
                                 // calculate how many bytes are in the value_as_string
                                 let value_as_string_num_bytes = value_as_string.len() as i16;
 
-                                // extract the current offset value.
-                                let current_offset = current_replication_data.master_repl_offset;
+                                info!("REPLICA: {:?} has {value_as_string_num_bytes} bytes.", value_as_string);
 
-                                // update the offset value.
-                                let new_offset = current_offset + value_as_string_num_bytes;
 
-                                current_replication_data.master_repl_offset = new_offset;
+                                                        // we need to update master's offset because we are sending writeable commands to replicas
+                        let mut updated_replication_data = ReplicationSectionData::new();
+                        // remember, this is an INCREMENT not a total new value
+                        updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
 
-                                // update the offset value in the replication actor.
-                                replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
+                        replication_actor_handle.update_value(HostId::Myself,updated_replication_data).await;
 
-                                info!("Current replica offset: {} new offset: {}",current_offset,new_offset);
+                                                    // iterate over processed_value and send each one to the client
 
-                                debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
-                                // iterate over processed_value and send each one to the client
+                                                    let strings_to_reply = "REPLCONF";
+                                                    for value in processed_value.iter() {
+                                                        // check to see if processed_value contains REPLCONF in the encoded string
+                                                        if value.to_encoded_string()?.contains(strings_to_reply) {
+                                                            // info!("Sending response to master: {:?}", value.to_encoded_string()?);
+                                                            let _ = writer.send(value.clone()).await?;
+                                                        }
+                                                    }
 
-                                let strings_to_reply = "REPLCONF";
-                                for value in processed_value.iter() {
-                                    // check to see if processed_value contains REPLCONF in the encoded string
-                                    if value.to_encoded_string()?.contains(strings_to_reply) {
-                                        info!("Sending response to master: {:?}", value.to_encoded_string()?);
-                                        let _ = writer.send(value.clone()).await?;
-                                    }
-                                }
-                            } else {
-                                error!("Unable to locate replica replication data");
-                            }
+                             // First, let's get our current replication data from replica's POV.
+                            // if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
+                            //     // we need to convert the request to a RESP string to count the bytes.
+                            //     let value_as_string = request.to_encoded_string()?;
+
+                            //     // calculate how many bytes are in the value_as_string
+                            //     let value_as_string_num_bytes = value_as_string.len() as i16;
+
+                            //     info!("REPLICA: {:?} has {value_as_string_num_bytes} bytes.", value_as_string);
+
+                            //     // extract the current offset value.
+                            //     let current_offset = current_replication_data.master_repl_offset;
+
+                            //     // update the offset value.
+                            //     let new_offset = current_offset + value_as_string_num_bytes;
+
+                            //     current_replication_data.master_repl_offset = new_offset;
+
+                            //     // update the offset value in the replication actor.
+                            //     replication_actor_handle.update_value(HostId::Myself,current_replication_data).await;
+
+                            //     info!("REPLICA: current offset: {current_offset} new offset: {new_offset}");
+
+                            //     debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
+                            //     // iterate over processed_value and send each one to the client
+
+                            //     let strings_to_reply = "REPLCONF";
+                            //     for value in processed_value.iter() {
+                            //         // check to see if processed_value contains REPLCONF in the encoded string
+                            //         if value.to_encoded_string()?.contains(strings_to_reply) {
+                            //             // info!("Sending response to master: {:?}", value.to_encoded_string()?);
+                            //             let _ = writer.send(value.clone()).await?;
+                            //         }
+                            //     }
+                            // } else {
+                            //     error!("Unable to locate replica replication data.");
+                            // }
 
 
                         }

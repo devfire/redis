@@ -3,9 +3,7 @@ use std::time::Duration;
 use crate::{
     actors::messages::{HostId, ProcessorActorMessage},
     parsers::parse_command,
-    protocol::{
-        RedisCommand, ReplConfCommandParameter, ReplicationSectionData, SetCommandParameter,
-    },
+    protocol::{RedisCommand, ReplConfCommandParameter, SetCommandParameter},
     resp::value::RespValue,
 };
 
@@ -363,13 +361,13 @@ impl ProcessorActor {
                                 // we may or may not get a value for the INFO command.
 
                                 // first, let's see if this INFO section exists.
-                                // For now, we are assuming it's a Replication query but there may be others.
+                                // For now, we are assuming it's a INFO REPLICATION query cmd but there may be others.
                                 if let Some(_param) = info_parameter {
                                     // TODO: match on param
                                     let replication_data =
                                         replication_actor_handle.get_value(HostId::Myself).await;
 
-                                    tracing::debug!(
+                                    tracing::info!(
                                         "Retrieved INFO RespValue: {:?}",
                                         replication_data
                                     );
@@ -425,15 +423,15 @@ impl ProcessorActor {
                                                     .get_value(HostId::Myself)
                                                     .await
                                             {
-                                                tracing::info!(
-                                                    "Retrieving replication data {:?} for {:?}",
-                                                    current_replication_data,
-                                                    host_id
+                                                debug!(
+                                                    "REPLICA: retrieving replication data {:?}",
+                                                    current_replication_data
                                                 );
 
                                                 // extract the current offset value.
-                                                let current_offset =
-                                                    current_replication_data.master_repl_offset;
+                                                let current_offset = current_replication_data
+                                                    .master_repl_offset
+                                                    .expect("Expected to find an replication entry for the replica.");
 
                                                 let repl_conf_ack = RespValue::array_from_slice(&[
                                                     "REPLCONF",
@@ -445,8 +443,8 @@ impl ProcessorActor {
                                                 let repl_conf_ack_encoded =
                                                     repl_conf_ack.to_encoded_string()?;
 
-                                                tracing::debug!(
-                                                    "Sending REPLCONF ACK: {}",
+                                                info!(
+                                                    "REPLICA: returning {:?} from processor to main.rs loop.",
                                                     repl_conf_ack_encoded
                                                 );
 
@@ -454,6 +452,7 @@ impl ProcessorActor {
 
                                                 // send the current offset value back to the master
                                                 // NOTE: this does NOT go over the master_tx channel, which is only for replies TO the master.
+                                                // NOTE: this is the offset BEFORE the latest
                                                 let _ = respond_to.send(Some(vec![repl_conf_ack]));
                                             } else {
                                                 error!(
@@ -476,27 +475,16 @@ impl ProcessorActor {
                                                 .get_value(host_id.clone())
                                                 .await
                                         {
-                                            // we need to convert the request to a RESP string to count the bytes.
-                                            // let value_as_string = request.to_encoded_string()?;
-
-                                            // calculate how many bytes are in the value_as_string
-                                            // let value_as_string_bytes =
-                                            //     value_as_string.len() as i16;
-
-                                            // extract the current offset value.
-                                            // let current_offset =
-                                            //     current_replication_data.master_repl_offset;
+                                            // we got a new value, so first we zero out the old value
+                                            current_replication_data.master_repl_offset = Some(0);
 
                                             // update the offset value.
                                             current_replication_data.master_repl_offset =
-                                                ack as i16;
+                                                Some(ack as i16);
 
                                             // update the offset value in the replication actor.
                                             replication_actor_handle
-                                                .set_value(
-                                                    host_id,
-                                                    current_replication_data,
-                                                )
+                                                .update_value(host_id, current_replication_data)
                                                 .await;
                                         } else {
                                             // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
@@ -519,96 +507,63 @@ impl ProcessorActor {
                                         Ok(())
                                     }
                                     ReplConfCommandParameter::ListeningPort(_port) => {
-                                        // create a new record for a new replica, under the current master's repl ID.
-                                        tracing::info!(
-                                            "Creating a new replication record for {:?}.",
-                                            host_id
-                                        );
-
-                                        if let Some(replication_data) =
-                                            replication_actor_handle.get_value(HostId::Myself).await
-                                        {
-                                            replication_actor_handle
-                                                .set_value(
-                                                    host_id.clone(), // assuming the port we got and the port supplied are the same!
-                                                    ReplicationSectionData {
-                                                        role: crate::protocol::ServerRole::Slave, // msg comes from a replica, so it's a slave
-                                                        master_replid: replication_data
-                                                            .master_replid,
-                                                        master_repl_offset: 0,
-                                                    },
-                                                )
-                                                .await;
-                                            let _ = respond_to.send(Some(vec![
-                                                (RespValue::SimpleString("OK".to_string())),
-                                            ]));
-                                        }
+                                        let _ = respond_to.send(Some(vec![
+                                            (RespValue::SimpleString("OK".to_string())),
+                                        ]));
 
                                         Ok(())
                                     }
                                 }
                             }
 
-                            Ok((_, RedisCommand::Psync(_replication_id, mut offset))) => {
+                            Ok((_, RedisCommand::Psync(_replication_id, offset))) => {
                                 // ignore the _replication_id for now. There are actually two of them:
                                 // https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#replication-id-explained
 
-                                tracing::info!("PSYNC: Getting replication data for {:?}", host_id);
+                                info!("PSYNC: Getting replication data for {:?}", host_id);
 
                                 // Let's get the current replication values.
-                                // let replication_data =
-                                //     replication_actor_handle.get_value(host_id.clone()).await;
-
-                                if let Some(mut replication_section_data) =
+                                if let Some(replication_section_data) =
                                     replication_actor_handle.get_value(host_id.clone()).await
                                 {
                                     // initialize the reply of Vec<Vec<u8>>
                                     //
                                     let mut reply: Vec<RespValue> = Vec::new();
 
-                                    // check if the replica is asking for a full resynch
+                                    // check if the replica is asking for a full resync
                                     if offset == -1 {
-                                        // initial fullresync reply, reset offset to 0
-                                        offset = 0;
+                                        // initial fullresync reply
+                                        info!("Full resync triggered with offset {}", offset);
+
+                                        // Master got PSYNC ? -1
+                                        // replica is expecting +FULLRESYNC <REPL_ID> 0\r\n back
+                                        reply.push(RespValue::SimpleString(format!(
+                                            "FULLRESYNC {} 0",
+                                            replication_section_data
+                                                .master_replid
+                                                .expect("Expected to get the replid"),
+                                        )));
+
+                                        // master will then send a RDB file of its current state to the replica.
+                                        // The replica is expected to load the file into memory, replacing its current state.
+                                        let rdb_file_contents = config_command_actor_handle
+                                            .get_rdb()
+                                            .await
+                                            .context("Unable to load RDB file into memory")?;
+
+                                        debug!(
+                                            "Retrieved config file contents {:?}.",
+                                            rdb_file_contents
+                                        );
+
+                                        // add the rdb file to the reply, at this point reply has 2 elements, each Vec<u8>
+                                        reply.push(RespValue::Rdb(rdb_file_contents));
                                     }
 
-                                    tracing::info!(
-                                        "For client {:?} storing offset {}",
-                                        host_id,
-                                        offset
-                                    );
+                                    tracing::info!("For client {:?} storing offset 0", host_id);
 
                                     // update the offset
-                                    replication_section_data.master_repl_offset = offset;
-
-                                    // persist the offset in the replication actor
-                                    replication_actor_handle
-                                        .set_value(
-                                            host_id.clone(),
-                                            replication_section_data.clone(),
-                                        )
-                                        .await;
-
-                                    info!("Full resync triggered with offset {}", offset);
-
-                                    reply.push(RespValue::SimpleString(format!(
-                                        "FULLRESYNC {} {}",
-                                        replication_section_data.master_replid,
-                                        replication_section_data.master_repl_offset
-                                    )));
-
-                                    let rdb_file_contents = config_command_actor_handle
-                                        .get_rdb()
-                                        .await
-                                        .context("Unable to load RDB file into memory")?;
-
-                                    tracing::info!(
-                                        "Retrieved config file contents {:?}.",
-                                        rdb_file_contents
-                                    );
-
-                                    // add the rdb file to the reply, at this point reply has 2 elements, each Vec<u8>
-                                    reply.push(RespValue::Rdb(rdb_file_contents));
+                                    replication_actor_handle.reset_replica_offset(host_id).await;
 
                                     let _ = respond_to.send(Some(reply));
                                 } else {
@@ -627,10 +582,10 @@ impl ProcessorActor {
                                 // let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 // get the replica count
-                                // let replicas_in_sync =
-                                // replication_actor_handle.get_synced_replica_count().await;
+                                let replicas_in_sync =
+                                    replication_actor_handle.get_synced_replica_count().await;
 
-                                // info!("We have {} in sync replicas.", replicas_in_sync);
+                                info!("We have {replicas_in_sync} in sync replicas.");
 
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/
@@ -690,7 +645,7 @@ impl ProcessorActor {
                     }
                     RespValue::BulkString(_) => todo!(),
                     RespValue::Rdb(rdb) => {
-                        info!("Received RDB file: {:?}", rdb);
+                        debug!("Received RDB file: {:?}", rdb);
 
                         // Import it into the config actor
                         config_command_actor_handle

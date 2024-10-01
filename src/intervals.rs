@@ -22,7 +22,9 @@ pub async fn send_offset_to_master(
             replication_actor_handle.get_value(HostId::Myself).await
         {
             // extract the current offset value.
-            let current_offset = current_replication_data.master_repl_offset;
+            let current_offset = current_replication_data
+                .master_repl_offset
+                .expect("We should know our own offset, panic.");
 
             let replconf_ack_offset =
                 RespValue::array_from_slice(&["REPLCONF", "ACK", &current_offset.to_string()]);
@@ -47,7 +49,9 @@ pub async fn send_ack_to_replicas(
             replication_actor_handle.get_value(HostId::Myself).await
         {
             // extract the current offset value.
-            let current_offset = current_replication_data.master_repl_offset;
+            let current_offset = current_replication_data
+                .master_repl_offset
+                .expect("We should know our own offset, panic.");
 
             let replconf_ack_offset =
                 RespValue::array_from_slice(&["REPLCONF", "ACK", &current_offset.to_string()]);
