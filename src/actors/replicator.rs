@@ -76,6 +76,8 @@ impl ReplicatorActor {
             } =>
             // Updating the key-value pair in place
             {
+                info!("Updating for {host_id} {replication_value}");
+
                 if let Some(offset_increment) = replication_value.master_repl_offset {
                     info!("Increasing offset by {offset_increment} for {host_id}");
                     self.kv_hash
