@@ -110,6 +110,16 @@ impl std::fmt::Debug for HostId {
         }
     }
 }
+impl std::fmt::Display for HostId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HostId::Host { ip, port } => {
+                write!(f, "{}:{}", ip, port)
+            }
+            HostId::Myself => write!(f, "HostId::Myself"),
+        }
+    }
+}
 
 pub enum ProcessorActorMessage {
     // connection string to connect to master

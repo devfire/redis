@@ -61,7 +61,7 @@ impl ReplicatorActor {
                 // If the key exists in the hash map, send the value back
 
                 if let Some(value) = self.kv_hash.get(&host_id) {
-                    info!("For {:?} retrieved {value}", host_id);
+                    info!("For {host_id} retrieved {value}");
                     let _ = respond_to.send(Some(value.clone()));
                 } else {
                     let _ = respond_to.send(None);
@@ -80,7 +80,7 @@ impl ReplicatorActor {
             // Updating the key-value pair in place
             {
                 if let Some(offset_increment) = replication_value.master_repl_offset {
-                    info!("Increasing offset by {offset_increment}");
+                    info!("Increasing offset by {offset_increment} for {host_id}");
                     self.kv_hash
                         .entry(host_id.clone())
                         .and_modify(|replication_section_data| {
@@ -89,7 +89,7 @@ impl ReplicatorActor {
                 }
 
                 if let Some(replid) = replication_value.master_replid {
-                    info!("Setting replid {replid}");
+                    info!("Setting replid {replid} for {host_id}");
                     self.kv_hash
                         .entry(host_id.clone())
                         .and_modify(|replication_section_data| {
@@ -99,14 +99,13 @@ impl ReplicatorActor {
 
 
                 if let Some(role) = replication_value.role {
-                    info!("Setting role {role}");
+                    info!("Setting role {role} for {host_id}");
                     self.kv_hash
                         .entry(host_id)
                         .and_modify(|replication_section_data| {
                             replication_section_data.role = Some(role);
                         });
                 }
-
 
                 // dump the contents of the hashmap to the console
                 info!("AFTER UPDATE:kv_hash: {:?}", self.kv_hash);
