@@ -80,11 +80,28 @@ impl ReplicatorActor {
 
                 if let Some(offset_increment) = replication_value.master_repl_offset {
                     info!("Increasing offset by {offset_increment} for {host_id}");
+
+                    // get the current offset
+                    let current_offset = self
+                        .kv_hash
+                        .get(&host_id)
+                        .expect("Expected to find data for {host_id}")
+                        .master_repl_offset
+                        .expect("Expected to find current offset for {host_id}");
+
+                    // calculate the new offset
+                    let new_offset = current_offset + offset_increment;
+
                     self.kv_hash
-                        .entry(host_id.clone())
-                        .and_modify(|replication_section_data| {
-                            replication_section_data.increment_offset(offset_increment);
-                        });
+                        .get_mut(&host_id)
+                        .expect("Expected to find data for {host_id}")
+                        .master_repl_offset = Some(new_offset);
+
+                    // self.kv_hash
+                    //     .entry(host_id.clone())
+                    //     .and_modify(|replication_section_data| {
+                    //         replication_section_data.increment_offset(offset_increment);
+                    //     });
                 }
 
                 if let Some(replid) = replication_value.master_replid {
