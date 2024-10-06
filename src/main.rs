@@ -375,7 +375,7 @@ async fn handle_connection_from_clients(
                         // remember, this is an INCREMENT not a total new value
                         updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
 
-                        replication_actor_handle.update_value(HostId::Myself,updated_replication_data).await;
+                        replication_actor_handle.update_value(host_id.clone(),updated_replication_data).await;
 
                         // if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
                         //     // we need to convert the command to a RESP string to count the bytes.
@@ -471,64 +471,23 @@ async fn handle_connection_to_master(
 
                                 info!("REPLICA: {:?} has {value_as_string_num_bytes} bytes.", value_as_string);
 
+                                // we need to update master's offset because we are sending writeable commands to replicas
+                                let mut updated_replication_data = ReplicationSectionData::new();
+                                // remember, this is an INCREMENT not a total new value
+                                updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
 
-                                                        // we need to update master's offset because we are sending writeable commands to replicas
-                        let mut updated_replication_data = ReplicationSectionData::new();
-                        // remember, this is an INCREMENT not a total new value
-                        updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
+                                replication_actor_handle.update_value(HostId::Myself,updated_replication_data).await;
 
-                        replication_actor_handle.update_value(HostId::Myself,updated_replication_data).await;
+                                // iterate over processed_value and send each one to the client
 
-                                                    // iterate over processed_value and send each one to the client
-
-                                                    let strings_to_reply = "REPLCONF";
-                                                    for value in processed_value.iter() {
-                                                        // check to see if processed_value contains REPLCONF in the encoded string
-                                                        if value.to_encoded_string()?.contains(strings_to_reply) {
-                                                            // info!("Sending response to master: {:?}", value.to_encoded_string()?);
-                                                            let _ = writer.send(value.clone()).await?;
-                                                        }
-                                                    }
-
-                             // First, let's get our current replication data from replica's POV.
-                            // if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
-                            //     // we need to convert the request to a RESP string to count the bytes.
-                            //     let value_as_string = request.to_encoded_string()?;
-
-                            //     // calculate how many bytes are in the value_as_string
-                            //     let value_as_string_num_bytes = value_as_string.len() as i16;
-
-                            //     info!("REPLICA: {:?} has {value_as_string_num_bytes} bytes.", value_as_string);
-
-                            //     // extract the current offset value.
-                            //     let current_offset = current_replication_data.master_repl_offset;
-
-                            //     // update the offset value.
-                            //     let new_offset = current_offset + value_as_string_num_bytes;
-
-                            //     current_replication_data.master_repl_offset = new_offset;
-
-                            //     // update the offset value in the replication actor.
-                            //     replication_actor_handle.update_value(HostId::Myself,current_replication_data).await;
-
-                            //     info!("REPLICA: current offset: {current_offset} new offset: {new_offset}");
-
-                            //     debug!("Only REPLCONF ACK commands are sent back to master: {:?}", processed_value);
-                            //     // iterate over processed_value and send each one to the client
-
-                            //     let strings_to_reply = "REPLCONF";
-                            //     for value in processed_value.iter() {
-                            //         // check to see if processed_value contains REPLCONF in the encoded string
-                            //         if value.to_encoded_string()?.contains(strings_to_reply) {
-                            //             // info!("Sending response to master: {:?}", value.to_encoded_string()?);
-                            //             let _ = writer.send(value.clone()).await?;
-                            //         }
-                            //     }
-                            // } else {
-                            //     error!("Unable to locate replica replication data.");
-                            // }
-
-
+                                let strings_to_reply = "REPLCONF";
+                                for value in processed_value.iter() {
+                                    // check to see if processed_value contains REPLCONF in the encoded string
+                                    if value.to_encoded_string()?.contains(strings_to_reply) {
+                                        // info!("Sending response to master: {:?}", value.to_encoded_string()?);
+                                        let _ = writer.send(value.clone()).await?;
+                                    }
+                                }
                         }
                     }
                     Err(e) => {

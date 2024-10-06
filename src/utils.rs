@@ -187,6 +187,7 @@ pub async fn handshake(
         master_repl_offset: None,
     };
 
+    // my own replication data, i.e. slave's own replication data
     replication_actor_handle
         .update_value(HostId::Myself, replication_data)
         .await;
