@@ -466,31 +466,45 @@ impl ProcessorActor {
                                         // These are received by the master from the replica slaves.
                                         tracing::info!("Received ACK: {} from {:?}", ack, host_id);
 
+                                        // we got a new value, so let's reset the offset.
+                                        replication_actor_handle.reset_replica_offset(host_id.clone()).await;
+
+                                        // create a new replication data struct.
+                                        let mut current_replication_data = ReplicationSectionData::new();
+
+                                        // set the master_repl_offset to ack
+                                        current_replication_data.master_repl_offset = Some(ack as i16);
+
+                                        // update the offset value in the replication actor.
+                                        replication_actor_handle
+                                            .update_value(host_id, current_replication_data)
+                                            .await;
+                                        
                                         // get the current replica's replication data.
                                         // This is master's POV into this specific replica's offset.
-                                        if let Some(mut current_replication_data) =
-                                            replication_actor_handle
-                                                .get_value(host_id.clone())
-                                                .await
-                                        {
-                                            // we got a new value, so first we zero out the old value
-                                            current_replication_data.master_repl_offset = Some(0);
+                                        // if let Some(mut current_replication_data) =
+                                        //     replication_actor_handle
+                                        //         .get_value(host_id.clone())
+                                        //         .await
+                                        // {
+                                        //     // we got a new value, so first we zero out the old value
+                                        //     current_replication_data.master_repl_offset = Some(0);
 
-                                            // update the offset value.
-                                            current_replication_data.master_repl_offset =
-                                                Some(ack as i16);
+                                        //     // update the offset value.
+                                        //     current_replication_data.master_repl_offset =
+                                        //         Some(ack as i16);
 
-                                            // update the offset value in the replication actor.
-                                            replication_actor_handle
-                                                .update_value(host_id, current_replication_data)
-                                                .await;
-                                        } else {
-                                            // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
-                                            error!(
-                                                "Missing offset value for replica {:?}.",
-                                                host_id
-                                            );
-                                        }
+                                        //     // update the offset value in the replication actor.
+                                        //     replication_actor_handle
+                                        //         .update_value(host_id, current_replication_data)
+                                        //         .await;
+                                        // } else {
+                                        //     // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
+                                        //     error!(
+                                        //         "Missing offset value for replica {:?}.",
+                                        //         host_id
+                                        //     );
+                                        // }
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
                                         let _ = respond_to.send(None);
