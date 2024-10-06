@@ -3,7 +3,10 @@ use std::time::Duration;
 use crate::{
     actors::messages::{HostId, ProcessorActorMessage},
     parsers::parse_command,
-    protocol::{RedisCommand, ReplConfCommandParameter, SetCommandParameter},
+    protocol::{
+        RedisCommand, ReplConfCommandParameter, ReplicationSectionData, ServerRole,
+        SetCommandParameter,
+    },
     resp::value::RespValue,
 };
 
@@ -12,7 +15,7 @@ use tokio::{
     sync::mpsc,
     time::{sleep, Instant},
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 // use rand::distributions::Alphanumeric;
 // use rand::Rng;
@@ -517,54 +520,66 @@ impl ProcessorActor {
 
                                 info!("PSYNC: Getting replication data for {:?}", host_id);
 
-                                // Let's get the current replication values.
+                                // initialize the reply of Vec<Vec<u8>>
+                                //
+                                let mut reply: Vec<RespValue> = Vec::new();
+
+                                // Check if we've seen this replica before.
+                                // TODO: move the common sections that always get executed out of the if let Some
+                                // conditional.
                                 if let Some(replication_section_data) =
                                     replication_actor_handle.get_value(host_id.clone()).await
                                 {
-                                    // initialize the reply of Vec<Vec<u8>>
-                                    //
-                                    let mut reply: Vec<RespValue> = Vec::new();
+                                    info!("Known replica {replication_section_data}, proceeding.");
+                                } else {
+                                    warn!("Replica not seen before, adding.");
+                                    let mut replication_data = ReplicationSectionData::new();
 
-                                    // check if the replica is asking for a full resync
-                                    if offset == -1 {
-                                        // initial fullresync reply
-                                        info!("Full resync triggered with offset {}", offset);
+                                    // this is a replica we've not seen before, so let's initialize everything.
+                                    replication_data.role = Some(ServerRole::Slave);
+                                    replication_data.master_replid = replication_actor_handle
+                                        .get_value(HostId::Myself)
+                                        .await
+                                        .expect("This should never fail because we always know our own offset")
+                                        .master_replid;
+                                    replication_data.master_repl_offset = Some(0);
 
-                                        // Master got PSYNC ? -1
-                                        // replica is expecting +FULLRESYNC <REPL_ID> 0\r\n back
-                                        reply.push(RespValue::SimpleString(format!(
-                                            "FULLRESYNC {} 0",
-                                            replication_section_data
-                                                .master_replid
-                                                .expect("Expected to get the replid"),
-                                        )));
+                                    // let _ = respond_to.send(None);
+                                }
 
-                                        // master will then send a RDB file of its current state to the replica.
-                                        // The replica is expected to load the file into memory, replacing its current state.
-                                        let rdb_file_contents = config_command_actor_handle
-                                            .get_rdb()
-                                            .await
-                                            .context("Unable to load RDB file into memory")?;
+                                // check if the replica is asking for a full resync
+                                if offset == -1 {
+                                    // initial fullresync reply
+                                    info!("Full resync triggered with offset {}", offset);
 
-                                        debug!(
-                                            "Retrieved config file contents {:?}.",
-                                            rdb_file_contents
-                                        );
+                                    // Master got PSYNC ? -1
+                                    // replica is expecting +FULLRESYNC <REPL_ID> 0\r\n back
+                                    reply.push(RespValue::SimpleString(format!(
+                                        "FULLRESYNC {} 0",
+                                        replication_actor_handle
+                                        .get_value(HostId::Myself)
+                                        .await
+                                        .expect("This should never fail because the master knows about itself")
+                                        .master_replid.expect("We should know our own replid"),
+                                    )));
 
-                                        // add the rdb file to the reply, at this point reply has 2 elements, each Vec<u8>
-                                        reply.push(RespValue::Rdb(rdb_file_contents));
-                                    }
+                                    // master will then send a RDB file of its current state to the replica.
+                                    // The replica is expected to load the file into memory, replacing its current state.
+                                    let rdb_file_contents = config_command_actor_handle
+                                        .get_rdb()
+                                        .await
+                                        .context("Unable to load RDB file into memory")?;
 
                                     tracing::info!("For client {:?} storing offset 0", host_id);
 
                                     // update the offset
                                     replication_actor_handle.reset_replica_offset(host_id).await;
 
-                                    let _ = respond_to.send(Some(reply));
-                                } else {
-                                    error!("Failed to retrieve replication information");
-                                    let _ = respond_to.send(None);
+                                    // add the rdb file to the reply, at this point reply has 2 elements, each Vec<u8>
+                                    reply.push(RespValue::Rdb(rdb_file_contents));
                                 }
+
+                                let _ = respond_to.send(Some(reply));
 
                                 Ok(())
                             } // end of psync
