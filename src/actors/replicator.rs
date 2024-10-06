@@ -1,7 +1,4 @@
-use crate::{
-    actors::messages::ReplicatorActorMessage,
-    protocol::ReplicationSectionData,
-};
+use crate::{actors::messages::ReplicatorActorMessage, protocol::ReplicationSectionData};
 
 use std::collections::HashMap;
 
@@ -90,13 +87,14 @@ impl ReplicatorActor {
 
                 if let Some(replid) = replication_value.master_replid {
                     info!("Setting replid {replid} for {host_id}");
+
+                    // insert replid for host_id
                     self.kv_hash
                         .entry(host_id.clone())
                         .and_modify(|replication_section_data| {
                             replication_section_data.master_replid = Some(replid);
                         });
                 }
-
 
                 if let Some(role) = replication_value.role {
                     info!("Setting role {role} for {host_id}");
@@ -134,9 +132,7 @@ impl ReplicatorActor {
 
                 let _ = respond_to.send(replica_count);
             }
-            ReplicatorActorMessage::ResetReplicaOffset {
-                host_id,
-            } => {
+            ReplicatorActorMessage::ResetReplicaOffset { host_id } => {
                 self.kv_hash
                     .entry(host_id)
                     .and_modify(|replication_section_data| {
