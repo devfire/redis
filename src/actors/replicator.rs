@@ -118,6 +118,9 @@ impl ReplicatorActor {
                     .expect("Something is wrong, expected to find master offset.")
                     .master_repl_offset;
 
+                // dump the contents of the hashmap to the console
+                info!("kv_hash: {:?}", self.kv_hash);
+
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
                 let replica_count = self
