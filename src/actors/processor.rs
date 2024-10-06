@@ -532,7 +532,7 @@ impl ProcessorActor {
                                 // ignore the _replication_id for now. There are actually two of them:
                                 // https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#replication-id-explained
 
-                                info!("PSYNC: Getting replication data for {:?}", host_id);
+                                info!("PSYNC: Processing replication data for {host_id}");
 
                                 // initialize the reply of Vec<Vec<u8>>
                                 //
@@ -557,6 +557,9 @@ impl ProcessorActor {
                                         .expect("This should never fail because we always know our own offset")
                                         .master_replid;
                                     replication_data.master_repl_offset = Some(0);
+
+                                    // store the replica's values in the replication actor
+                                    replication_actor_handle.update_value(host_id.clone(), replication_data).await;
 
                                     // let _ = respond_to.send(None);
                                 }

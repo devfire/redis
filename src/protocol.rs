@@ -80,13 +80,13 @@ impl fmt::Display for ReplicationSectionData {
         if let Some(replid) = &self.master_replid {
             write!(f, "master_replid:{}:", *replid)?;
         } else {
-            writeln!(f, "Master Replication ID: Not set")?;
+            write!(f, "Master Replication ID: Not set")?;
         }
 
         if let Some(my_offset) = &self.master_repl_offset {
             write!(f, "master_repl_offset:{}:", *my_offset)?;
         } else {
-            writeln!(f, "Master Replication Offset: Not set")?;
+            write!(f, "Master Replication Offset: Not set")?;
         }
 
         Ok(())
