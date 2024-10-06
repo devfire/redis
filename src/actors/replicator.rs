@@ -107,6 +107,10 @@ impl ReplicatorActor {
                         });
                 }
 
+
+                // dump the contents of the hashmap to the console
+                info!("AFTER UPDATE:kv_hash: {:?}", self.kv_hash);
+
                 // self.kv_hash.insert(host_id, replication_value);
             }
             ReplicatorActorMessage::GetReplicaCount { respond_to } => {
