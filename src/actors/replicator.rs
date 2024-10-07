@@ -20,16 +20,16 @@ impl ReplicatorActor {
     // Constructor for the actor
     pub fn new(receiver: mpsc::Receiver<ReplicatorActorMessage>) -> Self {
         // Initialize the key-value hash map.
-        let mut kv_hash = HashMap::new();
+        let kv_hash = HashMap::new();
 
-        let replication_data: ReplicationSectionData = ReplicationSectionData {
-            role: None,
-            master_replid: None,
-            master_repl_offset: Some(0),
-        };
+        // let replication_data: ReplicationSectionData = ReplicationSectionData {
+        //     role: None,
+        //     master_replid: None,
+        //     master_repl_offset: Some(0),
+        // };
 
         // initialize the offset to 0
-        kv_hash.insert(HostId::Myself, replication_data);
+        // kv_hash.insert(HostId::Myself, replication_data);
 
         // Return a new actor with the given receiver and an empty key-value hash map
         Self { receiver, kv_hash }
@@ -79,23 +79,48 @@ impl ReplicatorActor {
                 info!("Updating for {host_id} {replication_value}");
 
                 if let Some(offset_increment) = replication_value.master_repl_offset {
+                    // we were passed an offset increment, let's update the existing value
                     info!("Increasing offset by {offset_increment} for {host_id}");
 
-                    // get the current offset
-                    let current_offset = self
-                        .kv_hash
-                        .get(&host_id)
-                        .expect("Expected to find data for {host_id}")
-                        .master_repl_offset
-                        .expect("Expected to find current offset for {host_id}");
-
-                    // calculate the new offset
-                    let new_offset = current_offset + offset_increment;
-
                     self.kv_hash
-                        .get_mut(&host_id)
-                        .expect("Expected to find data for {host_id}")
-                        .master_repl_offset = Some(new_offset);
+                        .entry(host_id.clone())
+                        .or_insert_with(|| unreachable!())
+                        .master_repl_offset = self.kv_hash[&host_id]
+                        .master_repl_offset
+                        .map_or(Some(offset_increment), |v| Some(v + offset_increment));
+                    // check to see if we already have an entry for this node
+                    // this is useful for a new replica sending PSYNC for the first time
+                    // if let Some(replication_data) = self.kv_hash.get_mut(&host_id) {
+                    //     // we have an entry but we might not know its offset
+                    //     if let Some(currenreplication_data.master_repl_offsett_offset) = replication_data.master_repl_offset {
+                    //         // entry exists and we have an offset
+                    //         *replication_data.master_repl_offset =
+                    //             Some(current_offset + offset_increment);
+                    //     } else {
+                    //         // no previous offset, create one
+                    //         replication_data.master_repl_offset = Some(offset_increment);
+                    //     }
+                    //     // let updated_offset = replication_data.master_repl_offset.expect("Expected to find offset.") + offset_increment;
+                    //     // replication_data.master_repl_offset = Some(updated_offset);
+                    // } else {
+                    //     // unknown replica, initialize
+                    // }
+
+                    // get the current offset
+                    // let current_offset = self
+                    //     .kv_hash
+                    //     .get(&host_id)
+                    //     .expect("Expected to find data for {host_id}")
+                    //     .master_repl_offset
+                    //     .expect("Expected to find current offset for {host_id}");
+
+                    // // calculate the new offset
+                    // let new_offset = current_offset + offset_increment;
+
+                    // self.kv_hash
+                    //     .get_mut(&host_id)
+                    //     .expect("Expected to find data for {host_id}")
+                    //     .master_repl_offset = Some(new_offset);
 
                     // self.kv_hash
                     //     .entry(host_id.clone())
@@ -110,18 +135,21 @@ impl ReplicatorActor {
                     // insert replid for host_id
                     self.kv_hash
                         .entry(host_id.clone())
-                        .and_modify(|replication_section_data| {
-                            replication_section_data.master_replid = Some(replid);
-                        });
+                        .or_insert_with(|| unreachable!())
+                        .master_replid = Some(replid);
+                    // self.kv_hash
+                    //     .entry(host_id.clone())
+                    //     .and_modify(|replication_section_data| {
+                    //         replication_section_data.master_replid = Some(replid);
+                    //     });
                 }
 
                 if let Some(role) = replication_value.role {
                     info!("Setting role {role} for {host_id}");
                     self.kv_hash
-                        .entry(host_id)
-                        .and_modify(|replication_section_data| {
-                            replication_section_data.role = Some(role);
-                        });
+                        .entry(host_id.clone())
+                        .or_insert_with(|| unreachable!())
+                        .role = Some(role);
                 }
 
                 // dump the contents of the hashmap to the console
