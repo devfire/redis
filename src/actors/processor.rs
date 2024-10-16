@@ -665,6 +665,8 @@ impl ProcessorActor {
                                     let replicas_in_sync =
                                         replication_actor_handle.get_synced_replica_count().await;
 
+                                    info!("After REPLCONF ACK we have {replicas_in_sync} in sync replicas.");
+
                                     let _ = respond_to.send(Some(vec![
                                         (RespValue::Integer(replicas_in_sync as i64)),
                                     ]));
