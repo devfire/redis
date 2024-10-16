@@ -82,51 +82,34 @@ impl ReplicatorActor {
                     // we were passed an offset increment, let's update the existing value
                     info!("Increasing offset by {offset_increment} for {host_id}");
 
-                    self.kv_hash
-                        .entry(host_id.clone())
-                        .or_insert_with(|| unreachable!())
-                        .master_repl_offset = self.kv_hash[&host_id]
-                        .master_repl_offset
-                        .map_or(Some(offset_increment), |v| Some(v + offset_increment));
-                    // check to see if we already have an entry for this node
-                    // this is useful for a new replica sending PSYNC for the first time
-                    // if let Some(replication_data) = self.kv_hash.get_mut(&host_id) {
-                    //     // we have an entry but we might not know its offset
-                    //     if let Some(currenreplication_data.master_repl_offsett_offset) = replication_data.master_repl_offset {
-                    //         // entry exists and we have an offset
-                    //         *replication_data.master_repl_offset =
-                    //             Some(current_offset + offset_increment);
-                    //     } else {
-                    //         // no previous offset, create one
-                    //         replication_data.master_repl_offset = Some(offset_increment);
-                    //     }
-                    //     // let updated_offset = replication_data.master_repl_offset.expect("Expected to find offset.") + offset_increment;
-                    //     // replication_data.master_repl_offset = Some(updated_offset);
-                    // } else {
-                    //     // unknown replica, initialize
-                    // }
+                    match self.kv_hash.get_mut(&host_id) {
+                        Some(replication_data) => {
+                            // we have an entry already but may or may not have an offset
+                            match replication_data.master_repl_offset.take() {
+                                // we need to take() in order to avoid trying to
+                                // directly manipulate the inner value of an Option, which is not allowed.
+                                Some(current_offset) => {
+                                    // we have an offset, let's add the new one to this one
+                                    replication_data.master_repl_offset =
+                                        Some(current_offset + offset_increment);
+                                }
+                                None => {
+                                    // we do not have an existing offset, just insert the offset_increment
+                                    replication_data.master_repl_offset = Some(offset_increment);
+                                }
+                            }
+                        }
+                        None => {
+                            // this is a new entry
+                            let mut new_replication_entry = ReplicationSectionData::new();
+                            new_replication_entry.master_repl_offset = Some(offset_increment);
 
-                    // get the current offset
-                    // let current_offset = self
-                    //     .kv_hash
-                    //     .get(&host_id)
-                    //     .expect("Expected to find data for {host_id}")
-                    //     .master_repl_offset
-                    //     .expect("Expected to find current offset for {host_id}");
-
-                    // // calculate the new offset
-                    // let new_offset = current_offset + offset_increment;
-
-                    // self.kv_hash
-                    //     .get_mut(&host_id)
-                    //     .expect("Expected to find data for {host_id}")
-                    //     .master_repl_offset = Some(new_offset);
-
-                    // self.kv_hash
-                    //     .entry(host_id.clone())
-                    //     .and_modify(|replication_section_data| {
-                    //         replication_section_data.increment_offset(offset_increment);
-                    //     });
+                            // NOTE: All other entries are None because new() sets everything to None by default
+                            self.kv_hash.insert(host_id.clone(), new_replication_entry);
+                        }
+                    }
+                } else {
+                    info!("No offset passed for {host_id}.");
                 }
 
                 if let Some(replid) = replication_value.master_replid {
