@@ -93,15 +93,6 @@ impl ReplicationSectionData {
         }
     }
 
-    pub fn increment_offset(&mut self, offset_increment: i16) {
-        if let Some(current_offset) = self.master_repl_offset {
-            let new_offset = current_offset + offset_increment;
-            self.master_repl_offset = Some(new_offset);
-        } else {
-            self.master_repl_offset = Some(offset_increment);
-        }
-    }
-
     /// This is used when the master receives a REPLCONF ACK N from a replica.
     /// When that happens, the old value must be erased and the new value added.
     pub fn reset_replica_offset(&mut self) {
