@@ -115,24 +115,40 @@ impl ReplicatorActor {
                 if let Some(replid) = replication_value.master_replid {
                     info!("Setting replid {replid} for {host_id}");
 
-                    // insert replid for host_id
-                    self.kv_hash
-                        .entry(host_id.clone())
-                        .or_insert_with(|| unreachable!())
-                        .master_replid = Some(replid);
-                    // self.kv_hash
-                    //     .entry(host_id.clone())
-                    //     .and_modify(|replication_section_data| {
-                    //         replication_section_data.master_replid = Some(replid);
-                    //     });
+                    match self.kv_hash.get_mut(&host_id) {
+                        Some(replication_data) => {
+                            // We have an entry but whether we have a replid already or not, doesn't matter,
+                            // let's replace with the new one
+                            replication_data.master_replid = Some(replid);
+                        }
+                        None => {
+                            // this is a new entry
+                            let mut new_replication_entry = ReplicationSectionData::new();
+                            new_replication_entry.master_replid = Some(replid);
+
+                            // NOTE: All other entries are None because new() sets everything to None by default
+                            self.kv_hash.insert(host_id.clone(), new_replication_entry);
+                        }
+                    }
                 }
 
-                if let Some(role) = replication_value.role {
-                    info!("Setting role {role} for {host_id}");
-                    self.kv_hash
-                        .entry(host_id.clone())
-                        .or_insert_with(|| unreachable!())
-                        .role = Some(role);
+                if let Some(new_role) = replication_value.role {
+                    info!("Setting role {new_role} for {host_id}");
+                    match self.kv_hash.get_mut(&host_id) {
+                        Some(replication_data) => {
+                            // We have an entry but whether we have a role already or not, doesn't matter,
+                            // let's replace with the new one
+                            replication_data.role = Some(new_role);
+                        }
+                        None => {
+                            // this is a new entry
+                            let mut new_replication_entry = ReplicationSectionData::new();
+                            new_replication_entry.role = Some(new_role);
+
+                            // NOTE: All other entries are None because new() sets everything to None by default
+                            self.kv_hash.insert(host_id.clone(), new_replication_entry);
+                        }
+                    }
                 }
 
                 // dump the contents of the hashmap to the console
