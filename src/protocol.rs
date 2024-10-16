@@ -22,15 +22,6 @@ pub enum RedisCommand {
     Wait(usize, usize),
 }
 
-// implement Encoder for RedisCommand
-// impl Encoder<RedisCommand> for RedisCommand {
-//     type Error = RedisError;
-
-//     fn encode(&mut self, item: RedisCommand, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
-//         todo!()
-//     }
-// }
-
 // REPLCONF parameters
 // https://redis.io/commands/replconf
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -98,7 +89,7 @@ impl ReplicationSectionData {
         ReplicationSectionData {
             role: None,          // Default role is Master
             master_replid: None, // Empty string by default
-            master_repl_offset: None,
+            master_repl_offset: Some(0),
         }
     }
 
