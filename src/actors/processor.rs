@@ -467,19 +467,23 @@ impl ProcessorActor {
                                         tracing::info!("Received ACK: {} from {:?}", ack, host_id);
 
                                         // we got a new value, so let's reset the offset.
-                                        replication_actor_handle.reset_replica_offset(host_id.clone()).await;
+                                        replication_actor_handle
+                                            .reset_replica_offset(host_id.clone())
+                                            .await;
 
                                         // create a new replication data struct.
-                                        let mut current_replication_data = ReplicationSectionData::new();
+                                        let mut current_replication_data =
+                                            ReplicationSectionData::new();
 
                                         // set the master_repl_offset to ack
-                                        current_replication_data.master_repl_offset = Some(ack as i16);
+                                        current_replication_data.master_repl_offset =
+                                            Some(ack as i16);
 
                                         // update the offset value in the replication actor.
                                         replication_actor_handle
                                             .update_value(host_id, current_replication_data)
                                             .await;
-                                        
+
                                         // get the current replica's replication data.
                                         // This is master's POV into this specific replica's offset.
                                         // if let Some(mut current_replication_data) =
@@ -559,7 +563,9 @@ impl ProcessorActor {
                                     replication_data.master_repl_offset = Some(0);
 
                                     // store the replica's values in the replication actor
-                                    replication_actor_handle.update_value(host_id.clone(), replication_data).await;
+                                    replication_actor_handle
+                                        .update_value(host_id.clone(), replication_data)
+                                        .await;
 
                                     // let _ = respond_to.send(None);
                                 }
@@ -622,44 +628,47 @@ impl ProcessorActor {
                                 // 2. timeout: The maximum number of milliseconds to wait for the replicas to be connected and in sync.
                                 //
                                 // detailed OG implementation: https://github.com/redis/redis/blob/unstable/src/replication.c#L3548
-                                // if replicas_in_sync >= numreplicas {
-                                //     // we can return immediately
-                                //     info!(
-                                //         "{} > {}, returning immediately.",
-                                //         replicas_in_sync, numreplicas
-                                //     );
-                                //     let _ = respond_to.send(Some(vec![
-                                //         (RespValue::Integer(replicas_in_sync as i64)),
-                                //     ]));
-                                // } else {
-                                // we need to wait for the replicas to be connected and in sync
-                                // but we won't wait more than timeout milliseconds.
-                                // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
-                                // This will update the offset in the replication actor.
+                                if replicas_in_sync >= numreplicas {
+                                    // we can return immediately
+                                    info!(
+                                        "{} > {}, returning immediately.",
+                                        replicas_in_sync, numreplicas
+                                    );
+                                    let _ = respond_to.send(Some(vec![
+                                        (RespValue::Integer(replicas_in_sync as i64)),
+                                    ]));
+                                } else {
+                                    // we need to wait for the replicas to be connected and in sync
+                                    // but we won't wait more than timeout milliseconds.
+                                    // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
+                                    // This will update the offset in the replication actor.
 
-                                // flush the replica in sync db because we are about to ask all replicas for their offsets
-                                // replication_actor_handle.reset_synced_replica_count().await;
+                                    // flush the replica in sync db because we are about to ask all replicas for their offsets
+                                    // replication_actor_handle.reset_synced_replica_count().await;
 
-                                // ok now we wait for everyone to reply
-                                info!("Starting the waiting period of {} milliseconds.", timeout);
+                                    // ok now we wait for everyone to reply
+                                    info!(
+                                        "Starting the waiting period of {} milliseconds.",
+                                        timeout
+                                    );
 
-                                let _ = replica_tx.send(replconf_getack_star)?;
+                                    let _ = replica_tx.send(replconf_getack_star)?;
 
-                                let start_time = Instant::now();
+                                    let start_time = Instant::now();
 
-                                sleep(Duration::from_millis(timeout.try_into()?)).await;
+                                    sleep(Duration::from_millis(timeout.try_into()?)).await;
 
-                                let elapsed_time = start_time.elapsed();
-                                info!("Done waiting after {:?}!", elapsed_time);
+                                    let elapsed_time = start_time.elapsed();
+                                    info!("Done waiting after {:?}!", elapsed_time);
 
-                                // get the replica count again
-                                let replicas_in_sync =
-                                    replication_actor_handle.get_synced_replica_count().await;
+                                    // get the replica count again
+                                    let replicas_in_sync =
+                                        replication_actor_handle.get_synced_replica_count().await;
 
-                                let _ = respond_to.send(Some(vec![
-                                    (RespValue::Integer(replicas_in_sync as i64)),
-                                ]));
-                                // }
+                                    let _ = respond_to.send(Some(vec![
+                                        (RespValue::Integer(replicas_in_sync as i64)),
+                                    ]));
+                                }
 
                                 Ok(())
                             }
