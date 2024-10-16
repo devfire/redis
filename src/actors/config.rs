@@ -4,11 +4,11 @@ use crate::{
     rdb::{codec::RdbCodec, format::Rdb::KeyValuePair},
 };
 
-use anyhow::{ensure, anyhow, Context};
+use anyhow::{anyhow, ensure, Context};
 use futures::StreamExt;
 use tracing::{debug, error, info};
 // use resp::Value;
-use tokio::fs::File;
+use tokio::{fs::File, io::AsyncWriteExt};
 use tokio::{io::AsyncReadExt, sync::mpsc};
 
 use tokio_util::codec::FramedRead;
@@ -153,62 +153,82 @@ impl ConfigCommandActor {
                         let fullpath = format!("{}/{}", dir, dbfilename);
 
                         // check to see if the file exists.
-                        // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
-                        // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
-                        ensure!(Path::new(&fullpath).exists(), "RDB not found.");
+                        if !Path::new(&fullpath).exists() {
+                            tracing::warn!("Config file does not exist, creating one.");
 
-                        // Log the attempt
-                        info!("Loading RDB {} from disk", fullpath);
+                            // create an empty file
+                            let _ = File::create(&fullpath).await;
 
-                        let rdb_file = File::open(fullpath)
-                            .await
-                            .context("Failed to open RDB file.")?;
+                            // this is the hex string to initialize the db with.
+                            let init_string = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2".to_string();
 
-                        // stream the rdb file, decoding and parsing the saved entries.
-                        let mut rdb_file_stream_reader = FramedRead::new(rdb_file, RdbCodec::new());
-                        while let Some(result) = rdb_file_stream_reader.next().await {
-                            debug!("RDB decoder returned: {:?}", result);
+                            // now we write the hex string to the file.
+                            let mut file = File::create(&fullpath).await?;
+                            file.write_all(init_string.as_bytes()).await?;
 
-                            match result {
-                                Ok(KeyValuePair {
-                                    key_expiry_time,
-                                    value_type: _,
-                                    key,
-                                    value,
-                                }) => {
-                                    debug!(
-                                        "Loading {} {} {:?} from local db.",
-                                        key, value, key_expiry_time
-                                    );
+                            // normally this would be an error but here we are creating a missing file
+                            // as an empty db, so we are good.
+                            Ok(())
+                        } else {
+                            // check to see if the file exists.
+                            // This macro is equivalent to if !$cond { return Err(anyhow!($args...)); }.
+                            // https://docs.rs/anyhow/latest/anyhow/macro.ensure.html
+                            // ensure!(Path::new(&fullpath).exists(), "RDB not found.");
 
-                                    let mut set_params = SetCommandParameter {
-                                        key: key.clone(),
-                                        value: value.clone(),
-                                        option: None,
-                                        get: None,
-                                        expire: None,
-                                    };
+                            // Log the attempt
+                            info!("Loading RDB {} from disk", fullpath);
 
-                                    // Check to see if expiry was attached to this RDB entry
-                                    if let Some(expiry) = key_expiry_time {
-                                        set_params.expire = Some(expiry);
-                                        debug!("Set parameters: {:?}", set_params);
-                                    };
+                            let rdb_file = File::open(fullpath)
+                                .await
+                                .context("Failed to open RDB file.")?;
 
-                                    set_command_actor_handle
-                                        .set_value(expire_tx.clone(), set_params.clone())
-                                        .await;
+                            // stream the rdb file, decoding and parsing the saved entries.
+                            let mut rdb_file_stream_reader =
+                                FramedRead::new(rdb_file, RdbCodec::new());
+                            while let Some(result) = rdb_file_stream_reader.next().await {
+                                debug!("RDB decoder returned: {:?}", result);
+
+                                match result {
+                                    Ok(KeyValuePair {
+                                        key_expiry_time,
+                                        value_type: _,
+                                        key,
+                                        value,
+                                    }) => {
+                                        info!(
+                                            "Loading {} {} {:?} from local db.",
+                                            key, value, key_expiry_time
+                                        );
+
+                                        let mut set_params = SetCommandParameter {
+                                            key: key.clone(),
+                                            value: value.clone(),
+                                            option: None,
+                                            get: None,
+                                            expire: None,
+                                        };
+
+                                        // Check to see if expiry was attached to this RDB entry
+                                        if let Some(expiry) = key_expiry_time {
+                                            set_params.expire = Some(expiry);
+                                            debug!("Set parameters: {:?}", set_params);
+                                        };
+
+                                        set_command_actor_handle
+                                            .set_value(expire_tx.clone(), set_params.clone())
+                                            .await;
+                                    }
+                                    Ok(_) => {
+                                        debug!("Ignoring other things.")
+                                    }
+                                    Err(e) => error!("Failure trying to load config: {}.", e),
+                                    // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
+                                    // Ok(_) => debug!("Skipping over OpCodes"),
+                                    // Err(_) => error!("{}",e),
                                 }
-                                Ok(_) => {
-                                    debug!("Ignoring other things.")
-                                }
-                                Err(e) => error!("Failure trying to load config: {}.", e),
-                                // Ok(KeyValuePair { key_expiry_time, value_type, key, value }) => todo!,
-                                // Ok(_) => debug!("Skipping over OpCodes"),
-                                // Err(_) => error!("{}",e),
                             }
+                            Ok(())
                         }
-                        Ok(())
                     }
                 }
             }

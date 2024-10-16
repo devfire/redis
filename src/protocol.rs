@@ -1,7 +1,6 @@
 // This file stores the various commands and their options currently supported.
 use core::fmt;
 
-
 #[derive(Debug)]
 pub enum RedisCommand {
     Ping,
@@ -20,7 +19,7 @@ pub enum RedisCommand {
     Psync(String, i16),      // client (master_replid, master_repl_offset)
     Fullresync(String, i16), // master's (master_replid, master_repl_offset)
     Rdb(Vec<u8>),            // RDB file in memory representation
-    Wait(u16, u16),
+    Wait(usize, usize),
 }
 
 // implement Encoder for RedisCommand
@@ -37,7 +36,7 @@ pub enum RedisCommand {
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum ReplConfCommandParameter {
     Getack(String),
-    Ack(u32),
+    Ack(usize),
     Capa,
     ListeningPort(u16),
 }
@@ -61,16 +60,61 @@ pub struct ReplicationSectionData {
     // and are not propagated to sub-replicas attached to the instance.
     // Sub-replicas instead will always receive the replication stream identical
     // to the one sent by the top-level master to the intermediate replicas.
-    pub role: ServerRole,
-    pub master_replid: String,
-    pub master_repl_offset: i16, // cannot be u16 because initial offset is -1
+    //
+    // NOTE: these are all Option to enable updates to individual fields. Because actors serialize updates from multiple
+    // simultaenous threads, we need a way to enable updates to individual struct members without get-update-push cycle,
+    // which risks race conditions in cases of multiple threads trying to update the same value at the same time.
+    pub role: Option<ServerRole>,
+    pub master_replid: Option<String>,
+    pub master_repl_offset: Option<i16>, // cannot be u16 because initial offset is -1
 }
 
 impl fmt::Display for ReplicationSectionData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "role:{}:", &self.role)?;
-        write!(f, "master_replid:{}:", &self.master_replid)?;
-        write!(f, "master_repl_offset:{}:", &self.master_repl_offset)
+        if let Some(my_role) = &self.role {
+            write!(f, "role:{}:", *my_role)?;
+        } else {
+            write!(f, "Role: Not set")?;
+        }
+
+        if let Some(replid) = &self.master_replid {
+            write!(f, "master_replid:{}:", *replid)?;
+        } else {
+            write!(f, "Master Replication ID: Not set")?;
+        }
+
+        if let Some(my_offset) = &self.master_repl_offset {
+            write!(f, "master_repl_offset:{}:", *my_offset)?;
+        } else {
+            write!(f, "Master Replication Offset: Not set")?;
+        }
+
+        Ok(())
+    }
+}
+
+impl ReplicationSectionData {
+    pub fn new() -> Self {
+        ReplicationSectionData {
+            role: None,          // Default role is Master
+            master_replid: None, // Empty string by default
+            master_repl_offset: None,
+        }
+    }
+
+    pub fn increment_offset(&mut self, offset_increment: i16) {
+        if let Some(current_offset) = self.master_repl_offset {
+            let new_offset = current_offset + offset_increment;
+            self.master_repl_offset = Some(new_offset);
+        } else {
+            self.master_repl_offset = Some(offset_increment);
+        }
+    }
+
+    /// This is used when the master receives a REPLCONF ACK N from a replica.
+    /// When that happens, the old value must be erased and the new value added.
+    pub fn reset_replica_offset(&mut self) {
+        self.master_repl_offset = Some(0);
     }
 }
 
@@ -101,7 +145,7 @@ impl fmt::Display for ReplicationSectionData {
 //     //         // master_replid: The ID of the master instance
 //     //         master_replid: "".to_string(),
 //     //         // Each master also maintains a "replication offset" corresponding to how many bytes of commands
-//     //         // have been added to the replication stream. 
+//     //         // have been added to the replication stream.
 //     //         // This is tracked in replicator actor Hash PER REPLICA.
 //     //         master_repl_offset: 0,
 //     //     }
