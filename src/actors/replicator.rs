@@ -168,12 +168,18 @@ impl ReplicatorActor {
                 // dump the contents of the hashmap to the console
                 info!("kv_hash: {:?}", self.kv_hash);
 
+                info!("Looking for replicas with offset of {:?}", master_offset);
+
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
                 let replica_count = self
                     .kv_hash
                     .iter()
-                    .filter(|(k, v)| v.master_repl_offset == master_offset && **k != HostId::Myself)
+                    .filter(|(k, v)| {
+                        v.master_repl_offset.expect("Replicas must have offsets.")
+                            == master_offset.expect("Master must have an offset.")
+                            && **k != HostId::Myself
+                    })
                     .count();
 
                 let _ = respond_to.send(replica_count);
