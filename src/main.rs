@@ -289,7 +289,6 @@ async fn handle_connection_from_clients(
     expire_tx: mpsc::Sender<SetCommandParameter>,
     master_tx: mpsc::Sender<String>, // passthrough to request_processor_actor_handle
     replica_tx: broadcast::Sender<RespValue>, // used to send replication messages to the replica
-                                     // mut replica_rx: broadcast::Receiver<RespValue>, // used to receive replication messages from the master
 ) -> anyhow::Result<()> {
     let client_address = stream.peer_addr().map(|addr| addr)?;
 
@@ -363,19 +362,19 @@ async fn handle_connection_from_clients(
                     if am_i_replica {
                         info!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
 
-                        // we need to convert the command to a RESP string to count the bytes.
-                        let value_as_string = msg.to_encoded_string()?;
+                        // // we need to convert the command to a RESP string to count the bytes.
+                        // let value_as_string = msg.to_encoded_string()?;
 
-                        // calculate how many bytes are in the value_as_string
-                        let value_as_string_num_bytes = value_as_string.len() as i16;
+                        // // calculate how many bytes are in the value_as_string
+                        // let value_as_string_num_bytes = value_as_string.len() as i16;
 
-                        // we need to update master's offset because we are sending writeable commands to replicas
-                        let mut updated_replication_data = ReplicationSectionData::new();
+                        // // we need to update master's offset because we are sending writeable commands to replicas
+                        // let mut updated_replication_data = ReplicationSectionData::new();
 
-                        // remember, this is an INCREMENT not a total new value
-                        updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
+                        // // remember, this is an INCREMENT not a total new value
+                        // updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
 
-                        replication_actor_handle.update_value(host_id.clone(),updated_replication_data).await;
+                        // replication_actor_handle.update_value(host_id.clone(),updated_replication_data).await;
 
                         // if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
                         //     // we need to convert the command to a RESP string to count the bytes.
@@ -462,8 +461,8 @@ async fn handle_connection_to_master(
                             )
                             .await
                         {
-                             // This is replica's own offset calculations.
-                                                           // we need to convert the request to a RESP string to count the bytes.
+                                // This is replica's own offset calculations.
+                                // we need to convert the request to a RESP string to count the bytes.
                                 let value_as_string = request.to_encoded_string()?;
 
                                 // calculate how many bytes are in the value_as_string
@@ -471,16 +470,20 @@ async fn handle_connection_to_master(
 
                                 info!("REPLICA: {:?} has {value_as_string_num_bytes} bytes.", value_as_string);
 
-                                // we need to update master's offset because we are sending writeable commands to replicas
+                                // we need to update replica's offset because we are sending writeable commands to replicas
                                 let mut updated_replication_data = ReplicationSectionData::new();
+
                                 // remember, this is an INCREMENT not a total new value
                                 updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
 
+                                // Myself from replica's POV
                                 replication_actor_handle.update_value(HostId::Myself,updated_replication_data).await;
 
                                 // iterate over processed_value and send each one to the client
 
+                                // only strings containing REPLCONF go back to master
                                 let strings_to_reply = "REPLCONF";
+
                                 for value in processed_value.iter() {
                                     // check to see if processed_value contains REPLCONF in the encoded string
                                     if value.to_encoded_string()?.contains(strings_to_reply) {

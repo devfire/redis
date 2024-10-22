@@ -173,19 +173,19 @@ impl ProcessorActor {
                                 info!("Current subscriber count: {}", replica_tx.receiver_count());
 
                                 // calculate how many bytes are in the value_as_string
-                                let request_num_bytes = request_as_encoded_string.len() as i16;
+                                // let request_num_bytes = request_as_encoded_string.len() as i16;
 
-                                // we need to update master's offset because we are sending writeable commands to replicas
-                                let mut updated_replication_data_master =
-                                    ReplicationSectionData::new();
+                                // // we need to update master's offset because we are sending writeable commands to replicas
+                                // let mut updated_replication_data_master =
+                                //     ReplicationSectionData::new();
 
-                                // remember, this is an INCREMENT not a total new value
-                                updated_replication_data_master.master_repl_offset =
-                                    Some(request_num_bytes);
+                                // // remember, this is an INCREMENT not a total new value
+                                // updated_replication_data_master.master_repl_offset =
+                                //     Some(request_num_bytes);
 
-                                replication_actor_handle
-                                    .update_value(host_id.clone(), updated_replication_data_master)
-                                    .await;
+                                // replication_actor_handle
+                                //     .update_value(HostId::Myself, updated_replication_data_master)
+                                //     .await;
 
                                 let _active_client_count = replica_tx.send(request)?;
 

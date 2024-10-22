@@ -91,7 +91,6 @@ pub enum ReplicatorActorMessage {
     ResetReplicaOffset {
         host_id: HostId,
     },
-
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]

@@ -28,11 +28,7 @@ impl RequestProcessorActorHandle {
         let mut actor = ProcessorActor::new(receiver);
 
         // This isn't going to fail, so we are ignoring errors here.
-        let _handle = tokio::spawn(async move {
-            actor
-                .run()
-                .await
-        });
+        let _handle = tokio::spawn(async move { actor.run().await });
 
         Self { sender }
     }
