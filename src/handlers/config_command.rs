@@ -87,7 +87,6 @@ impl ConfigCommandActorHandle {
         // dir: &str,
         // dbfilename: &str,
     ) -> anyhow::Result<Vec<u8>> {
-
         let (send, recv) = oneshot::channel();
 
         let msg = ConfigActorMessage::GetRdb { respond_to: send };
