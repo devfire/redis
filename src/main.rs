@@ -371,8 +371,8 @@ async fn handle_connection_from_clients(
                     // remember, this is an INCREMENT not a total new value
                     updated_replication_data_master.master_repl_offset =Some(value_as_string_num_bytes);
 
-                    // updating myself, i.e. the master
-                    replication_actor_handle.update_value(HostId::Myself,updated_replication_data_master).await;
+                    // updating replicas' offsets
+                    replication_actor_handle.update_value(host_id.clone(),updated_replication_data_master).await;
 
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
