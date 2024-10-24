@@ -9,7 +9,7 @@ use clap::Parser;
 
 use futures::{SinkExt, StreamExt};
 use resp::codec::RespCodec;
-use utils::{expire_value, generate_replication_id, handshake};
+use utils::{expire_value, generate_replication_id, handshake, update_master_offset};
 // use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::codec::{FramedRead, FramedWrite};
 use tracing::level_filters::LevelFilter;
@@ -113,6 +113,8 @@ async fn main() -> anyhow::Result<()> {
     // receiving replies from the master via the master_rx channel.
     let (replica_tx, _replica_rx) = broadcast::channel::<RespValue>(9600);
 
+    // we have a special consumer that gets the payload destined to the replicas and updates master's own offset calculations
+
     // Check the value provided by the arguments.
     // Store the config values if they are valid.
     // NOTE: If nothing is passed, cli.rs has the default values for clap.
@@ -209,14 +211,18 @@ async fn main() -> anyhow::Result<()> {
             replication_actor_handle.clone(),
         )
         .await?;
+    } else {
+        // we master, we no replica!
+        info!("We are a master, cool.");
 
-        // // one more round of cloning
-        // let replication_actor_handle_clone = replication_actor_handle.clone();
-        // // kick off a once a sec offset update to master
-        // tokio::spawn(async move {
-        //     send_offset_to_master(tcp_msgs_tx.clone(), replication_actor_handle_clone, 1)
-        //         .await
-        // });
+        // one more round of cloning
+        let replication_actor_handle_clone = replication_actor_handle.clone();
+        let replica_tx_offset_clone = replica_tx.clone();
+
+        // kick off a never ending subscriber to calculate and update master's offset
+        tokio::spawn(async move {
+            update_master_offset(replica_tx_offset_clone, replication_actor_handle_clone).await
+        });
     }
 
     // we must clone the handler to the SetActor because the whole thing is being moved into an expiry handle loop
@@ -378,40 +384,6 @@ async fn handle_connection_from_clients(
                     if am_i_replica {
                         info!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
 
-                        // // we need to convert the command to a RESP string to count the bytes.
-                        // let value_as_string = msg.to_encoded_string()?;
-
-                        // // calculate how many bytes are in the value_as_string
-                        // let value_as_string_num_bytes = value_as_string.len() as i16;
-
-                        // // we need to update master's offset because we are sending writeable commands to replicas
-                        // let mut updated_replication_data = ReplicationSectionData::new();
-
-                        // // remember, this is an INCREMENT not a total new value
-                        // updated_replication_data.master_repl_offset =Some(value_as_string_num_bytes);
-
-                        // replication_actor_handle.update_value(host_id.clone(),updated_replication_data).await;
-
-                        // if let Some(mut current_replication_data) = replication_actor_handle.get_value(HostId::Myself).await {
-                        //     // we need to convert the command to a RESP string to count the bytes.
-                        //     let value_as_string = msg.to_encoded_string()?;
-
-                        //     // calculate how many bytes are in the value_as_string
-                        //     let value_as_string_num_bytes = value_as_string.len() as i16;
-
-                        //     // extract the current offset value.
-                        //     let current_offset = current_replication_data.master_repl_offset;
-
-                        //     // update the offset value.
-                        //     let new_offset = current_offset + value_as_string_num_bytes;
-
-                        //     current_replication_data.master_repl_offset = new_offset;
-
-                        //     // update the offset value in the replication actor.
-                        //     replication_actor_handle.set_value(HostId::Myself,current_replication_data).await;
-
-                        //     info!("Current master offset: {} new offset: {}",current_offset,new_offset);
-                        // }
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
@@ -419,7 +391,7 @@ async fn handle_connection_from_clients(
                     }
                 }
                 Err(e) => {
-                    error!("Something unexpected happened: {e}");
+                    error!("Something unexpected happened during replica_rx.recv(): {e}");
                 }
             }
          }

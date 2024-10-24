@@ -28,9 +28,9 @@ use crate::{
 use anyhow::{Context, Result};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 // for master repl id generation
 use rand::distributions::Alphanumeric;
@@ -38,6 +38,43 @@ use rand::{thread_rng, Rng};
 use std::iter;
 // ----------
 
+pub async fn update_master_offset(
+    replica_tx: broadcast::Sender<RespValue>,
+    replication_actor_handle: ReplicationActorHandle,
+) {
+    let mut replica_rx = replica_tx.subscribe();
+    // Start receiving messages from the channel by calling the recv method of the Receiver endpoint.
+    // This method blocks until a message is received.
+    loop {
+        let msg = replica_rx.recv().await;
+        match msg {
+            Ok(payload) => {
+                // we need to convert the command to a RESP string to count the bytes.
+                let value_as_string = payload
+                    .to_encoded_string()
+                    .expect("Expected to easily convert RESP to string");
+
+                // calculate how many bytes are in the value_as_string
+                let value_as_string_num_bytes = value_as_string.len() as i16;
+
+                // we need to update master's offset because we are sending writeable commands to replicas
+                let mut updated_replication_data_master = ReplicationSectionData::new();
+
+                // remember, this is an INCREMENT not a total new value
+                updated_replication_data_master.master_repl_offset =
+                    Some(value_as_string_num_bytes);
+
+                // updating master offset as a master
+                replication_actor_handle
+                    .update_value(HostId::Myself, updated_replication_data_master)
+                    .await;
+            }
+            Err(e) => {
+                error!("Something horrible happened while trying to update master offset: {e}")
+            }
+        }
+    }
+}
 pub async fn expire_value(
     msg: SetCommandParameter,
     set_command_actor_handle: SetCommandActorHandle,
