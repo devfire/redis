@@ -58,7 +58,7 @@ pub async fn update_master_offset(
                 let value_as_string_num_bytes = value_as_string.len() as i16;
 
                 // these should never fail, so expect is ok.
-                info!("MASTER: current offset: {} {value_as_string} has {value_as_string_num_bytes} bytes",
+                info!("MASTER: current offset: {} bytes",
                     replication_actor_handle.get_value(HostId::Myself).await
                     .expect("Expected to get master replication info.")
                     .master_repl_offset
@@ -76,11 +76,15 @@ pub async fn update_master_offset(
                     .update_value(HostId::Myself, updated_replication_data_master)
                     .await;
 
-                info!("MASTER: updated offset: {}",
-                    replication_actor_handle.get_value(HostId::Myself).await
-                    .expect("Expected to get master replication info.")
-                    .master_repl_offset
-                    .expect("Expected to get master offset."));
+                info!(
+                    "MASTER: updated offset: {}",
+                    replication_actor_handle
+                        .get_value(HostId::Myself)
+                        .await
+                        .expect("Expected to get master replication info.")
+                        .master_repl_offset
+                        .expect("Expected to get master offset.")
+                );
             }
             Err(e) => {
                 error!("Something horrible happened while trying to update master offset: {e}")
@@ -243,7 +247,7 @@ pub async fn handshake(
         .await;
 
     // We are done with the handshake!
-    info!("Handshake completed.");
+    debug!("Handshake completed.");
 
     Ok(())
 

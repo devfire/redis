@@ -1,9 +1,12 @@
-use crate::{actors::messages::ReplicatorActorMessage, protocol::ReplicationSectionData};
+use crate::{
+    actors::messages::ReplicatorActorMessage,
+    protocol::{ReplicationSectionData, ServerRole},
+};
 
 use std::collections::HashMap;
 
 use tokio::sync::mpsc;
-use tracing::info;
+use tracing::{debug, info};
 
 use super::messages::HostId;
 
@@ -58,7 +61,7 @@ impl ReplicatorActor {
                 // If the key exists in the hash map, send the value back
 
                 if let Some(value) = self.kv_hash.get(&host_id) {
-                    info!("For {host_id} retrieved {value}");
+                    debug!("For {host_id} retrieved {value}");
                     let _ = respond_to.send(Some(value.clone()));
                 } else {
                     let _ = respond_to.send(None);
@@ -76,11 +79,11 @@ impl ReplicatorActor {
             } =>
             // Updating the key-value pair in place
             {
-                info!("Updating for {host_id} {replication_value}");
+                debug!("Updating for {host_id} {replication_value}");
 
                 if let Some(offset_increment) = replication_value.master_repl_offset {
                     // we were passed an offset increment, let's update the existing value
-                    info!("Increasing offset by {offset_increment} for {host_id}");
+                    debug!("Increasing offset by {offset_increment} for {host_id}");
 
                     match self.kv_hash.get_mut(&host_id) {
                         Some(replication_data) => {
@@ -109,11 +112,11 @@ impl ReplicatorActor {
                         }
                     }
                 } else {
-                    info!("No offset passed for {host_id}.");
+                    debug!("No offset passed for {host_id}.");
                 }
 
                 if let Some(replid) = replication_value.master_replid {
-                    info!("Setting replid {replid} for {host_id}");
+                    debug!("Setting replid {replid} for {host_id}");
 
                     match self.kv_hash.get_mut(&host_id) {
                         Some(replication_data) => {
@@ -133,7 +136,7 @@ impl ReplicatorActor {
                 }
 
                 if let Some(new_role) = replication_value.role {
-                    info!("Setting role {new_role} for {host_id}");
+                    debug!("Setting role {new_role} for {host_id}");
                     match self.kv_hash.get_mut(&host_id) {
                         Some(replication_data) => {
                             // We have an entry but whether we have a role already or not, doesn't matter,
@@ -152,7 +155,7 @@ impl ReplicatorActor {
                 }
 
                 // dump the contents of the hashmap to the console
-                info!("AFTER UPDATE:kv_hash: {:?}", self.kv_hash);
+                // info!("AFTER UPDATE:kv_hash: {:#?}", self.kv_hash);
 
                 // self.kv_hash.insert(host_id, replication_value);
             }
@@ -163,24 +166,45 @@ impl ReplicatorActor {
                     .kv_hash
                     .get(&HostId::Myself)
                     .expect("Something is wrong, expected to find master offset.")
-                    .master_repl_offset;
+                    .master_repl_offset
+                    .expect("Expected master to have an offset, panic otherwise.");
 
                 // dump the contents of the hashmap to the console
-                info!("kv_hash: {:?}", self.kv_hash);
+                debug!("kv_hash: {:?}", self.kv_hash);
 
                 info!("Looking for replicas with offset of {:?}", master_offset);
 
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
-                let replica_count = self
-                    .kv_hash
-                    .iter()
-                    .filter(|(k, v)| {
-                        v.master_repl_offset.expect("Replicas must have offsets.")
-                            == master_offset.expect("Master must have an offset.")
-                            && **k != HostId::Myself
-                    })
-                    .count();
+                // let replica_count = self
+                //     .kv_hash
+                //     .iter()
+                //     .filter(|(k, v)| {
+                //         v.master_repl_offset.expect("Replicas must have offsets.")
+                //             == master_offset.expect("Master must have an offset.")
+                //             && **k != HostId::Myself
+                //     })
+                //     .count();
+
+                let mut replica_count = 0;
+
+                for (k, v) in self.kv_hash.iter() {
+                    info!("k: {k} v: {v}");
+                    if let Some(my_role) = &v.role {
+                        // we need to filter out redis-cli and other non replica clients.
+                        // redis-cli will not have a role at all and master will be master which we can ignore
+                        if *my_role == ServerRole::Slave {
+                            // we are only counting slaves now
+                            // next, let's check for offset
+                            if let Some(slave_offset) = v.master_repl_offset {
+                                // ok, this replica does have an offset, let's compare
+                                if slave_offset == master_offset {
+                                    replica_count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
 
                 let _ = respond_to.send(replica_count);
             }

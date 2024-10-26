@@ -74,7 +74,7 @@ impl ProcessorActor {
                             .to_encoded_string()
                             .context("Failed to encode request as a string.")?;
 
-                        tracing::info!(
+                        tracing::debug!(
                             "Simple string from master: {:?}",
                             request_as_encoded_string
                         );
@@ -82,7 +82,7 @@ impl ProcessorActor {
                         match parse_command(&request_as_encoded_string) {
                             Ok((_remaining_bytes, RedisCommand::Fullresync(repl_id, offset))) => {
                                 // we got RDB mem dump, time to load it
-                                tracing::info!(
+                                tracing::debug!(
                                     "Received FULLRESYNC repl_id: {} offset: {} from master.",
                                     repl_id,
                                     offset
@@ -93,7 +93,7 @@ impl ProcessorActor {
                                 Ok(())
                             }
                             _ => {
-                                tracing::info!(
+                                tracing::debug!(
                                     "Unknown string {}, forwarding to replica.",
                                     request_as_encoded_string
                                 );
@@ -170,7 +170,7 @@ impl ProcessorActor {
                                     .send(Some(vec![(RespValue::SimpleString("OK".to_string()))]));
 
                                 // forward this to the replicas
-                                info!("Current subscriber count: {}", replica_tx.receiver_count());
+                                debug!("Current subscriber count: {}", replica_tx.receiver_count());
 
                                 // calculate how many bytes are in the value_as_string
                                 // let request_num_bytes = request_as_encoded_string.len() as i16;
@@ -222,7 +222,7 @@ impl ProcessorActor {
 
                                 let _active_client_count = replica_tx.send(request)?;
 
-                                tracing::info!(
+                                tracing::debug!(
                                     "Forwarding {:?} command to the replicas.",
                                     request_as_encoded_string
                                 );
@@ -376,7 +376,7 @@ impl ProcessorActor {
                                     let replication_data =
                                         replication_actor_handle.get_value(HostId::Myself).await;
 
-                                    tracing::info!(
+                                    tracing::debug!(
                                         "Retrieved INFO RespValue: {:?}",
                                         replication_data
                                     );
@@ -417,7 +417,7 @@ impl ProcessorActor {
                                         // So, if we are processing this, we are a replica.
                                         // Replies to this will go back over the OUTBOUND tcp connection to the master.
                                         // NOTE: Most replies are suppressed but these we need to send back to the master.
-                                        info!("Replica received GETACK: {}", ackvalue);
+                                        debug!("Replica received GETACK: {}", ackvalue);
 
                                         // check to make sure ackvalue is actually *
                                         if ackvalue == "*" {
@@ -452,7 +452,7 @@ impl ProcessorActor {
                                                 let repl_conf_ack_encoded =
                                                     repl_conf_ack.to_encoded_string()?;
 
-                                                info!(
+                                                debug!(
                                                     "REPLICA: returning {:?} from processor to main.rs loop.",
                                                     repl_conf_ack_encoded
                                                 );
@@ -475,7 +475,7 @@ impl ProcessorActor {
                                     }
                                     ReplConfCommandParameter::Ack(ack) => {
                                         // These are received by the master from the replica slaves.
-                                        tracing::info!("Received ACK: {} from {:?}", ack, host_id);
+                                        tracing::debug!("Received ACK: {} from {:?}", ack, host_id);
 
                                         // we got a new value, so let's reset the offset.
                                         replication_actor_handle
@@ -547,7 +547,7 @@ impl ProcessorActor {
                                 // ignore the _replication_id for now. There are actually two of them:
                                 // https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#replication-id-explained
 
-                                info!("PSYNC: Processing replication data for {host_id}");
+                                debug!("PSYNC: Processing replication data for {host_id}");
 
                                 // initialize the reply of Vec<Vec<u8>>
                                 //
@@ -559,7 +559,7 @@ impl ProcessorActor {
                                 if let Some(replication_section_data) =
                                     replication_actor_handle.get_value(host_id.clone()).await
                                 {
-                                    info!("Known replica {replication_section_data}, proceeding.");
+                                    debug!("Known replica {replication_section_data}, proceeding.");
                                 } else {
                                     warn!("Replica not seen before, adding.");
                                     let mut replication_data = ReplicationSectionData::new();
@@ -584,7 +584,7 @@ impl ProcessorActor {
                                 // check if the replica is asking for a full resync
                                 if offset == -1 {
                                     // initial fullresync reply
-                                    info!("Full resync triggered with offset {}", offset);
+                                    debug!("Full resync triggered with offset {}", offset);
 
                                     // Master got PSYNC ? -1
                                     // replica is expecting +FULLRESYNC <REPL_ID> 0\r\n back
@@ -604,7 +604,7 @@ impl ProcessorActor {
                                         .await
                                         .context("Unable to load RDB file into memory")?;
 
-                                    tracing::info!("For client {:?} storing offset 0", host_id);
+                                    tracing::debug!("For client {:?} storing offset 0", host_id);
 
                                     // update the offset
                                     replication_actor_handle.reset_replica_offset(host_id).await;
@@ -618,7 +618,7 @@ impl ProcessorActor {
                                 Ok(())
                             } // end of psync
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
-                                info!("Processing WAIT {} {}", numreplicas, timeout);
+                                debug!("Processing WAIT {} {}", numreplicas, timeout);
 
                                 let replconf_getack_star: RespValue =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
@@ -654,14 +654,15 @@ impl ProcessorActor {
                                     // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
                                     // This will update the offset in the replication actor.
 
-                                    // flush the replica in sync db because we are about to ask all replicas for their offsets
-                                    // replication_actor_handle.reset_synced_replica_count().await;
+                                    // NOTE: this will flush the replica-in-sync db because we are about to ask all replicas for their offsets
 
                                     // ok now we wait for everyone to reply
                                     info!(
                                         "Starting the waiting period of {} milliseconds.",
                                         timeout
                                     );
+
+                                    //
 
                                     let _ = replica_tx.send(replconf_getack_star)?;
 
@@ -670,7 +671,7 @@ impl ProcessorActor {
                                     sleep(Duration::from_millis(timeout.try_into()?)).await;
 
                                     let elapsed_time = start_time.elapsed();
-                                    info!("Done waiting after {:?}!", elapsed_time);
+                                    debug!("Done waiting after {:?}!", elapsed_time);
 
                                     // get the replica count again
                                     let replicas_in_sync =

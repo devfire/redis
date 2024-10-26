@@ -1,5 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     actors::{
@@ -31,7 +31,7 @@ impl ReplicationActorHandle {
         &self,
         host_id: HostId, //hostIP:port combo
     ) -> Option<ReplicationSectionData> {
-        info!("Getting info value for key: {:?}", host_id);
+        debug!("Getting info value for key: {:?}", host_id);
         let (send, recv) = oneshot::channel();
         let msg = ReplicatorActorMessage::GetReplicationValue {
             // info_key,
@@ -72,7 +72,7 @@ impl ReplicationActorHandle {
         host_id: HostId,
         replication_value: ReplicationSectionData,
     ) {
-        info!(
+        debug!(
             "HANDLER: Setting REPLICATION key: {:?}, value: {}",
             host_id, replication_value
         );

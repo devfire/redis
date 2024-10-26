@@ -1,7 +1,7 @@
 // Module for handling repetitive tasks, like sending REPLCONF
 
 use tokio::time::{interval, Duration};
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     actors::messages::HostId, handlers::replication::ReplicationActorHandle, resp::value::RespValue,
@@ -16,7 +16,7 @@ pub async fn send_offset_to_master(
 
     loop {
         interval.tick().await;
-        info!("Sending REPLCONF ACK to master");
+        debug!("Sending REPLCONF ACK to master");
         // First, let's get our current replication data from replica's POV.
         if let Some(current_replication_data) =
             replication_actor_handle.get_value(HostId::Myself).await
@@ -43,7 +43,7 @@ pub async fn send_ack_to_replicas(
 
     loop {
         interval.tick().await;
-        info!("Sending REPLCONF ACK to master");
+        debug!("Sending REPLCONF ACK to master");
         // First, let's get our current replication data from replica's POV.
         if let Some(current_replication_data) =
             replication_actor_handle.get_value(HostId::Myself).await

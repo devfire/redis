@@ -176,7 +176,7 @@ impl ConfigCommandActor {
                             // ensure!(Path::new(&fullpath).exists(), "RDB not found.");
 
                             // Log the attempt
-                            info!("Loading RDB {} from disk", fullpath);
+                            debug!("Loading RDB {} from disk", fullpath);
 
                             let rdb_file = File::open(fullpath)
                                 .await
@@ -195,7 +195,7 @@ impl ConfigCommandActor {
                                         key,
                                         value,
                                     }) => {
-                                        info!(
+                                        debug!(
                                             "Loading {} {} {:?} from local db.",
                                             key, value, key_expiry_time
                                         );

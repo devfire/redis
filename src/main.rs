@@ -15,7 +15,7 @@ use tokio_util::codec::{FramedRead, FramedWrite};
 use tracing::level_filters::LevelFilter;
 
 use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};
@@ -73,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(socket_address).await?;
 
-    tracing::info!("Redis is running on port {}.", cli.port);
+    tracing::debug!("Redis is running on port {}.", cli.port);
 
     // Get a handle to the set actor, one per redis. This starts the actor.
     let set_command_actor_handle = SetCommandActorHandle::new();
@@ -160,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
         .update_value(HostId::Myself, replication_data)
         .await;
 
-    info!(
+    debug!(
         "Just set the value: {}",
         replication_actor_handle
             .get_value(HostId::Myself)
@@ -213,7 +213,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     } else {
         // we master, we no replica!
-        info!("We are a master, cool.");
+        debug!("We are a master, cool.");
 
         // one more round of cloning
         let replication_actor_handle_clone = replication_actor_handle.clone();
@@ -245,7 +245,7 @@ async fn main() -> anyhow::Result<()> {
         // Asynchronously wait for an inbound TcpStream.
         let (stream, socket_address) = listener.accept().await?;
 
-        info!("Received connection from {}", socket_address);
+        debug!("Received connection from {}", socket_address);
 
         // Must clone the actors handlers because tokio::spawn move will grab everything.
         let set_command_handler_clone = set_command_actor_handle.clone();
@@ -305,11 +305,11 @@ async fn handle_connection_from_clients(
         ip: client_ip,
         port: client_port,
     };
-    info!("Handling connection from {:?}", host_id);
+    debug!("Handling connection from {:?}", host_id);
 
     let mut replica_rx = replica_tx.subscribe();
 
-    info!("Subscribed to replica updates {:?}", replica_rx);
+    debug!("Subscribed to replica updates {:?}", replica_rx);
 
     // Split the TCP stream into a reader and writer.
     let (reader, writer) = stream.into_split();
@@ -329,7 +329,7 @@ async fn handle_connection_from_clients(
                 match msg {
                     Ok(request) => {
                         // send the request to the request processor actor.
-                        tracing::info!("Received {:?} from client: {:?}", request.to_encoded_string()?, host_id);
+                        tracing::debug!("Received {:?} from client: {:?}", request.to_encoded_string()?, host_id);
                         if let Some(processed_values) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -348,7 +348,7 @@ async fn handle_connection_from_clients(
 
                             // iterate over processed_value and send each one to the client
                             for value in &processed_values {
-                                // info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
+                                // debug!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
                                 let _ = writer.send(value.clone()).await?;
 
                                 tracing::debug!("Done sending, moving to the next value.");
@@ -382,12 +382,12 @@ async fn handle_connection_from_clients(
 
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
-                        info!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
+                        debug!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
 
                         let _ = writer.send(msg).await?;
                         // writer.flush().await?;
                     } else {
-                        tracing::debug!("Not forwarding message to non-replica client {:?}.", host_id);
+                        debug!("Not forwarding message to non-replica client {:?}.", host_id);
                     }
                 }
                 Err(e) => {
@@ -402,7 +402,7 @@ async fn handle_connection_from_clients(
                 // we only want to send replication messages to replicas.
                 am_i_replica  = msg;
 
-                tracing::debug!("Updated client {:?} replica status to {}", host_id, am_i_replica);
+                info!("Updated client {:?} replica status to {}", host_id, am_i_replica);
             // // }
          }
         } // end tokio::select
@@ -456,7 +456,7 @@ async fn handle_connection_to_master(
                                 // calculate how many bytes are in the value_as_string
                                 let value_as_string_num_bytes = value_as_string.len() as i16;
 
-                                info!("REPLICA: {:?} has {value_as_string_num_bytes} bytes.", value_as_string);
+                                debug!("REPLICA: {:?} has {value_as_string_num_bytes} bytes.", value_as_string);
 
                                 // we need to update replica's offset because we are sending writeable commands to replicas
                                 let mut updated_replication_data = ReplicationSectionData::new();
@@ -475,7 +475,7 @@ async fn handle_connection_to_master(
                                 for value in processed_value.iter() {
                                     // check to see if processed_value contains REPLCONF in the encoded string
                                     if value.to_encoded_string()?.contains(strings_to_reply) {
-                                        // info!("Sending response to master: {:?}", value.to_encoded_string()?);
+                                        // debug!("Sending response to master: {:?}", value.to_encoded_string()?);
                                         let _ = writer.send(value.clone()).await?;
                                     }
                                 }
@@ -493,7 +493,7 @@ async fn handle_connection_to_master(
          msg = tcp_msgs_rx.recv() => {
             match msg {
                 Ok(msg) => {
-                    tracing::info!("Sending message to master: {:?}", msg.to_encoded_string()?);
+                    tracing::debug!("Sending message to master: {:?}", msg.to_encoded_string()?);
                     let _ = writer.send(msg).await?;
                     // writer.flush().await?;
                 }
