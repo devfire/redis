@@ -329,7 +329,7 @@ async fn handle_connection_from_clients(
                 match msg {
                     Ok(request) => {
                         // send the request to the request processor actor.
-                        tracing::debug!("Received {:?} from client: {:?}", request.to_encoded_string()?, host_id);
+                        // debug!("Received {:?} from client: {:?}", request.to_encoded_string()?, host_id);
                         if let Some(processed_values) = request_processor_actor_handle
                             .process_request(
                                 request,
@@ -344,7 +344,7 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            info!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
+                            // info!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
 
                             // iterate over processed_value and send each one to the client
                             for value in &processed_values {
@@ -354,7 +354,7 @@ async fn handle_connection_from_clients(
 
                                 // tracing::debug!("Done sending, moving to the next value.");
                             }
-                            info!("Done sending to {host_id}, moving to the next value.");
+                            // info!("Done sending to {host_id}, moving to the next value.");
                         }
                     }
                     Err(e) => {

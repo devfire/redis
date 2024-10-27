@@ -189,7 +189,7 @@ impl ReplicatorActor {
                 let mut replica_count = 0;
 
                 for (k, v) in self.kv_hash.iter() {
-                    info!("k: {k} v: {v}");
+                    // info!("k: {k} v: {v}");
                     if let Some(my_role) = &v.role {
                         // we need to filter out redis-cli and other non replica clients.
                         // redis-cli will not have a role at all and master will be master which we can ignore
