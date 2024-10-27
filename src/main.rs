@@ -350,6 +350,7 @@ async fn handle_connection_from_clients(
                             for value in &processed_values {
                                 // info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
                                 let _ = writer.send(value.clone()).await?;
+                                writer.flush().await?;
 
                                 // tracing::debug!("Done sending, moving to the next value.");
                             }
