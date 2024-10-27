@@ -348,7 +348,7 @@ async fn handle_connection_from_clients(
 
                             // iterate over processed_value and send each one to the client
                             for value in &processed_values {
-                                // debug!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
+                                info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
                                 let _ = writer.send(value.clone()).await?;
 
                                 tracing::debug!("Done sending, moving to the next value.");
@@ -371,7 +371,7 @@ async fn handle_connection_from_clients(
                     // calculate how many bytes are in the value_as_string
                     let value_as_string_num_bytes = value_as_string.len() as i16;
 
-                    // we need to update master's offset because we are sending writeable commands to replicas
+                    // we need to update how the master sees replicas' offsets because we are sending writeable commands to replicas
                     let mut updated_replication_data_master = ReplicationSectionData::new();
 
                     // remember, this is an INCREMENT not a total new value
