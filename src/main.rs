@@ -354,6 +354,7 @@ async fn handle_connection_from_clients(
 
                                 // tracing::debug!("Done sending, moving to the next value.");
                             }
+                            info!("Done sending to {host_id}, moving to the next value.");
                         }
                     }
                     Err(e) => {
