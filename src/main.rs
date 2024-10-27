@@ -344,14 +344,14 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            tracing::debug!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
+                            info!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
 
                             // iterate over processed_value and send each one to the client
                             for value in &processed_values {
-                                info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
+                                // info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
                                 let _ = writer.send(value.clone()).await?;
 
-                                tracing::debug!("Done sending, moving to the next value.");
+                                // tracing::debug!("Done sending, moving to the next value.");
                             }
                         }
                     }
