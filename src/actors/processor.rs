@@ -619,12 +619,12 @@ impl ProcessorActor {
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
                                 info!("Processing WAIT {} {}", numreplicas, timeout);
 
-                                let replconf_getack_star: RespValue =
-                                    RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
+                                // let replconf_getack_star: RespValue =
+                                //     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
 
                                 // get the replica count
-                                let replicas_in_sync =
-                                    replication_actor_handle.get_synced_replica_count().await;
+                                // let replicas_in_sync =
+                                //     replication_actor_handle.get_synced_replica_count().await;
 
                                 info!("We have {replicas_in_sync} replicas in sync.");
 
@@ -663,7 +663,7 @@ impl ProcessorActor {
 
                                     //     //
 
-                                    let _ = replica_tx.send(replconf_getack_star)?;
+                                //     let _ = replica_tx.send(replconf_getack_star)?;
 
                                     // let start_time = Instant::now();
 
