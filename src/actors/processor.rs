@@ -623,15 +623,11 @@ impl ProcessorActor {
                                 let replconf_getack_star: RespValue =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
 
-                                // let _ = replica_tx.send(replconf_getack_star.clone())?;
+                                let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 // get the replica count
-                                // let replicas_in_sync =
-                                //     replication_actor_handle.get_synced_replica_count().await;
-
-                                let _ = respond_to.send(Some(vec![
-                                    (RespValue::Integer(3)),
-                                ]));
+                                let replicas_in_sync =
+                                    replication_actor_handle.get_synced_replica_count().await;
 
                                 // info!("We have {replicas_in_sync} in sync replicas.");
 
@@ -643,50 +639,50 @@ impl ProcessorActor {
                                 // 2. timeout: The maximum number of milliseconds to wait for the replicas to be connected and in sync.
                                 //
                                 // detailed OG implementation: https://github.com/redis/redis/blob/unstable/src/replication.c#L3548
-                                // if replicas_in_sync >= numreplicas {
-                                //     // we can return immediately
-                                //     info!(
-                                //         "{} > {}, returning immediately.",
-                                //         replicas_in_sync, numreplicas
-                                //     );
-                                //     let _ = respond_to.send(Some(vec![
-                                //         (RespValue::Integer(replicas_in_sync as i64)),
-                                //     ]));
-                                // } else {
-                                //     // we need to wait for the replicas to be connected and in sync
-                                //     // but we won't wait more than timeout milliseconds.
-                                //     // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
-                                //     // This will update the offset in the replication actor.
+                                if replicas_in_sync >= numreplicas {
+                                    //     // we can return immediately
+                                    // info!(
+                                    //     "{} > {}, returning immediately.",
+                                    //     replicas_in_sync, numreplicas
+                                    // );
+                                    let _ = respond_to.send(Some(vec![
+                                        (RespValue::Integer(replicas_in_sync as i64)),
+                                    ]));
+                                } else {
+                                    //     // we need to wait for the replicas to be connected and in sync
+                                    //     // but we won't wait more than timeout milliseconds.
+                                    //     // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
+                                    //     // This will update the offset in the replication actor.
 
-                                //     // NOTE: this will flush the replica-in-sync db because we are about to ask all replicas for their offsets
+                                    //     // NOTE: this will flush the replica-in-sync db because we are about to ask all replicas for their offsets
 
-                                //     // ok now we wait for everyone to reply
-                                //     info!(
-                                //         "Starting the waiting period of {} milliseconds.",
-                                //         timeout
-                                //     );
+                                    //     // ok now we wait for everyone to reply
+                                    //     info!(
+                                    //         "Starting the waiting period of {} milliseconds.",
+                                    //         timeout
+                                    //     );
 
-                                //     //
+                                    //     //
 
-                                //     let _ = replica_tx.send(replconf_getack_star)?;
+                                    let _ = replica_tx.send(replconf_getack_star)?;
 
-                                //     let start_time = Instant::now();
+                                    // let start_time = Instant::now();
 
-                                //     sleep(Duration::from_millis(timeout.try_into()?)).await;
+                                    sleep(Duration::from_millis(timeout.try_into()?)).await;
 
-                                //     let elapsed_time = start_time.elapsed();
-                                //     debug!("Done waiting after {:?}!", elapsed_time);
+                                    // let elapsed_time = start_time.elapsed();
+                                    //     debug!("Done waiting after {:?}!", elapsed_time);
 
-                                //     // get the replica count again
-                                //     let replicas_in_sync =
-                                //         replication_actor_handle.get_synced_replica_count().await;
+                                    //     // get the replica count again
+                                    let replicas_in_sync =
+                                        replication_actor_handle.get_synced_replica_count().await;
 
-                                //     info!("After REPLCONF ACK we have {replicas_in_sync} in sync replicas.");
+                                    //     info!("After REPLCONF ACK we have {replicas_in_sync} in sync replicas.");
 
-                                //     let _ = respond_to.send(Some(vec![
-                                //         (RespValue::Integer(replicas_in_sync as i64)),
-                                //     ]));
-                                // }
+                                    let _ = respond_to.send(Some(vec![
+                                        (RespValue::Integer(replicas_in_sync as i64)),
+                                    ]));
+                                }
 
                                 Ok(())
                             }
