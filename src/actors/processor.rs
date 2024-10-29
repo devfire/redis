@@ -623,7 +623,7 @@ impl ProcessorActor {
                                 let replconf_getack_star: RespValue =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
 
-                                // let _ = replica_tx.send(replconf_getack_star.clone())?;
+                                let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 // get the replica count
                                 // let replicas_in_sync =
