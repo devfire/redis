@@ -170,7 +170,7 @@ impl ReplicatorActor {
                     .expect("Expected master to have an offset, panic otherwise.");
 
                 // dump the contents of the hashmap to the console
-                debug!("kv_hash: {:?}", self.kv_hash);
+                info!("kv_hash: {:?}", self.kv_hash);
 
                 info!("Looking for replicas with offset of {:?}", master_offset);
 
