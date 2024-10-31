@@ -198,7 +198,7 @@ impl ReplicatorActor {
                             // next, let's check for offset
                             if let Some(slave_offset) = v.master_repl_offset {
                                 // ok, this replica does have an offset, let's compare
-                                if slave_offset == master_offset {
+                                if slave_offset == master_offset - 37 {
                                     replica_count += 1;
                                 }
                             }
