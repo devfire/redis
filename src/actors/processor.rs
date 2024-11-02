@@ -569,7 +569,7 @@ impl ProcessorActor {
                                     replication_data.master_replid = replication_actor_handle
                                         .get_value(HostId::Myself)
                                         .await
-                                        .expect("This should never fail because we always know our own offset")
+                                        .expect("This should never fail because we always know our own replication ID.")
                                         .master_replid;
                                     replication_data.master_repl_offset = Some(0);
 

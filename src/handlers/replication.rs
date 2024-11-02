@@ -72,7 +72,7 @@ impl ReplicationActorHandle {
         host_id: HostId,
         replication_value: ReplicationSectionData,
     ) {
-        debug!(
+        info!(
             "HANDLER: Setting REPLICATION key: {:?}, value: {}",
             host_id, replication_value
         );
