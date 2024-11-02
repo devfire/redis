@@ -92,6 +92,7 @@ impl ReplicatorActor {
                                 // we need to take() in order to avoid trying to
                                 // directly manipulate the inner value of an Option, which is not allowed.
                                 Some(current_offset) => {
+                                    info!("Current {host_id} offset is {current_offset}, increasing by {offset_increment}");
                                     // we have an offset, let's add the new one to this one
                                     replication_data.master_repl_offset =
                                         Some(current_offset + offset_increment);

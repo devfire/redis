@@ -475,7 +475,7 @@ impl ProcessorActor {
                                     }
                                     ReplConfCommandParameter::Ack(ack) => {
                                         // These are received by the master from the replica slaves.
-                                        tracing::debug!("Received ACK: {} from {:?}", ack, host_id);
+                                        info!("Received ACK: {} from {:?}", ack, host_id);
 
                                         // we got a new value, so let's reset the offset.
                                         replication_actor_handle
