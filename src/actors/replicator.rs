@@ -170,7 +170,7 @@ impl ReplicatorActor {
                     .expect("Expected master to have an offset, panic otherwise.");
 
                 // dump the contents of the hashmap to the console
-                info!("kv_hash: {:?}", self.kv_hash);
+                // info!("kv_hash: {:?}", self.kv_hash);
 
                 info!("Looking for replicas with offset of {:?}", master_offset);
 
@@ -206,6 +206,7 @@ impl ReplicatorActor {
                     }
                 }
 
+                info!("Final replica count: {replica_count}");
                 let _ = respond_to.send(replica_count);
             }
             ReplicatorActorMessage::ResetReplicaOffset { host_id } => {
