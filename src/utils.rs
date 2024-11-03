@@ -28,7 +28,7 @@ use crate::{
 use anyhow::{Context, Result};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::sync::{broadcast, mpsc};
+use tokio::{sync::{broadcast, mpsc}, task::JoinHandle};
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -37,6 +37,15 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::iter;
 // ----------
+
+pub async fn sleeping_task(duration: Duration) -> JoinHandle<()> {
+    let handle = tokio::spawn(async move {
+        info!("Sleeping thread started.");
+        sleep(duration).await;
+        info!("Sleeping thread finished.");
+    });
+    handle
+}
 
 pub async fn update_master_offset(
     replica_tx: broadcast::Sender<RespValue>,

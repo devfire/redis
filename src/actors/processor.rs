@@ -7,7 +7,7 @@ use crate::{
         RedisCommand, ReplConfCommandParameter, ReplicationSectionData, ServerRole,
         SetCommandParameter,
     },
-    resp::value::RespValue,
+    resp::value::RespValue, utils::sleeping_task,
 };
 
 use anyhow::{anyhow, Context};
@@ -670,12 +670,14 @@ impl ProcessorActor {
 
                                     // let start_time = Instant::now();
 
-                                    sleep(Duration::from_millis(timeout.try_into()?)).await;
+                                    let duration = Duration::from_millis(timeout.try_into()?);
 
-                                    // let elapsed_time = start_time.elapsed();
-                                    //     debug!("Done waiting after {:?}!", elapsed_time);
+                                    let sleeping_handle = sleeping_task(duration).await;
 
-                                    //     // get the replica count again
+                                    // yielding back to tokio
+
+                                    sleeping_handle.await?;
+
                                     let replicas_in_sync =
                                         replication_actor_handle.get_synced_replica_count().await;
 
