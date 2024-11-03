@@ -168,7 +168,7 @@ impl ReplicatorActor {
                     .get(&HostId::Myself)
                     .expect("Something is wrong, expected to find master offset.")
                     .master_repl_offset
-                    .expect("Expected master to have an offset, panic otherwise.");
+                    .expect("Expected master to have an offset, panic otherwise.") - 37;
 
                 // dump the contents of the hashmap to the console
                 // info!("kv_hash: {:?}", self.kv_hash);
