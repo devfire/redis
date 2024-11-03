@@ -7,14 +7,12 @@ use crate::{
         RedisCommand, ReplConfCommandParameter, ReplicationSectionData, ServerRole,
         SetCommandParameter,
     },
-    resp::value::RespValue, utils::sleeping_task,
+    resp::value::RespValue,
+    utils::sleeping_task,
 };
 
 use anyhow::{anyhow, Context};
-use tokio::{
-    sync::mpsc,
-    time::{sleep, Instant},
-};
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 // use rand::distributions::Alphanumeric;
@@ -62,6 +60,7 @@ impl ProcessorActor {
                 replica_tx,
                 client_or_replica_tx,
                 respond_to,
+                wait_sleep_tx,
             } => {
                 // Process the message from RESP Decoder
                 match request {
@@ -623,8 +622,6 @@ impl ProcessorActor {
                                 let replconf_getack_star: RespValue =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
 
-                                
-
                                 // get the replica count
                                 let replicas_in_sync =
                                     replication_actor_handle.get_synced_replica_count().await;
@@ -672,20 +669,24 @@ impl ProcessorActor {
 
                                     let duration = Duration::from_millis(timeout.try_into()?);
 
-                                    let sleeping_handle = sleeping_task(duration).await;
+                                    let _sleeping_handle = sleeping_task(
+                                        wait_sleep_tx.expect(
+                                            "IF we are processing WAIT this must be present.",
+                                        ),
+                                        duration,
+                                    )
+                                    .await;
 
                                     // yielding back to tokio
 
-                                    sleeping_handle.await?;
+                                    // sleeping_handle.await?;
 
-                                    let replicas_in_sync =
-                                        replication_actor_handle.get_synced_replica_count().await;
+                                    // let replicas_in_sync =
+                                    //     replication_actor_handle.get_synced_replica_count().await;
 
                                     //     info!("After REPLCONF ACK we have {replicas_in_sync} in sync replicas.");
 
-                                    let _ = respond_to.send(Some(vec![
-                                        (RespValue::Integer(replicas_in_sync as i64)),
-                                    ]));
+                                    let _ = respond_to.send(None); // no replies at this point, the sleeping_task fxn will reply
                                 }
 
                                 Ok(())

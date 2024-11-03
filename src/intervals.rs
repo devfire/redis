@@ -1,7 +1,7 @@
 // Module for handling repetitive tasks, like sending REPLCONF
 
 use tokio::time::{interval, Duration};
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
     actors::messages::HostId, handlers::replication::ReplicationActorHandle, resp::value::RespValue,

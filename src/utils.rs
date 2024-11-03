@@ -28,8 +28,11 @@ use crate::{
 use anyhow::{Context, Result};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::{sync::{broadcast, mpsc}, task::JoinHandle};
 use tokio::time::sleep;
+use tokio::{
+    sync::{broadcast, mpsc},
+    task::JoinHandle,
+};
 use tracing::{debug, error, info};
 
 // for master repl id generation
@@ -38,11 +41,15 @@ use rand::{thread_rng, Rng};
 use std::iter;
 // ----------
 
-pub async fn sleeping_task(duration: Duration) -> JoinHandle<()> {
+pub async fn sleeping_task(wait_sleep_tx: mpsc::Sender<()>, duration: Duration) -> JoinHandle<()> {
     let handle = tokio::spawn(async move {
         info!("Sleeping thread started.");
         sleep(duration).await;
         info!("Sleeping thread finished.");
+        wait_sleep_tx
+            .send(())
+            .await
+            .expect("This should have succeeded.");
     });
     handle
 }
@@ -67,11 +74,15 @@ pub async fn update_master_offset(
                 let value_as_string_num_bytes = value_as_string.len() as i16;
 
                 // these should never fail, so expect is ok.
-                info!("MASTER: current offset: {} bytes",
-                    replication_actor_handle.get_value(HostId::Myself).await
-                    .expect("Expected to get master replication info.")
-                    .master_repl_offset
-                    .expect("Expected to get master offset."));
+                info!(
+                    "MASTER: current offset: {} bytes",
+                    replication_actor_handle
+                        .get_value(HostId::Myself)
+                        .await
+                        .expect("Expected to get master replication info.")
+                        .master_repl_offset
+                        .expect("Expected to get master offset.")
+                );
 
                 // we need to update master's offset because we are sending writeable commands to replicas
                 let mut updated_replication_data_master = ReplicationSectionData::new();

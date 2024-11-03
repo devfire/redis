@@ -321,6 +321,9 @@ async fn handle_connection_from_clients(
     // We need to know because replication messages are only sent to replicas, not to redis-cli clients.
     let (client_or_replica_tx, mut client_or_replica_rx) = mpsc::channel::<bool>(3);
 
+    // Create a channel for notifying the main loop when WAIT N NNN is done waiting
+    let (wait_sleep_tx, mut wait_sleep_rx) = mpsc::channel::<()>(1);
+
     let mut am_i_replica: bool = false;
 
     loop {
@@ -341,6 +344,7 @@ async fn handle_connection_from_clients(
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 replica_tx.clone(), // used to send replication messages to the replica
                                 Some(client_or_replica_tx.clone()), // used to update replica status
+                                Some(wait_sleep_tx.clone()) // we need this to hear back once WAIT is done
                             )
                             .await
                         {
@@ -362,6 +366,7 @@ async fn handle_connection_from_clients(
                     }
                 }
             }
+
          msg = replica_rx.recv() => { // from processor.rs replica_tx
             tracing::debug!("replica_rx channel received {:?} for {:?}", msg.clone()?.to_encoded_string()?, host_id);
             match msg {
@@ -407,6 +412,12 @@ async fn handle_connection_from_clients(
                 info!("Updated client {:?} replica status to {}", host_id, am_i_replica);
             // // }
          }
+         Some(_wakeup) = wait_sleep_rx.recv() => { // j/k - wakeup is nothing
+            let replicas_in_sync = replication_actor_handle.get_synced_replica_count().await;
+
+            let _ = writer.send(RespValue::Integer(replicas_in_sync as i64)).await?;
+
+        }
         } // end tokio::select
     }
 }
@@ -448,6 +459,7 @@ async fn handle_connection_to_master(
                                 master_tx.clone(), // these are ack +OK replies from the master back to handshake()
                                 replica_tx.clone(), // this enables daisy chaining of replicas to other replicas
                                 None, // connections to master cannot update replica status
+                                None, // connections to master do not handle WAIT commands
                             )
                             .await
                         {

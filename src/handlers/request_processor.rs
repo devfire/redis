@@ -46,6 +46,7 @@ impl RequestProcessorActorHandle {
         master_tx: mpsc::Sender<String>,
         replica_tx: broadcast::Sender<RespValue>, // we get this from master handler only
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
+        wait_sleep_tx: Option<mpsc::Sender<()>>,
     ) -> Option<Vec<RespValue>> {
         tracing::debug!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel
@@ -62,6 +63,7 @@ impl RequestProcessorActorHandle {
             replica_tx,
             client_or_replica_tx,
             respond_to: send,
+            wait_sleep_tx,
         };
 
         // Ignore send errors. If this send fails, so does the

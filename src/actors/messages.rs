@@ -135,6 +135,7 @@ pub enum ProcessorActorMessage {
         // NOTE: a single request like PSYNC can return multiple responses.
         // So, where a Vec<u8> is a single reponse, a Vec<Vec<u8>> is multiple responses.
         respond_to: oneshot::Sender<Option<Vec<RespValue>>>,
+        wait_sleep_tx: Option<mpsc::Sender<()>>,
     },
 }
 
@@ -153,6 +154,7 @@ impl std::fmt::Debug for ProcessorActorMessage {
                 replica_tx,
                 client_or_replica_tx: _,
                 respond_to: _,
+                wait_sleep_tx: _
             } => {
                 write!(
                     f,
