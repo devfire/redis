@@ -623,12 +623,10 @@ impl ProcessorActor {
                                 //     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
 
                                 // get the replica count
-                                // let replicas_in_sync =
-                                //     replication_actor_handle.get_synced_replica_count().await;
+                                let replicas_in_sync =
+                                    replication_actor_handle.get_synced_replica_count().await;
 
                                 info!("We have {replicas_in_sync} replicas in sync.");
-
-                                // info!("We have {replicas_in_sync} in sync replicas.");
 
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/
@@ -671,20 +669,13 @@ impl ProcessorActor {
 
                                     let _sleeping_handle = sleeping_task(
                                         wait_sleep_tx.expect(
-                                            "IF we are processing WAIT this must be present.",
+                                            "If we are processing WAIT this must be present.",
                                         ),
                                         duration,
                                     )
                                     .await;
 
                                     // yielding back to tokio
-
-                                    // sleeping_handle.await?;
-
-                                    // let replicas_in_sync =
-                                    //     replication_actor_handle.get_synced_replica_count().await;
-
-                                    //     info!("After REPLCONF ACK we have {replicas_in_sync} in sync replicas.");
 
                                     let _ = respond_to.send(None); // no replies at this point, the sleeping_task fxn will reply
                                 }
