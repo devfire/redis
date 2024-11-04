@@ -1,7 +1,12 @@
-use crate::{actors::messages::ReplicatorActorMessage, protocol::ReplicationSectionData};
+use crate::{
+    actors::messages::ReplicatorActorMessage,
+    protocol::{ReplicationSectionData, ServerRole},
+};
 
 use std::collections::HashMap;
+
 use tokio::sync::mpsc;
+use tracing::{debug, info};
 
 use super::messages::HostId;
 
@@ -10,9 +15,6 @@ pub struct ReplicatorActor {
     // The receiver for incoming messages
     receiver: mpsc::Receiver<ReplicatorActorMessage>,
 
-    // The section-key-value hash map for storing data.
-    // There are multiple sections, each has multiple keys, each key with one value.
-    // Hash<ServerIP:Port,Offset> for example.
     // Note the special value of HostId::Myself that stores server's own data.
     kv_hash: HashMap<HostId, ReplicationSectionData>,
 }
@@ -22,6 +24,15 @@ impl ReplicatorActor {
     pub fn new(receiver: mpsc::Receiver<ReplicatorActorMessage>) -> Self {
         // Initialize the key-value hash map.
         let kv_hash = HashMap::new();
+
+        // let replication_data: ReplicationSectionData = ReplicationSectionData {
+        //     role: None,
+        //     master_replid: None,
+        //     master_repl_offset: Some(0),
+        // };
+
+        // initialize the offset to 0
+        // kv_hash.insert(HostId::Myself, replication_data);
 
         // Return a new actor with the given receiver and an empty key-value hash map
         Self { receiver, kv_hash }
@@ -37,12 +48,12 @@ impl ReplicatorActor {
 
     // Handle a message.
     pub fn handle_message(&mut self, msg: ReplicatorActorMessage) {
-        tracing::info!("Handling message: {:?}", msg);
+        tracing::debug!("Handling message: {:?}", msg);
 
         // Match on the type of the message
         match msg {
             // Handle a GetValue message
-            ReplicatorActorMessage::GetInfoValue {
+            ReplicatorActorMessage::GetReplicationValue {
                 // info_key,
                 host_id,
                 respond_to,
@@ -50,6 +61,7 @@ impl ReplicatorActor {
                 // If the key exists in the hash map, send the value back
 
                 if let Some(value) = self.kv_hash.get(&host_id) {
+                    debug!("For {host_id} retrieved {value}");
                     let _ = respond_to.send(Some(value.clone()));
                 } else {
                     let _ = respond_to.send(None);
@@ -58,21 +70,152 @@ impl ReplicatorActor {
                 // If the key exists in the hash map, send the value back
                 // debug!("Processing {:?}", msg);
             }
-            ReplicatorActorMessage::SetInfoValue {
+            // This updates the values in place.
+            // Allows for partial update of either replID or offset or role.
+            // Avoids the messy get-change-update loop causing race conditions.
+            ReplicatorActorMessage::UpdateReplicationValue {
                 host_id,
-                replication_value: info_value,
+                replication_value,
             } =>
-            // Insert the key-value pair into the hash map
+            // Updating the key-value pair in place
             {
-                // this is a temp var to store the Hash
-                // let mut server_replication_data = HashMap::new();
-                // server_replication_data.insert(host_id, info_value);
-                self.kv_hash.insert(host_id, info_value);
+                debug!("Updating for {host_id} {replication_value}");
+
+                if let Some(offset_increment) = replication_value.master_repl_offset {
+                    // we were passed an offset increment, let's update the existing value
+                    debug!("Increasing offset by {offset_increment} for {host_id}");
+
+                    match self.kv_hash.get_mut(&host_id) {
+                        Some(replication_data) => {
+                            // we have an entry already but may or may not have an offset
+                            match replication_data.master_repl_offset.take() {
+                                // we need to take() in order to avoid trying to
+                                // directly manipulate the inner value of an Option, which is not allowed.
+                                Some(current_offset) => {
+                                    info!("Current {host_id} offset is {current_offset}, increasing by {offset_increment}");
+                                    // we have an offset, let's add the new one to this one
+                                    replication_data.master_repl_offset =
+                                        Some(current_offset + offset_increment);
+                                }
+                                None => {
+                                    // we do not have an existing offset, just insert the offset_increment
+                                    replication_data.master_repl_offset = Some(offset_increment);
+                                }
+                            }
+                        }
+                        None => {
+                            // this is a new entry
+                            let mut new_replication_entry = ReplicationSectionData::new();
+                            new_replication_entry.master_repl_offset = Some(offset_increment);
+
+                            // NOTE: All other entries are None because new() sets everything to None by default
+                            self.kv_hash.insert(host_id.clone(), new_replication_entry);
+                        }
+                    }
+                } else {
+                    debug!("No offset passed for {host_id}.");
+                }
+
+                if let Some(replid) = replication_value.master_replid {
+                    debug!("Setting replid {replid} for {host_id}");
+
+                    match self.kv_hash.get_mut(&host_id) {
+                        Some(replication_data) => {
+                            // We have an entry but whether we have a replid already or not, doesn't matter,
+                            // let's replace with the new one
+                            replication_data.master_replid = Some(replid);
+                        }
+                        None => {
+                            // this is a new entry
+                            let mut new_replication_entry = ReplicationSectionData::new();
+                            new_replication_entry.master_replid = Some(replid);
+
+                            // NOTE: All other entries are None because new() sets everything to None by default
+                            self.kv_hash.insert(host_id.clone(), new_replication_entry);
+                        }
+                    }
+                }
+
+                if let Some(new_role) = replication_value.role {
+                    debug!("Setting role {new_role} for {host_id}");
+                    match self.kv_hash.get_mut(&host_id) {
+                        Some(replication_data) => {
+                            // We have an entry but whether we have a role already or not, doesn't matter,
+                            // let's replace with the new one
+                            replication_data.role = Some(new_role);
+                        }
+                        None => {
+                            // this is a new entry
+                            let mut new_replication_entry = ReplicationSectionData::new();
+                            new_replication_entry.role = Some(new_role);
+
+                            // NOTE: All other entries are None because new() sets everything to None by default
+                            self.kv_hash.insert(host_id.clone(), new_replication_entry);
+                        }
+                    }
+                }
+
+                // dump the contents of the hashmap to the console
+                // info!("AFTER UPDATE:kv_hash: {:#?}", self.kv_hash);
+
+                // self.kv_hash.insert(host_id, replication_value);
             }
             ReplicatorActorMessage::GetReplicaCount { respond_to } => {
-                // we need to -1 because Host::Myself doesn't count, and
-                // we need to return 0 if there are no replicas to avoid returning 0-1=-1
-                let _ = respond_to.send(std::cmp::max(self.kv_hash.len() - 1, 0));
+                // first, let's get the master offset. It's ok to panic here because this should never fail.
+                // if it were to fail, we can't proceed anyway.
+                let master_offset = self
+                    .kv_hash
+                    .get(&HostId::Myself)
+                    .expect("Something is wrong, expected to find master offset.")
+                    .master_repl_offset
+                    .expect("Expected master to have an offset, panic otherwise.") - 37; // -37 is REPLCONF GETACK *
+
+                // dump the contents of the hashmap to the console
+                // info!("kv_hash: {:?}", self.kv_hash);
+
+                info!("Looking for replicas with offset of {:?}", master_offset);
+
+                // now, let's count how many replicas have this offset
+                // Again, avoid counting HostId::Myself
+                // let replica_count = self
+                //     .kv_hash
+                //     .iter()
+                //     .filter(|(k, v)| {
+                //         v.master_repl_offset.expect("Replicas must have offsets.")
+                //             == master_offset.expect("Master must have an offset.")
+                //             && **k != HostId::Myself
+                //     })
+                //     .count();
+
+                let mut replica_count = 0;
+
+                for (k, v) in self.kv_hash.iter() {
+                    info!("host: {k} value: {v}");
+                    if let Some(my_role) = &v.role {
+                        // we need to filter out redis-cli and other non replica clients.
+                        // redis-cli will not have a role at all and master will be master which we can ignore
+                        if *my_role == ServerRole::Slave {
+                            // we are only counting slaves now
+                            // next, let's check for offset
+                            if let Some(slave_offset) = v.master_repl_offset {
+                                // ok, this replica does have an offset, let's compare
+                                if slave_offset == master_offset {
+                                    replica_count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                info!("Final replica count: {replica_count}");
+                let _ = respond_to.send(replica_count);
+            }
+            ReplicatorActorMessage::ResetReplicaOffset { host_id } => {
+                self.kv_hash
+                    .entry(host_id)
+                    .and_modify(|replication_section_data| {
+                        replication_section_data.reset_replica_offset();
+                    });
             }
         }
     }

@@ -87,36 +87,6 @@ impl ConfigCommandActorHandle {
         // dir: &str,
         // dbfilename: &str,
     ) -> anyhow::Result<Vec<u8>> {
-        // let config_directory = self
-        //     .get_value(ConfigCommandParameter::Dir)
-        //     .await
-        //     .ok_or_else(|| anyhow!("Failed to get config directory"))?;
-
-        // if let Some(config_directory) = self.get_value(ConfigCommandParameter::Dir).await {
-        //     debug!("Found the dir setting: {}", config_directory);
-        // } else {
-        //     error!("Failed to get the config file dir!");
-        //     return Err(RedisError::IOError(std::io::Error::new(
-        //         std::io::ErrorKind::Other,
-        //         "Failure trying to load config into memory.",
-        //     )));
-        // };
-
-        // let config_filename = self
-        //     .get_value(ConfigCommandParameter::DbFilename)
-        //     .await
-        //     .ok_or_else(|| anyhow!("Failed to get config filename."))?;
-
-        // if let Some(config_filename) = self.get_value(ConfigCommandParameter::DbFilename).await {
-        //     debug!("Found the dbfilename setting: {}", config_filename);
-        // } else {
-        //     error!("Failed to get the config filename!");
-        //     return Err(RedisError::IOError(std::io::Error::new(
-        //         std::io::ErrorKind::Other,
-        //         "Failure trying to load config into memory.",
-        //     )));
-        // }
-
         let (send, recv) = oneshot::channel();
 
         let msg = ConfigActorMessage::GetRdb { respond_to: send };
