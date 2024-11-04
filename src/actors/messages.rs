@@ -73,13 +73,13 @@ pub enum ReplicatorActorMessage {
     //
     // Info values are 2 dimensional:
     // Example: Replication -> role -> master.
-    GetInfoValue {
+    GetReplicationValue {
         // info_key: InfoCommandParameter, // defined in protocol.rs
         host_id: HostId, // this is HOSTIP:PORT format
         respond_to: oneshot::Sender<Option<ReplicationSectionData>>,
     },
 
-    SetInfoValue {
+    UpdateReplicationValue {
         // info_key: InfoCommandParameter, // defined in protocol.rs
         host_id: HostId,
         replication_value: ReplicationSectionData,
@@ -87,24 +87,38 @@ pub enum ReplicatorActorMessage {
     GetReplicaCount {
         respond_to: oneshot::Sender<usize>, // total number of connected, synced up replicas
     },
+
+    ResetReplicaOffset {
+        host_id: HostId,
+    },
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Clone, Hash, Eq, PartialEq)]
 pub enum HostId {
     Host { ip: String, port: u16 },
     Myself, // this is used to store this redis' instance own metadata, like its offset, etc.
 }
 
-// #[derive(Debug)]
-// pub enum WaitActorMessage {
-//     // the idea here is that values are stored in a HashMap.
-//     // So, to get a CONFIG Value back the client must supply a String key.
-//     // NOTE: Only dir and dbfilename keys are supported.
-//     GetReplicas {
-//         key: WaitCommandParameter,
-//         respond_to: oneshot::Sender<u16>,
-//     },
-// }
+impl std::fmt::Debug for HostId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HostId::Host { ip, port } => {
+                write!(f, "{}:{}", ip, port)
+            }
+            HostId::Myself => write!(f, "self"),
+        }
+    }
+}
+impl std::fmt::Display for HostId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HostId::Host { ip, port } => {
+                write!(f, "{}:{}", ip, port)
+            }
+            HostId::Myself => write!(f, "HostId::Myself"),
+        }
+    }
+}
 
 pub enum ProcessorActorMessage {
     // connection string to connect to master
@@ -121,6 +135,7 @@ pub enum ProcessorActorMessage {
         // NOTE: a single request like PSYNC can return multiple responses.
         // So, where a Vec<u8> is a single reponse, a Vec<Vec<u8>> is multiple responses.
         respond_to: oneshot::Sender<Option<Vec<RespValue>>>,
+        wait_sleep_tx: Option<mpsc::Sender<()>>,
     },
 }
 
@@ -139,6 +154,7 @@ impl std::fmt::Debug for ProcessorActorMessage {
                 replica_tx,
                 client_or_replica_tx: _,
                 respond_to: _,
+                wait_sleep_tx: _
             } => {
                 write!(
                     f,
