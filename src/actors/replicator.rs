@@ -163,14 +163,12 @@ impl ReplicatorActor {
             ReplicatorActorMessage::GetReplicaCount { respond_to } => {
                 // first, let's get the master offset. It's ok to panic here because this should never fail.
                 // if it were to fail, we can't proceed anyway.
-                let master_offset = (self
+                let master_offset = self
                     .kv_hash
                     .get(&HostId::Myself)
                     .expect("Something is wrong, expected to find master offset.")
                     .master_repl_offset
-                    .expect("Expected master to have an offset, panic otherwise.")
-                    - 37)
-                    .max(0); // -37 is `REPLCONF GETACK *` but let's not go negative here!
+                    .expect("Expected master to have an offset, panic otherwise.") - 37; // -37 is REPLCONF GETACK *
 
                 // dump the contents of the hashmap to the console
                 // info!("kv_hash: {:?}", self.kv_hash);
