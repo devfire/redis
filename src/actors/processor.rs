@@ -622,9 +622,17 @@ impl ProcessorActor {
                                 // let replconf_getack_star: RespValue =
                                 //     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
 
+                                let current_master_offset = replication_actor_handle
+                                    .get_value(HostId::Myself)
+                                    .await
+                                    .expect("Expected to always have self information.")
+                                    .master_repl_offset
+                                    .expect("Master always has offset.");
+
                                 // get the replica count
-                                let replicas_in_sync =
-                                    replication_actor_handle.get_synced_replica_count().await;
+                                let replicas_in_sync = replication_actor_handle
+                                    .get_synced_replica_count(current_master_offset)
+                                    .await;
 
                                 info!("We have {replicas_in_sync} replicas in sync.");
 
@@ -672,6 +680,7 @@ impl ProcessorActor {
                                             "If we are processing WAIT this must be present.",
                                         ),
                                         duration,
+                                        current_master_offset,
                                     )
                                     .await;
 
