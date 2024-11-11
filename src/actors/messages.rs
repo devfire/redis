@@ -85,7 +85,8 @@ pub enum ReplicatorActorMessage {
         replication_value: ReplicationSectionData,
     },
     GetReplicaCount {
-        respond_to: oneshot::Sender<usize>, // total number of connected, synced up replicas
+        respond_to: oneshot::Sender<usize>, // reply with total number of connected, synced up replicas
+        target_offset: i16,
     },
 
     ResetReplicaOffset {
@@ -135,7 +136,7 @@ pub enum ProcessorActorMessage {
         // NOTE: a single request like PSYNC can return multiple responses.
         // So, where a Vec<u8> is a single reponse, a Vec<Vec<u8>> is multiple responses.
         respond_to: oneshot::Sender<Option<Vec<RespValue>>>,
-        wait_sleep_tx: Option<mpsc::Sender<()>>,
+        wait_sleep_tx: Option<mpsc::Sender<i16>>,
     },
 }
 

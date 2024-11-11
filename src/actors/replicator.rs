@@ -160,20 +160,22 @@ impl ReplicatorActor {
 
                 // self.kv_hash.insert(host_id, replication_value);
             }
-            ReplicatorActorMessage::GetReplicaCount { respond_to } => {
+            ReplicatorActorMessage::GetReplicaCount { respond_to, target_offset } => {
                 // first, let's get the master offset. It's ok to panic here because this should never fail.
                 // if it were to fail, we can't proceed anyway.
-                let master_offset = self
-                    .kv_hash
-                    .get(&HostId::Myself)
-                    .expect("Something is wrong, expected to find master offset.")
-                    .master_repl_offset
-                    .expect("Expected master to have an offset, panic otherwise.") - 37; // -37 is REPLCONF GETACK *
+                // let master_offset = self
+                //     .kv_hash
+                //     .get(&HostId::Myself)
+                //     .expect("Something is wrong, expected to find master offset.")
+                //     .master_repl_offset
+                //     .expect("Expected master to have an offset, panic otherwise.") - 37; // -37 is REPLCONF GETACK *
+
+
 
                 // dump the contents of the hashmap to the console
                 // info!("kv_hash: {:?}", self.kv_hash);
 
-                info!("Looking for replicas with offset of {:?}", master_offset);
+                info!("Looking for replicas with offset of {:?}", target_offset);
 
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
@@ -199,7 +201,7 @@ impl ReplicatorActor {
                             // next, let's check for offset
                             if let Some(slave_offset) = v.master_repl_offset {
                                 // ok, this replica does have an offset, let's compare
-                                if slave_offset == master_offset {
+                                if slave_offset == target_offset {
                                     replica_count += 1;
                                 }
                             }

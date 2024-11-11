@@ -46,7 +46,7 @@ impl RequestProcessorActorHandle {
         master_tx: mpsc::Sender<String>,
         replica_tx: broadcast::Sender<RespValue>, // we get this from master handler only
         client_or_replica_tx: Option<mpsc::Sender<bool>>,
-        wait_sleep_tx: Option<mpsc::Sender<()>>,
+        wait_sleep_tx: Option<mpsc::Sender<i16>>,
     ) -> Option<Vec<RespValue>> {
         tracing::debug!("Processing request: {:?}", request);
         // create a multiple producer, single consumer channel

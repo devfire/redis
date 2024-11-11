@@ -322,7 +322,7 @@ async fn handle_connection_from_clients(
     let (client_or_replica_tx, mut client_or_replica_rx) = mpsc::channel::<bool>(3);
 
     // Create a channel for notifying the main loop when WAIT N NNN is done waiting
-    let (wait_sleep_tx, mut wait_sleep_rx) = mpsc::channel::<()>(1);
+    let (wait_sleep_tx, mut wait_sleep_rx) = mpsc::channel::<i16>(10); // i16 here is the target_offset
 
     let mut am_i_replica: bool = false;
 
@@ -412,8 +412,8 @@ async fn handle_connection_from_clients(
                 info!("Updated client {:?} replica status to {}", host_id, am_i_replica);
             // // }
          }
-         Some(_wakeup) = wait_sleep_rx.recv() => { // j/k - wakeup is nothing
-            let replicas_in_sync = replication_actor_handle.get_synced_replica_count().await;
+         Some(target_offset) = wait_sleep_rx.recv() => { // j/k - wakeup is nothing
+            let replicas_in_sync = replication_actor_handle.get_synced_replica_count(target_offset).await;
 
             let _ = writer.send(RespValue::Integer(replicas_in_sync as i64)).await?;
 
