@@ -41,13 +41,13 @@ use rand::{thread_rng, Rng};
 use std::iter;
 // ----------
 
-pub async fn sleeping_task(wait_sleep_tx: mpsc::Sender<()>, duration: Duration) -> JoinHandle<()> {
+pub async fn sleeping_task(wait_sleep_tx: mpsc::Sender<i16>, duration: Duration, target_offset: i16) -> JoinHandle<()> {
     let handle = tokio::spawn(async move {
         info!("Sleeping thread started.");
         sleep(duration).await;
         info!("Sleeping thread finished.");
         wait_sleep_tx
-            .send(())
+            .send(target_offset) // we are passing this around to avoid advancing the offset prematurely
             .await
             .expect("This should have succeeded.");
     });
