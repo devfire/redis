@@ -6,7 +6,7 @@ use crate::{
 
 use anyhow::{anyhow, ensure, Context};
 use futures::StreamExt;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 // use resp::Value;
 use tokio::{fs::File, io::AsyncWriteExt};
 use tokio::{io::AsyncReadExt, sync::mpsc};
