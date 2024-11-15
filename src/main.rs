@@ -15,7 +15,7 @@ use tokio_util::codec::{FramedRead, FramedWrite};
 use tracing::level_filters::LevelFilter;
 
 use protocol::{ReplicationSectionData, ServerRole, SetCommandParameter};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::{broadcast, mpsc};

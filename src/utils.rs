@@ -33,7 +33,7 @@ use tokio::{
     sync::{broadcast, mpsc},
     task::JoinHandle,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 // for master repl id generation
 use rand::distributions::Alphanumeric;

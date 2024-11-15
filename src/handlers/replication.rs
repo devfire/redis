@@ -1,5 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
     actors::{

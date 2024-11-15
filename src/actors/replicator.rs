@@ -6,7 +6,7 @@ use crate::{
 use std::collections::HashMap;
 
 use tokio::sync::mpsc;
-use tracing::{debug, info};
+use tracing::debug;
 
 use super::messages::HostId;
 

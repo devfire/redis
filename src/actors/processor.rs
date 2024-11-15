@@ -13,7 +13,7 @@ use crate::{
 
 use anyhow::{anyhow, Context};
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 // use rand::distributions::Alphanumeric;
 // use rand::Rng;
