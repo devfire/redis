@@ -348,17 +348,17 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            // info!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
+                            // debug!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
 
                             // iterate over processed_value and send each one to the client
                             for value in &processed_values {
-                                // info!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
+                                // debug!("Sending response {:?} to client: {:?}", value.to_encoded_string()?, host_id);
                                 let _ = writer.send(value.clone()).await?;
                                 writer.flush().await?;
 
                                 // tracing::debug!("Done sending, moving to the next value.");
                             }
-                            // info!("Done sending to {host_id}, moving to the next value.");
+                            // debug!("Done sending to {host_id}, moving to the next value.");
                         }
                     }
                     Err(e) => {
@@ -409,7 +409,7 @@ async fn handle_connection_from_clients(
                 // we only want to send replication messages to replicas.
                 am_i_replica  = msg;
 
-                info!("Updated client {:?} replica status to {}", host_id, am_i_replica);
+                debug!("Updated client {:?} replica status to {}", host_id, am_i_replica);
             // // }
          }
          Some(target_offset) = wait_sleep_rx.recv() => { // j/k - wakeup is nothing

@@ -92,7 +92,7 @@ impl ReplicatorActor {
                                 // we need to take() in order to avoid trying to
                                 // directly manipulate the inner value of an Option, which is not allowed.
                                 Some(current_offset) => {
-                                    info!("Current {host_id} offset is {current_offset}, increasing by {offset_increment}");
+                                    debug!("Current {host_id} offset is {current_offset}, increasing by {offset_increment}");
                                     // we have an offset, let's add the new one to this one
                                     replication_data.master_repl_offset =
                                         Some(current_offset + offset_increment);
@@ -156,7 +156,7 @@ impl ReplicatorActor {
                 }
 
                 // dump the contents of the hashmap to the console
-                // info!("AFTER UPDATE:kv_hash: {:#?}", self.kv_hash);
+                // debug!("AFTER UPDATE:kv_hash: {:#?}", self.kv_hash);
 
                 // self.kv_hash.insert(host_id, replication_value);
             }
@@ -173,9 +173,9 @@ impl ReplicatorActor {
 
 
                 // dump the contents of the hashmap to the console
-                // info!("kv_hash: {:?}", self.kv_hash);
+                // debug!("kv_hash: {:?}", self.kv_hash);
 
-                info!("Looking for replicas with offset of {:?}", target_offset);
+                debug!("Looking for replicas with offset of {:?}", target_offset);
 
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
@@ -192,7 +192,7 @@ impl ReplicatorActor {
                 let mut replica_count = 0;
 
                 for (k, v) in self.kv_hash.iter() {
-                    info!("host: {k} value: {v}");
+                    debug!("host: {k} value: {v}");
                     if let Some(my_role) = &v.role {
                         // we need to filter out redis-cli and other non replica clients.
                         // redis-cli will not have a role at all and master will be master which we can ignore
@@ -209,7 +209,7 @@ impl ReplicatorActor {
                     }
                 }
 
-                info!("Final replica count: {replica_count}");
+                debug!("Final replica count: {replica_count}");
                 let _ = respond_to.send(replica_count);
             }
             ReplicatorActorMessage::ResetReplicaOffset { host_id } => {

@@ -474,7 +474,7 @@ impl ProcessorActor {
                                     }
                                     ReplConfCommandParameter::Ack(ack) => {
                                         // These are received by the master from the replica slaves.
-                                        info!("Received ACK: {} from {:?}", ack, host_id);
+                                        debug!("Received ACK: {} from {:?}", ack, host_id);
 
                                         // we got a new value, so let's reset the offset.
                                         replication_actor_handle
@@ -617,7 +617,7 @@ impl ProcessorActor {
                                 Ok(())
                             } // end of psync
                             Ok((_, RedisCommand::Wait(numreplicas, timeout))) => {
-                                info!("Processing WAIT {} {}", numreplicas, timeout);
+                                debug!("Processing WAIT {} {}", numreplicas, timeout);
 
                                 let replconf_getack_star: RespValue =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
@@ -634,9 +634,9 @@ impl ProcessorActor {
                                     .get_synced_replica_count(current_master_offset)
                                     .await;
 
-                                info!("We have {replicas_in_sync} replicas in sync.");
+                                debug!("We have {replicas_in_sync} replicas in sync.");
 
-                                // info!("We have {replicas_in_sync} in sync replicas.");
+                                // debug!("We have {replicas_in_sync} in sync replicas.");
 
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/
@@ -648,7 +648,7 @@ impl ProcessorActor {
                                 // detailed OG implementation: https://github.com/redis/redis/blob/unstable/src/replication.c#L3548
                                 if replicas_in_sync >= numreplicas {
                                     //     // we can return immediately
-                                    // info!(
+                                    // debug!(
                                     //     "{} > {}, returning immediately.",
                                     //     replicas_in_sync, numreplicas
                                     // );
@@ -664,7 +664,7 @@ impl ProcessorActor {
                                     //     // NOTE: this will flush the replica-in-sync db because we are about to ask all replicas for their offsets
 
                                     //     // ok now we wait for everyone to reply
-                                    //     info!(
+                                    //     debug!(
                                     //         "Starting the waiting period of {} milliseconds.",
                                     //         timeout
                                     //     );
@@ -693,7 +693,7 @@ impl ProcessorActor {
                                     // let replicas_in_sync =
                                     //     replication_actor_handle.get_synced_replica_count().await;
 
-                                    //     info!("After REPLCONF ACK we have {replicas_in_sync} in sync replicas.");
+                                    //     debug!("After REPLCONF ACK we have {replicas_in_sync} in sync replicas.");
 
                                     let _ = respond_to.send(None); // no replies at this point, the sleeping_task fxn will reply
                                 }
