@@ -33,7 +33,7 @@ use tokio::{
     sync::{broadcast, mpsc},
     task::JoinHandle,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 // for master repl id generation
 use rand::distributions::Alphanumeric;
@@ -43,9 +43,9 @@ use std::iter;
 
 pub async fn sleeping_task(wait_sleep_tx: mpsc::Sender<i16>, duration: Duration, target_offset: i16) -> JoinHandle<()> {
     let handle = tokio::spawn(async move {
-        info!("Sleeping thread started.");
+        debug!("Sleeping thread started.");
         sleep(duration).await;
-        info!("Sleeping thread finished.");
+        debug!("Sleeping thread finished.");
         wait_sleep_tx
             .send(target_offset) // we are passing this around to avoid advancing the offset prematurely
             .await
@@ -74,7 +74,7 @@ pub async fn update_master_offset(
                 let value_as_string_num_bytes = value_as_string.len() as i16;
 
                 // these should never fail, so expect is ok.
-                info!(
+                debug!(
                     "MASTER: current offset: {} bytes",
                     replication_actor_handle
                         .get_value(HostId::Myself)
@@ -96,7 +96,7 @@ pub async fn update_master_offset(
                     .update_value(HostId::Myself, updated_replication_data_master)
                     .await;
 
-                info!(
+                debug!(
                     "MASTER: updated offset: {}",
                     replication_actor_handle
                         .get_value(HostId::Myself)

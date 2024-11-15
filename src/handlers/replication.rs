@@ -1,5 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
     actors::{
@@ -72,7 +72,7 @@ impl ReplicationActorHandle {
         host_id: HostId,
         replication_value: ReplicationSectionData,
     ) {
-        info!(
+        debug!(
             "HANDLER: Setting REPLICATION key: {:?}, value: {}",
             host_id, replication_value
         );
