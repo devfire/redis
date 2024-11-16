@@ -175,7 +175,7 @@ impl ReplicatorActor {
                 // dump the contents of the hashmap to the console
                 // debug!("kv_hash: {:?}", self.kv_hash);
 
-                tracing::debug!("Looking for replicas with offset of {:?}", target_offset.max(0));
+                tracing::info!("Looking for replicas with offset of {:?}", target_offset.max(0));
 
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself

@@ -609,7 +609,7 @@ impl ProcessorActor {
                                     .get_synced_replica_count(current_master_offset - 37) // -37 is REPLCONF GETACK *
                                     .await;
 
-                                debug!("We have {replicas_in_sync} replicas in sync.");
+                                tracing::info!("Looking for {numreplicas} and we have {replicas_in_sync} replicas in sync.");
 
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/

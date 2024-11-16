@@ -43,9 +43,9 @@ use std::iter;
 
 pub async fn sleeping_task(wait_sleep_tx: mpsc::Sender<i16>, duration: Duration, target_offset: i16) -> JoinHandle<()> {
     let handle = tokio::spawn(async move {
-        debug!("Sleeping thread started.");
+        tracing::info!("Sleeping thread started.");
         sleep(duration).await;
-        debug!("Sleeping thread finished.");
+        tracing::info!("Sleeping thread finished: {:?}.", duration);
         wait_sleep_tx
             .send(target_offset) // we are passing this around to avoid advancing the offset prematurely
             .await
