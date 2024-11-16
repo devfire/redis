@@ -494,31 +494,6 @@ impl ProcessorActor {
                                             .update_value(host_id, current_replication_data)
                                             .await;
 
-                                        // get the current replica's replication data.
-                                        // This is master's POV into this specific replica's offset.
-                                        // if let Some(mut current_replication_data) =
-                                        //     replication_actor_handle
-                                        //         .get_value(host_id.clone())
-                                        //         .await
-                                        // {
-                                        //     // we got a new value, so first we zero out the old value
-                                        //     current_replication_data.master_repl_offset = Some(0);
-
-                                        //     // update the offset value.
-                                        //     current_replication_data.master_repl_offset =
-                                        //         Some(ack as i16);
-
-                                        //     // update the offset value in the replication actor.
-                                        //     replication_actor_handle
-                                        //         .update_value(host_id, current_replication_data)
-                                        //         .await;
-                                        // } else {
-                                        //     // We don't have an offset value for this replica, possibly this was after a WAIT global reset.
-                                        //     error!(
-                                        //         "Missing offset value for replica {:?}.",
-                                        //         host_id
-                                        //     );
-                                        // }
                                         // this is only ever received by the master, after REPLCONF GETACK *,
                                         // so we don't need to do anything here.
                                         let _ = respond_to.send(None);
@@ -631,12 +606,10 @@ impl ProcessorActor {
 
                                 // get the replica count
                                 let replicas_in_sync = replication_actor_handle
-                                    .get_synced_replica_count(current_master_offset)
+                                    .get_synced_replica_count(current_master_offset - 37) // -37 is REPLCONF GETACK *
                                     .await;
 
                                 debug!("We have {replicas_in_sync} replicas in sync.");
-
-                                // debug!("We have {replicas_in_sync} in sync replicas.");
 
                                 // let's implement the wait command
                                 // https://redis.io/commands/wait/
@@ -647,29 +620,11 @@ impl ProcessorActor {
                                 //
                                 // detailed OG implementation: https://github.com/redis/redis/blob/unstable/src/replication.c#L3548
                                 if replicas_in_sync >= numreplicas {
-                                    //     // we can return immediately
-                                    // debug!(
-                                    //     "{} > {}, returning immediately.",
-                                    //     replicas_in_sync, numreplicas
-                                    // );
+                                    // we can return immediately
                                     let _ = respond_to.send(Some(vec![
                                         (RespValue::Integer(replicas_in_sync as i64)),
                                     ]));
                                 } else {
-                                    //     // we need to wait for the replicas to be connected and in sync
-                                    //     // but we won't wait more than timeout milliseconds.
-                                    //     // Also, we will send REPLCONF ACK * to the replicas to get their current offset.
-                                    //     // This will update the offset in the replication actor.
-
-                                    //     // NOTE: this will flush the replica-in-sync db because we are about to ask all replicas for their offsets
-
-                                    //     // ok now we wait for everyone to reply
-                                    //     debug!(
-                                    //         "Starting the waiting period of {} milliseconds.",
-                                    //         timeout
-                                    //     );
-
-                                    //     //
 
                                     let _ = replica_tx.send(replconf_getack_star)?;
 

@@ -371,28 +371,9 @@ async fn handle_connection_from_clients(
             tracing::debug!("replica_rx channel received {:?} for {:?}", msg.clone()?.to_encoded_string()?, host_id);
             match msg {
                 Ok(msg) => {
-                    // Update own offset; same value is good for both master's and replicas' offsets
-                    // we need to convert the command to a RESP string to count the bytes.
-                    // let value_as_string = msg.to_encoded_string()?;
-
-                    // // calculate how many bytes are in the value_as_string
-                    // let value_as_string_num_bytes = value_as_string.len() as i16;
-
-                    // // we need to update how the master sees replicas' offsets because we are sending writeable commands to replicas
-                    // let mut updated_replication_data_master = ReplicationSectionData::new();
-
-                    // // remember, this is an INCREMENT not a total new value
-                    // updated_replication_data_master.master_repl_offset =Some(value_as_string_num_bytes);
-
-                    // // updating replicas' offsets
-                    // replication_actor_handle.update_value(host_id.clone(),updated_replication_data_master).await;
-
                     // Send replication messages only to replicas, not to other clients.
                     if am_i_replica {
-                        debug!("Sending message {:?} to replica: {:?}", msg.to_encoded_string()?, host_id);
-
                         let _ = writer.send(msg).await?;
-                        // writer.flush().await?;
                     } else {
                         debug!("Not forwarding message to non-replica client {:?}.", host_id);
                     }

@@ -175,7 +175,7 @@ impl ReplicatorActor {
                 // dump the contents of the hashmap to the console
                 // debug!("kv_hash: {:?}", self.kv_hash);
 
-                debug!("Looking for replicas with offset of {:?}", target_offset);
+                tracing::info!("Looking for replicas with offset of {:?}", target_offset);
 
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
@@ -209,7 +209,7 @@ impl ReplicatorActor {
                     }
                 }
 
-                debug!("Final replica count: {replica_count}");
+                tracing::info!("Final replica count: {replica_count}");
                 let _ = respond_to.send(replica_count);
             }
             ReplicatorActorMessage::ResetReplicaOffset { host_id } => {
