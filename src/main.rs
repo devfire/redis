@@ -285,7 +285,7 @@ async fn main() -> anyhow::Result<()> {
 // But the handle_connection_from_clients() function will only be receiving commands from clients and sending replies.
 // In other words, a redis instance can be both, a replica client to the master, and a server to its own clients.
 // So, this is the "server" part of the redis instance.
-#[tracing::instrument]
+// #[tracing::instrument]
 async fn handle_connection_from_clients(
     stream: TcpStream,
     set_command_actor_handle: SetCommandActorHandle,
@@ -348,7 +348,7 @@ async fn handle_connection_from_clients(
                             )
                             .await
                         {
-                            // debug!("Preparing to send {} responses to client: {:?}", processed_values.len(), processed_values);
+                            tracing::info!("Preparing to send to client: {:?}", processed_values);
 
                             // iterate over processed_value and send each one to the client
                             for value in &processed_values {
