@@ -75,7 +75,7 @@ impl RequestProcessorActorHandle {
             .await
             .expect("Request processor actor task has been killed")
         {
-            tracing::info!("Processor actor returns {:?}", value);
+            // tracing::info!("Processor actor returns {:?}", value);
             Some(value)
         } else {
             None
