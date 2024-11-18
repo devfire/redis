@@ -163,22 +163,22 @@ impl ReplicatorActor {
                 tracing::info!("Looking for replicas with offset of {:?}", target_offset);
 
                 // for posterity, this is with inspect:
-                let replica_count = self
-                    .kv_hash
-                    .iter()
-                    .inspect(|(k, v)| tracing::debug!("host: {k} value: {v}"))
-                    .filter_map(|(_k, v)| v.role.as_ref().zip(v.master_repl_offset))
-                    .inspect(|(_role, slave_offset)| {
-                        tracing::info!(
-                            "Comparing target offset {} with {} ",
-                            target_offset,
-                            slave_offset
-                        )
-                    })
-                    .filter(|(role, slave_offset)| {
-                        **role == ServerRole::Slave && *slave_offset == target_offset
-                    })
-                    .count();
+                // let replica_count = self
+                //     .kv_hash
+                //     .iter()
+                //     .inspect(|(k, v)| tracing::debug!("host: {k} value: {v}"))
+                //     .filter_map(|(_k, v)| v.role.as_ref().zip(v.master_repl_offset))
+                //     .inspect(|(_role, slave_offset)| {
+                //         tracing::info!(
+                //             "Comparing target offset {} with {} ",
+                //             target_offset,
+                //             slave_offset
+                //         )
+                //     })
+                //     .filter(|(role, slave_offset)| {
+                //         **role == ServerRole::Slave && *slave_offset == target_offset
+                //     })
+                //     .count();
 
                 // let replica_count = self
                 //     .kv_hash
@@ -189,30 +189,30 @@ impl ReplicatorActor {
                 //     })
                 //     .count();
 
-                // let mut replica_count = 0;
+                let mut replica_count = 0;
 
-                // for (k, v) in self.kv_hash.iter() {
-                //     debug!("host: {k} value: {v}");
-                //     if let Some(my_role) = &v.role {
-                //         // we need to filter out redis-cli and other non replica clients.
-                //         // redis-cli will not have a role at all and master will be master which we can ignore
-                //         if *my_role == ServerRole::Slave {
-                //             // we are only counting slaves now
-                //             // next, let's check for offset
-                //             if let Some(slave_offset) = v.master_repl_offset {
-                //                 tracing::info!(
-                //                     "Comparing target offset {} with {} ",
-                //                     target_offset,
-                //                     slave_offset
-                //                 );
-                //                 // ok, this replica does have an offset, let's compare
-                //                 if slave_offset == target_offset {
-                //                     replica_count += 1;
-                //                 }
-                //             }
-                //         }
-                //     }
-                // }
+                for (k, v) in self.kv_hash.iter() {
+                    debug!("host: {k} value: {v}");
+                    if let Some(my_role) = &v.role {
+                        // we need to filter out redis-cli and other non replica clients.
+                        // redis-cli will not have a role at all and master will be master which we can ignore
+                        if *my_role == ServerRole::Slave {
+                            // we are only counting slaves now
+                            // next, let's check for offset
+                            if let Some(slave_offset) = v.master_repl_offset {
+                                tracing::info!(
+                                    "Comparing target offset {} with {} ",
+                                    target_offset,
+                                    slave_offset
+                                );
+                                // ok, this replica does have an offset, let's compare
+                                if slave_offset == target_offset {
+                                    replica_count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
 
                 tracing::debug!("Final replica count: {replica_count}");
                 let _ = respond_to.send(replica_count);
