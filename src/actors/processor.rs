@@ -596,7 +596,7 @@ impl ProcessorActor {
 
                                 let replconf_getack_star: RespValue =
                                     RespValue::array_from_slice(&["REPLCONF", "GETACK", "*"]);
-                                let _ = replica_tx.send(replconf_getack_star.clone())?;
+                                // let _ = replica_tx.send(replconf_getack_star.clone())?;
 
                                 let current_master_offset = replication_actor_handle
                                     .get_value(HostId::Myself)

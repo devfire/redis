@@ -394,7 +394,7 @@ async fn handle_connection_from_clients(
             // // }
          }
          Some(target_offset) = wait_sleep_rx.recv() => { // j/k - wakeup is nothing
-            let replicas_in_sync = replication_actor_handle.get_synced_replica_count(target_offset - 37).await;
+            let replicas_in_sync = replication_actor_handle.get_synced_replica_count(target_offset - 74).await;
 
             let _ = writer.send(RespValue::Integer(replicas_in_sync as i64)).await?;
 

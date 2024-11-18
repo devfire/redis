@@ -200,6 +200,7 @@ impl ReplicatorActor {
                             // we are only counting slaves now
                             // next, let's check for offset
                             if let Some(slave_offset) = v.master_repl_offset {
+                                tracing::info!("Comparing target offset {} with {} ", target_offset.max(0), slave_offset);
                                 // ok, this replica does have an offset, let's compare
                                 if slave_offset == target_offset.max(0) {
                                     replica_count += 1;
