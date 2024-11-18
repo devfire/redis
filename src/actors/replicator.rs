@@ -154,39 +154,29 @@ impl ReplicatorActor {
                         }
                     }
                 }
-
-                // dump the contents of the hashmap to the console
-                // debug!("AFTER UPDATE:kv_hash: {:#?}", self.kv_hash);
-
-                // self.kv_hash.insert(host_id, replication_value);
             }
             ReplicatorActorMessage::GetReplicaCount {
                 respond_to,
                 target_offset,
             } => {
-                // first, let's get the master offset. It's ok to panic here because this should never fail.
-                // if it were to fail, we can't proceed anyway.
-                // let master_offset = self
-                //     .kv_hash
-                //     .get(&HostId::Myself)
-                //     .expect("Something is wrong, expected to find master offset.")
-                //     .master_repl_offset
-                //     .expect("Expected master to have an offset, panic otherwise.") - 37; // -37 is REPLCONF GETACK *
-
-                // dump the contents of the hashmap to the console
-                // debug!("kv_hash: {:?}", self.kv_hash);
 
                 tracing::info!("Looking for replicas with offset of {:?}", target_offset);
 
-                // now, let's count how many replicas have this offset
-                // Again, avoid counting HostId::Myself
+                // for posterity, this is with inspect:
                 // let replica_count = self
                 //     .kv_hash
                 //     .iter()
-                //     .filter(|(_k, v)| {
-                //         v.master_repl_offset.expect("Replicas must have offsets.")
-                //             == target_offset
-                //             && *v.role.expect("Everyone has a role") == ServerRole::Slave
+                //     .inspect(|(k, v)| debug!("host: {k} value: {v}"))
+                //     .filter_map(|(_k, v)| v.role.as_ref().zip(v.master_repl_offset))
+                //     .inspect(|(role, slave_offset)| {
+                //         tracing::info!(
+                //             "Comparing target offset {} with {} ",
+                //             target_offset,
+                //             slave_offset
+                //         )
+                //     })
+                //     .filter(|(role, slave_offset)| {
+                //         **role == ServerRole::Slave && *slave_offset == target_offset
                 //     })
                 //     .count();
 
