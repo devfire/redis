@@ -607,7 +607,7 @@ impl ProcessorActor {
 
                                 // get the replica count
                                 let replicas_in_sync = replication_actor_handle
-                                    .get_synced_replica_count(current_master_offset - 37) // -37 is REPLCONF GETACK *
+                                    .get_synced_replica_count(current_master_offset) // -37 is REPLCONF GETACK *
                                     .await;
 
                                 tracing::info!("Target number of replicas: {numreplicas} and we have {replicas_in_sync} replicas in sync.");
