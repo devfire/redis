@@ -393,8 +393,8 @@ async fn handle_connection_from_clients(
                 debug!("Updated client {:?} replica status to {}", host_id, am_i_replica);
             // // }
          }
-         Some(target_offset) = wait_sleep_rx.recv() => { // j/k - wakeup is nothing
-            let replicas_in_sync = replication_actor_handle.get_synced_replica_count(target_offset).await;
+         Some(target_offset) = wait_sleep_rx.recv() => { // - 37 to account for replconf getack * we had sent out earlier
+            let replicas_in_sync = replication_actor_handle.get_synced_replica_count(target_offset - 37).await;
 
             let _ = writer.send(RespValue::Integer(replicas_in_sync as i64)).await?;
 
