@@ -160,7 +160,10 @@ impl ReplicatorActor {
 
                 // self.kv_hash.insert(host_id, replication_value);
             }
-            ReplicatorActorMessage::GetReplicaCount { respond_to, target_offset } => {
+            ReplicatorActorMessage::GetReplicaCount {
+                respond_to,
+                target_offset,
+            } => {
                 // first, let's get the master offset. It's ok to panic here because this should never fail.
                 // if it were to fail, we can't proceed anyway.
                 // let master_offset = self
@@ -169,8 +172,6 @@ impl ReplicatorActor {
                 //     .expect("Something is wrong, expected to find master offset.")
                 //     .master_repl_offset
                 //     .expect("Expected master to have an offset, panic otherwise.") - 37; // -37 is REPLCONF GETACK *
-
-
 
                 // dump the contents of the hashmap to the console
                 // debug!("kv_hash: {:?}", self.kv_hash);
@@ -182,33 +183,46 @@ impl ReplicatorActor {
                 // let replica_count = self
                 //     .kv_hash
                 //     .iter()
-                //     .filter(|(k, v)| {
+                //     .filter(|(_k, v)| {
                 //         v.master_repl_offset.expect("Replicas must have offsets.")
-                //             == master_offset.expect("Master must have an offset.")
-                //             && **k != HostId::Myself
+                //             == target_offset
+                //             && *v.role.expect("Everyone has a role") == ServerRole::Slave
                 //     })
                 //     .count();
 
-                let mut replica_count = 0;
+                let replica_count = self
+                    .kv_hash
+                    .iter()
+                    .filter_map(|(_k, v)| v.role.as_ref().zip(v.master_repl_offset)) // Combines role and offset into Option<(&ServerRole, u64)>
+                    .filter(|(role, slave_offset)| {
+                        **role == ServerRole::Slave && *slave_offset == target_offset
+                    })
+                    .count();
 
-                for (k, v) in self.kv_hash.iter() {
-                    debug!("host: {k} value: {v}");
-                    if let Some(my_role) = &v.role {
-                        // we need to filter out redis-cli and other non replica clients.
-                        // redis-cli will not have a role at all and master will be master which we can ignore
-                        if *my_role == ServerRole::Slave {
-                            // we are only counting slaves now
-                            // next, let's check for offset
-                            if let Some(slave_offset) = v.master_repl_offset {
-                                tracing::info!("Comparing target offset {} with {} ", target_offset, slave_offset);
-                                // ok, this replica does have an offset, let's compare
-                                if slave_offset == target_offset {
-                                    replica_count += 1;
-                                }
-                            }
-                        }
-                    }
-                }
+                // let mut replica_count = 0;
+
+                // for (k, v) in self.kv_hash.iter() {
+                //     debug!("host: {k} value: {v}");
+                //     if let Some(my_role) = &v.role {
+                //         // we need to filter out redis-cli and other non replica clients.
+                //         // redis-cli will not have a role at all and master will be master which we can ignore
+                //         if *my_role == ServerRole::Slave {
+                //             // we are only counting slaves now
+                //             // next, let's check for offset
+                //             if let Some(slave_offset) = v.master_repl_offset {
+                //                 tracing::info!(
+                //                     "Comparing target offset {} with {} ",
+                //                     target_offset,
+                //                     slave_offset
+                //                 );
+                //                 // ok, this replica does have an offset, let's compare
+                //                 if slave_offset == target_offset {
+                //                     replica_count += 1;
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
 
                 tracing::debug!("Final replica count: {replica_count}");
                 let _ = respond_to.send(replica_count);
