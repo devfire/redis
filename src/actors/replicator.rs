@@ -163,31 +163,31 @@ impl ReplicatorActor {
                 tracing::info!("Looking for replicas with offset of {:?}", target_offset);
 
                 // for posterity, this is with inspect:
-                // let replica_count = self
-                //     .kv_hash
-                //     .iter()
-                //     .inspect(|(k, v)| debug!("host: {k} value: {v}"))
-                //     .filter_map(|(_k, v)| v.role.as_ref().zip(v.master_repl_offset))
-                //     .inspect(|(role, slave_offset)| {
-                //         tracing::info!(
-                //             "Comparing target offset {} with {} ",
-                //             target_offset,
-                //             slave_offset
-                //         )
-                //     })
-                //     .filter(|(role, slave_offset)| {
-                //         **role == ServerRole::Slave && *slave_offset == target_offset
-                //     })
-                //     .count();
-
                 let replica_count = self
                     .kv_hash
                     .iter()
-                    .filter_map(|(_k, v)| v.role.as_ref().zip(v.master_repl_offset)) // Combines role and offset into Option<(&ServerRole, u64)>
+                    .inspect(|(k, v)| tracing::debug!("host: {k} value: {v}"))
+                    .filter_map(|(_k, v)| v.role.as_ref().zip(v.master_repl_offset))
+                    .inspect(|(_role, slave_offset)| {
+                        tracing::info!(
+                            "Comparing target offset {} with {} ",
+                            target_offset,
+                            slave_offset
+                        )
+                    })
                     .filter(|(role, slave_offset)| {
                         **role == ServerRole::Slave && *slave_offset == target_offset
                     })
                     .count();
+
+                // let replica_count = self
+                //     .kv_hash
+                //     .iter()
+                //     .filter_map(|(_k, v)| v.role.as_ref().zip(v.master_repl_offset)) // Combines role and offset into Option<(&ServerRole, u64)>
+                //     .filter(|(role, slave_offset)| {
+                //         **role == ServerRole::Slave && *slave_offset == target_offset
+                //     })
+                //     .count();
 
                 // let mut replica_count = 0;
 
