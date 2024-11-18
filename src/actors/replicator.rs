@@ -175,7 +175,7 @@ impl ReplicatorActor {
                 // dump the contents of the hashmap to the console
                 // debug!("kv_hash: {:?}", self.kv_hash);
 
-                tracing::info!("Looking for replicas with offset of {:?}", target_offset.max(0));
+                tracing::info!("Looking for replicas with offset of {:?}", target_offset);
 
                 // now, let's count how many replicas have this offset
                 // Again, avoid counting HostId::Myself
@@ -200,9 +200,9 @@ impl ReplicatorActor {
                             // we are only counting slaves now
                             // next, let's check for offset
                             if let Some(slave_offset) = v.master_repl_offset {
-                                tracing::info!("Comparing target offset {} with {} ", target_offset.max(0), slave_offset);
+                                tracing::info!("Comparing target offset {} with {} ", target_offset, slave_offset);
                                 // ok, this replica does have an offset, let's compare
-                                if slave_offset == target_offset.max(0) {
+                                if slave_offset == target_offset {
                                     replica_count += 1;
                                 }
                             }
