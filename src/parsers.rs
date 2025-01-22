@@ -509,6 +509,8 @@ fn parse_wait(input: &str) -> IResult<&str, RedisCommand> {
 
 // Parser for XADD stream ID
 fn parse_stream_id(input: &str) -> IResult<&str, StreamId> {
+    let (input, _) = tag("$")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
     alt((
         // Auto-generated ID (*)
         map(char('*'), |_| StreamId::Auto),
@@ -527,9 +529,9 @@ fn parse_stream_id(input: &str) -> IResult<&str, StreamId> {
 
 // Parser for field-value pair
 fn parse_field_value(input: &str) -> IResult<&str, StreamFieldValue> {
-    let (input, _) = space1(input)?;
+    // let (input, _) = space1(input)?;
     let (input, field) = (parse_resp_string)(input)?;
-    let (input, _) = space1(input)?;
+    // let (input, _) = space1(input)?;
     let (input, value) = (parse_resp_string)(input)?;
 
     Ok((input, StreamFieldValue { field, value }))
@@ -544,15 +546,17 @@ fn parse_xadd(input: &str) -> IResult<&str, RedisCommand> {
 
     // stream key
     let (input, stream_key) = (parse_resp_string)(input)?;
+    tracing::info!("Stream key: {}", stream_key);
 
     // stream ID
     let (input, id) = (parse_stream_id)(input)?;
+    tracing::info!("Stream ID: {:?}", id);
 
     // field-value pairs
 
-    let (input, _) = tag("*")(input)?;
-    let (input, _len) = (length)(input)?; // length eats crlf
-    let (input, _) = tag_no_case("$1\r\n*\r\n")(input)?;
+    // let (input, _) = tag("*")(input)?;
+    // let (input, _len) = (length)(input)?; // length eats crlf
+    // let (input, _) = tag_no_case("$1\r\n*\r\n")(input)?;
 
     let (input, field_values) = many0(parse_field_value)(input)?;
 
