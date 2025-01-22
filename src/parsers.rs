@@ -8,11 +8,11 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
     character::{
-        complete::{crlf, not_line_ending},
-        streaming::alphanumeric1,
+        complete::{crlf, not_line_ending, u64},
+        streaming::{alphanumeric1, char, space1},
     },
     combinator::{cut, map, map_res, opt, value, verify},
-    multi::count,
+    multi::{count, many0},
     sequence::{terminated, tuple},
     IResult,
 };
@@ -20,6 +20,7 @@ use nom::{
 use crate::protocol::{
     ConfigCommandParameter, ExpiryOption, InfoCommandParameter, RedisCommand,
     ReplConfCommandParameter, SetCommandExpireOption, SetCommandParameter, SetCommandSetOption,
+    StreamFieldValue, StreamId,
 };
 
 fn length(input: &str) -> IResult<&str, usize> {
@@ -505,6 +506,58 @@ fn parse_wait(input: &str) -> IResult<&str, RedisCommand> {
 
     Ok((input, RedisCommand::Wait(numreplicas, timeout)))
 }
+
+// Parser for XADD stream ID
+fn parse_stream_id(input: &str) -> IResult<&str, StreamId> {
+    alt((
+        // Auto-generated ID (*)
+        map(char('*'), |_| StreamId::Auto),
+        // Complete ID (milliseconds-sequence)
+        map(tuple((u64, char('-'), u64)), |(ms, _, seq)| {
+            StreamId::Complete(ms, seq)
+        }),
+        // Auto-sequence ID (milliseconds-*)
+        map(tuple((u64, char('-'), char('*'))), |(ms, _, _)| {
+            StreamId::AutoSequence(ms)
+        }),
+        // Milliseconds-only ID
+        map(u64, StreamId::MillisecondsOnly),
+    ))(input)
+}
+
+// Parser for field-value pair
+fn parse_field_value(input: &str) -> IResult<&str, StreamFieldValue> {
+    let (input, _) = space1(input)?;
+    let (input, field) = (parse_resp_string)(input)?;
+    let (input, _) = space1(input)?;
+    let (input, value) = (parse_resp_string)(input)?;
+
+    Ok((input, StreamFieldValue { field, value }))
+}
+
+/// Parse XADD https://redis.io/docs/latest/commands/xadd/
+/// XADD mystream * 0 field1 value1 field2 value2
+fn parse_xadd(input: &str) -> IResult<&str, RedisCommand> {
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$4\r\nXADD\r\n")(input)?;
+
+    // stream key
+    let (input, stream_key) = (parse_resp_string)(input)?;
+
+    // stream ID
+    let (input, id) = (parse_stream_id)(input)?;
+
+    // field-value pairs
+
+    let (input, _) = tag("*")(input)?;
+    let (input, _len) = (length)(input)?; // length eats crlf
+    let (input, _) = tag_no_case("$1\r\n*\r\n")(input)?;
+
+    let (input, field_values) = many0(parse_field_value)(input)?;
+
+    Ok((input, RedisCommand::Xadd(stream_key, id, field_values)))
+}
 pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
     tracing::debug!("Parsing command: {}", input);
     alt((
@@ -527,5 +580,6 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_fullresync,
         parse_rdb,
         parse_wait,
+        parse_xadd,
     ))(input)
 }

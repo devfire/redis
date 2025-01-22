@@ -20,6 +20,36 @@ pub enum RedisCommand {
     Fullresync(String, i16), // master's (master_replid, master_repl_offset)
     Rdb(Vec<u8>),            // RDB file in memory representation
     Wait(usize, usize),
+    Xadd(String, StreamId, Vec<StreamFieldValue>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct StreamFieldValue {
+    pub field: String,
+    pub value: String,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum StreamId {
+    Auto,                    // *
+    Complete(u64, u64),      // milliseconds-sequence
+    MillisecondsOnly(u64),   // milliseconds
+    AutoSequence(u64),       // milliseconds-*
+}
+
+// XADD command parameters
+// XADD mystream * field1 value1 field2 value2
+// https://redis.io/docs/latest/commands/xadd/
+#[derive(Debug, Clone)]
+pub struct XaddCommandParameter {
+    pub key: String,
+    // Both quantities are 64-bit numbers. 
+    // When an ID is auto-generated, the first part is the Unix time in milliseconds of the Redis instance generating the ID. 
+    // The second part is just a sequence number and is used in order to distinguish IDs generated in the same millisecond.
+    // The two parts are separated by a hyphen.
+
+    pub id: StreamId, // Optional ID. If not provided, Redis will generate one.
+    pub field_value_pairs: Vec<StreamFieldValue>,
 }
 
 // REPLCONF parameters
