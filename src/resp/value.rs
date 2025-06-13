@@ -1,9 +1,6 @@
 use bytes::BytesMut;
 use std::io::{Error, ErrorKind};
-use tokio_util::codec::Encoder;
 use tracing::debug;
-
-use super::codec::RespCodec;
 
 /// Represents a RESP value, see [Redis Protocol specification](http://redis.io/topics/protocol).
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -43,11 +40,59 @@ impl RespValue {
     /// Encodes a RespValue into RESP protocol format.
     pub fn encode(&self) -> Vec<u8> {
         let mut buffer = BytesMut::new();
-        let mut codec = RespCodec::new();
-        codec
-            .encode(self.clone(), &mut buffer)
-            .expect("Encoding should not fail");
+        self.encode_to_buffer(&mut buffer);
         buffer.to_vec()
+    }
+
+    /// Encodes a RespValue into the provided buffer.
+    pub fn encode_to_buffer(&self, dst: &mut BytesMut) {
+        match self {
+            RespValue::SimpleString(s) => {
+                dst.extend_from_slice(b"+");
+                dst.extend_from_slice(s.as_bytes());
+                dst.extend_from_slice(b"\r\n");
+            }
+            RespValue::Error(s) => {
+                dst.extend_from_slice(b"-");
+                dst.extend_from_slice(s.as_bytes());
+                dst.extend_from_slice(b"\r\n");
+            }
+            RespValue::Integer(i) => {
+                dst.extend_from_slice(b":");
+                dst.extend_from_slice(i.to_string().as_bytes());
+                dst.extend_from_slice(b"\r\n");
+            }
+            RespValue::BulkString(Some(data)) => {
+                dst.extend_from_slice(b"$");
+                dst.extend_from_slice(data.len().to_string().as_bytes());
+                dst.extend_from_slice(b"\r\n");
+                dst.extend_from_slice(data);
+                dst.extend_from_slice(b"\r\n");
+            }
+            RespValue::BulkString(None) => {
+                dst.extend_from_slice(b"$-1\r\n");
+            }
+            RespValue::Array(arr) => {
+                dst.extend_from_slice(b"*");
+                dst.extend_from_slice(arr.len().to_string().as_bytes());
+                dst.extend_from_slice(b"\r\n");
+                for item in arr {
+                    item.encode_to_buffer(dst);
+                }
+            }
+            RespValue::Null => {
+                dst.extend_from_slice(b"$-1\r\n");
+            }
+            RespValue::NullArray => {
+                dst.extend_from_slice(b"*-1\r\n");
+            }
+            RespValue::Rdb(rdb) => {
+                dst.extend_from_slice(b"$");
+                dst.extend_from_slice(rdb.len().to_string().as_bytes());
+                dst.extend_from_slice(b"\r\n");
+                dst.extend_from_slice(rdb);
+            }
+        }
     }
 
     pub fn to_encoded_string(&self) -> anyhow::Result<String> {
