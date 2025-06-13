@@ -1,5 +1,4 @@
 use std::{
-    num::ParseIntError,
     time::{SystemTime, UNIX_EPOCH},
     usize,
 };
@@ -123,52 +122,48 @@ fn expiry_to_timestamp(expiry: ExpiryOption) -> anyhow::Result<u64> {
 
 fn parse_expire_option(input: &str) -> IResult<&str, SetCommandExpireOption> {
     alt((
-        map_res(
-            tuple((tag_no_case("$2\r\nEX\r\n"), cut(parse_resp_string))),
-            |(_, seconds_str)| {
-                seconds_str
-                    .parse::<u32>()
-                    .map_err(|_: ParseIntError| {
-                        nom::Err::Failure(nom::error::Error::new(
+        // EX seconds
+        |input| {
+            let (input, _) = tag_no_case("$2\r\nEX\r\n")(input)?;
+            let (input, seconds_str) = cut(parse_resp_string)(input)?;
+            
+            match seconds_str.parse::<u32>() {
+                Ok(seconds) => {
+                    match expiry_to_timestamp(ExpiryOption::Seconds(seconds)) {
+                        Ok(timestamp) => Ok((input, SetCommandExpireOption::EX(timestamp as u32))),
+                        Err(_) => Err(nom::Err::Failure(nom::error::Error::new(
                             input,
-                            nom::error::ErrorKind::Digit,
-                        ))
-                    })
-                    .and_then(|seconds| {
-                        expiry_to_timestamp(ExpiryOption::Seconds(seconds))
-                            .map(|timestamp| SetCommandExpireOption::EX(timestamp as u32))
-                            .map_err(|_| {
-                                nom::Err::Failure(nom::error::Error::new(
-                                    input,
-                                    nom::error::ErrorKind::Verify,
-                                ))
-                            })
-                    })
-            },
-        ),
-        map_res(
-            tuple((tag_no_case("$2\r\nPX\r\n"), cut(parse_resp_string))),
-            |(_, milliseconds_str)| {
-                milliseconds_str
-                    .parse::<u64>()
-                    .map_err(|_: ParseIntError| {
-                        nom::Err::Failure(nom::error::Error::new(
+                            nom::error::ErrorKind::Verify,
+                        ))),
+                    }
+                },
+                Err(_) => Err(nom::Err::Failure(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Digit,
+                ))),
+            }
+        },
+        // PX milliseconds
+        |input| {
+            let (input, _) = tag_no_case("$2\r\nPX\r\n")(input)?;
+            let (input, milliseconds_str) = cut(parse_resp_string)(input)?;
+            
+            match milliseconds_str.parse::<u64>() {
+                Ok(milliseconds) => {
+                    match expiry_to_timestamp(ExpiryOption::Milliseconds(milliseconds)) {
+                        Ok(timestamp) => Ok((input, SetCommandExpireOption::PX(timestamp))),
+                        Err(_) => Err(nom::Err::Failure(nom::error::Error::new(
                             input,
-                            nom::error::ErrorKind::Digit,
-                        ))
-                    })
-                    .and_then(|milliseconds| {
-                        expiry_to_timestamp(ExpiryOption::Milliseconds(milliseconds))
-                            .map(SetCommandExpireOption::PX)
-                            .map_err(|_| {
-                                nom::Err::Failure(nom::error::Error::new(
-                                    input,
-                                    nom::error::ErrorKind::Verify,
-                                ))
-                            })
-                    })
-            },
-        ),
+                            nom::error::ErrorKind::Verify,
+                        ))),
+                    }
+                },
+                Err(_) => Err(nom::Err::Failure(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Digit,
+                ))),
+            }
+        },
     ))(input)
 }
 
@@ -192,11 +187,13 @@ fn parse_set_command(input: &str) -> IResult<&str, RedisCommand> {
     let (input, set_get_option) = opt(map(tag_no_case("$3\r\nGET\r\n"), |_| true))(input)?;
 
     // EX seconds | PX milliseconds
-    // let (input, expire_option) = opt(parse_expire_option)(input)?;
-
-    // PROBLEM: opt converts Error to None, so if ex is missing OR ex foo = invalid input, it all looks the same. :(
-    // Something we need to fix still.
-    let (input, expire_option) = opt(parse_expire_option)(input)?;
+    // Handle expiry options: distinguish between missing options vs invalid values
+    let (input, expire_option) = match parse_expire_option(input) {
+        Ok((remaining, option)) => (remaining, Some(option)),
+        Err(nom::Err::Error(_)) => (input, None), // No expiry option present
+        Err(nom::Err::Failure(_)) => return Err(nom::Err::Failure(nom::error::Error::new(input, nom::error::ErrorKind::Digit))), // Invalid expiry value
+        Err(e) => return Err(e), // Other errors
+    };
 
     let set_params = SetCommandParameter {
         key,
@@ -528,4 +525,52 @@ pub fn parse_command(input: &str) -> IResult<&str, RedisCommand> {
         parse_rdb,
         parse_wait,
     ))(input)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_expire_option_valid() {
+        let ex_input = "$2\r\nEX\r\n$2\r\n10\r\n";
+        let ex_result = parse_expire_option(ex_input);
+        assert!(ex_result.is_ok());
+
+        let px_input = "$2\r\nPX\r\n$4\r\n1000\r\n";
+        let px_result = parse_expire_option(px_input);
+        assert!(px_result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_expire_option_invalid() {
+        let ex_input = "$2\r\nEX\r\n$3\r\nfoo\r\n";
+        let ex_result = parse_expire_option(ex_input);
+        assert!(ex_result.is_err());
+
+        let px_input = "$2\r\nPX\r\n$3\r\nbar\r\n";
+        let px_result = parse_expire_option(px_input);
+        assert!(px_result.is_err());
+    }
+
+    #[test]
+    fn test_parse_set_command_with_invalid_expire() {
+        // This should now fail instead of silently ignoring the invalid expire value
+        let input = "*5\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n$2\r\nEX\r\n$3\r\nfoo\r\n";
+        let result = parse_set_command(input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_set_command_scenarios() {
+        // Without expire - should work
+        let input_no_expire = "*3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n";
+        let result_no_expire = parse_set_command(input_no_expire);
+        assert!(result_no_expire.is_ok());
+
+        // With valid expire - should work
+        let input_valid_expire = "*5\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n$2\r\nEX\r\n$2\r\n10\r\n";
+        let result_valid_expire = parse_set_command(input_valid_expire);
+        assert!(result_valid_expire.is_ok());
+    }
 }
