@@ -41,7 +41,11 @@ use rand::{thread_rng, Rng};
 use std::iter;
 // ----------
 
-pub async fn sleeping_task(wait_sleep_tx: mpsc::Sender<i16>, duration: Duration, target_offset: i16) -> JoinHandle<()> {
+pub async fn sleeping_task(
+    wait_sleep_tx: mpsc::Sender<i16>,
+    duration: Duration,
+    target_offset: i16,
+) -> JoinHandle<()> {
     let handle = tokio::spawn(async move {
         tracing::info!("Sleeping thread started.");
         sleep(duration).await;

@@ -89,7 +89,10 @@ impl ReplicationActorHandle {
     /// Returns the number of replicas that are in sync.
     pub async fn get_synced_replica_count(&self, target_offset: i16) -> usize {
         let (send, recv) = oneshot::channel();
-        let msg = ReplicatorActorMessage::GetReplicaCount { respond_to: send, target_offset };
+        let msg = ReplicatorActorMessage::GetReplicaCount {
+            respond_to: send,
+            target_offset,
+        };
 
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the
