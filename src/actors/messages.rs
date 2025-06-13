@@ -155,7 +155,7 @@ impl std::fmt::Debug for ProcessorActorMessage {
                 replica_tx,
                 client_or_replica_tx: _,
                 respond_to: _,
-                wait_sleep_tx: _
+                wait_sleep_tx: _,
             } => {
                 write!(
                     f,

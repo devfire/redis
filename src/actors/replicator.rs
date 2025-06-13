@@ -159,7 +159,6 @@ impl ReplicatorActor {
                 respond_to,
                 target_offset,
             } => {
-
                 tracing::info!("Looking for replicas with offset of {:?}", target_offset);
 
                 // for posterity, this is with inspect:
